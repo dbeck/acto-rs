@@ -1,13 +1,13 @@
 [package]
-name = "actor"
-version = "0.1.0"
+name = "minions"
+version = "0.0.1"
 authors = ["David Beck <david.beck.priv@gmail.com>"]
 license = "MIT/Apache-2.0"
-repository = "https://github.com/dbeck/actor_rs"
-description = "This is an experimental actor model."
+repository = "https://github.com/dbeck/minions_rs"
+description = "Dont't use this package yet. Only a placeholder for my experimental actor library."
 keywords = ["actor", "concurrency"]
 readme = "README.md"
-homepage = "https://github.com/dbeck/actor_rs"
+homepage = "https://github.com/dbeck/minions_rs"
 #documentation = "..."
 
 [dependencies]

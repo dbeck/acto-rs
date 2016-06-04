@@ -1,4 +1,4 @@
-extern crate actor;
+extern crate minions;
 
 fn main() {
   // actor::x::all_tests();
