@@ -1,5 +1,4 @@
 pub mod scheduler;
-pub mod supervisor;
 pub mod worker;
 
 #[cfg(test)]

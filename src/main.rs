@@ -1,6 +1,6 @@
 extern crate minions;
 extern crate lossyq;
-use minions::{scheduler, supervisor, worker};
+use minions::{scheduler, worker};
 use lossyq::spsc::Receiver;
 use lossyq::spsc::Sender;
 use minions::worker::{Request, Reply};
@@ -16,9 +16,7 @@ impl X for S {}
 
 fn main() {
   use std::any::Any;
-
   scheduler::remove_me();
-  let _v = supervisor::new();
   {
     let (_worker, mut sender, _receiver) =
         worker::new(1,1,1,|_state, _receiver : Receiver<Request<i32>>| Reply::Value(1,1,1) );
