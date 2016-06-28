@@ -1,54 +1,50 @@
 extern crate minions;
 extern crate lossyq;
+
 use minions::{scheduler, worker};
 use lossyq::spsc::Receiver;
 use lossyq::spsc::Sender;
 use minions::worker::{Request, Reply};
 
-trait X {
+#[derive(Copy, Clone)]
+struct WorkerState {
+  state : i32,
 }
 
-struct S {
-  a : i32,
-}
+impl worker::Worker for WorkerState {
+  type RequestType = i32;
+  type ReplyType = i32;
 
-impl X for S {}
-
-fn any_test() {
-  use std::any::Any;
-  {
-    let s = S{a:1};
-    let mut v = vec![];
-    v.push(&s as &Any);
-    for i in v {
-      match i.downcast_ref::<S>() {
-        Some(as_s) => {
-          println!("Converted: {:?}",as_s.a);
-        },
-        None => {
-          println!("No conversion");
-        },
+  fn process(
+    &mut self,
+    input: &mut Receiver<Request<Self::RequestType>>,
+    output: &mut Sender<Reply<Self::ReplyType>>) -> worker::Result {
+      for i in input.iter() {
+        match i {
+          worker::Request::Value(v) => {
+            output.put(|x| *x = worker::Reply::Value(0,0,v));
+          }
+          _ => { println!("Unknown value"); }
+        }
       }
-    }
+      worker::Result::Ok
   }
 }
 
 fn main() {
-  any_test();
-  scheduler::remove_me();
-  /*
-  {
-    let (_worker, mut sender, _receiver) =
-        worker::new(1,1,1,|_state, _receiver : Receiver<Request<i32>>| Reply::Value(1,1,1) );
+  let mut state = WorkerState{state:0};
 
-    sender.put(|v| *v = Request::Value(1));
+  let (mut ww, mut comm, mut req_tx, mut rep_rx) = worker::new(
+    String::from("Hello"),
+    2,
+    2,
+    &mut state as &mut worker::Worker<RequestType=i32,ReplyType=i32>);
+
+  req_tx.put(|v| *v = worker::Request::Value(1));
+  ww.process(&mut comm);
+  for r in rep_rx.iter() {
+    println!("{:?}",r);
   }
-  {
-    let (_worker, mut _sender, _receiver) : (
-      worker::Worker<_,_,_,_>,
-      Sender<Request<_>>,
-      Receiver<Reply<i32>>) =
-        worker::new(1,1,1,|_state, _receiver : Receiver<Request<i32>>| Reply::Value(1,1,1) );
-  }
-  */
+
+  scheduler::remove_me();
 }
