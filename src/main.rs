@@ -14,22 +14,8 @@ struct S {
 
 impl X for S {}
 
-fn main() {
+fn any_test() {
   use std::any::Any;
-  scheduler::remove_me();
-  {
-    let (_worker, mut sender, _receiver) =
-        worker::new(1,1,1,|_state, _receiver : Receiver<Request<i32>>| Reply::Value(1,1,1) );
-
-    sender.put(|v| *v = Request::Value(1));
-  }
-  {
-    let (_worker, mut _sender, _receiver) : (
-      worker::Worker<_,_,_,_>,
-      Sender<Request<_>>,
-      Receiver<Reply<i32>>) =
-        worker::new(1,1,1,|_state, _receiver : Receiver<Request<i32>>| Reply::Value(1,1,1) );
-  }
   {
     let s = S{a:1};
     let mut v = vec![];
@@ -45,4 +31,24 @@ fn main() {
       }
     }
   }
+}
+
+fn main() {
+  any_test();
+  scheduler::remove_me();
+  /*
+  {
+    let (_worker, mut sender, _receiver) =
+        worker::new(1,1,1,|_state, _receiver : Receiver<Request<i32>>| Reply::Value(1,1,1) );
+
+    sender.put(|v| *v = Request::Value(1));
+  }
+  {
+    let (_worker, mut _sender, _receiver) : (
+      worker::Worker<_,_,_,_>,
+      Sender<Request<_>>,
+      Receiver<Reply<i32>>) =
+        worker::new(1,1,1,|_state, _receiver : Receiver<Request<i32>>| Reply::Value(1,1,1) );
+  }
+  */
 }

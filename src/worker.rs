@@ -73,12 +73,40 @@ pub enum Request<T: Copy+Send>
 pub enum Reply<T: Copy+Send>
 {
   Empty,                      // no msg
-  Stop(&'static str),         // stop worker
   Error(usize,&'static str),  // msg error
   Ack(usize,usize),           // from-to
-  Value(usize,usize,T)        // value
+  Value(usize,usize,T)        // value from-to
 }
 
+#[derive(Debug)]
+pub enum Result {
+  Ok,
+  Stop,
+}
+
+pub struct MyActor {
+  state : i32,
+}
+
+pub trait Worker {
+  type RequestType : Copy + Send;
+  type ReplyType : Copy + Send;
+
+  fn process(&mut self /*state*/,
+    input: Receiver<Request<Self::RequestType>>,
+    output: Sender<Reply<Self::ReplyType>>) -> Result;
+}
+
+pub trait Filter {
+  type InputType : Copy + Send;
+  type OutputType : Copy + Send;
+
+  fn process(&mut self /*state*/,
+    input: Receiver<Reply<Self::InputType>>,
+    output: Sender<Reply<Self::OutputType>>) -> Result;
+}
+
+/*
 pub struct Worker<State, Req: Copy+Send, Rep: Copy+Send, Fun> {
   input   : Receiver<Request<Req>>,
   output  : Sender<Reply<Rep>>,
@@ -106,6 +134,7 @@ pub fn new<State, Req: Copy+Send, Rep: Copy+Send, F>(
     tx_in,
     rx_out )
 }
+*/
 
 #[cfg(test)]
 mod tests {
