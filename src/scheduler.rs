@@ -1,7 +1,8 @@
 extern crate lossyq;
+use std::thread;
 
 pub struct Scheduler {
-  alma : i32,
+  threads : Vec<thread::JoinHandle<i32>>,
 }
 
 impl Scheduler {
@@ -19,10 +20,15 @@ impl Scheduler {
   // str???
 }
 
-pub fn new() -> Scheduler {
-  Scheduler{
-    alma : 0,
-  }
+pub fn new(_n_threads : usize) -> Scheduler {
+  let mut ret = Scheduler{
+    threads : vec![],
+  };
+  let t = thread::spawn(|| {
+    1 as i32
+    });
+  ret.threads.push(t);
+  ret
 }
 
 
