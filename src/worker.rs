@@ -28,7 +28,7 @@ pub trait Worker {
   type ReplyType : Copy+Send;
 
   fn process(
-    &mut self /*state*/,
+    &mut self,
     input: &mut Receiver<Request<Self::RequestType>>,
     output: &mut Sender<Reply<Self::ReplyType>>) -> Result;
 }
@@ -38,24 +38,21 @@ pub trait Filter {
   type OutputType : Copy+Send;
 
   fn process(
-    &mut self /*state*/,
+    &mut self,
     input: &mut Receiver<Reply<Self::InputType>>,
     output: &mut Sender<Reply<Self::OutputType>>) -> Result;
 }
 
-pub struct WorkerWrap<'a, Req: Copy+Send+'a, Rep: Copy+Send+'a> {
+pub struct WorkerWrap<Req: Copy+Send, Rep: Copy+Send> {
   name        : String,
-  worker      : &'a mut (Worker<RequestType=Req,ReplyType=Rep> +'a),
-}
-
-pub struct WorkerComm<Req: Copy+Send, Rep: Copy+Send> {
+  worker      : Box<Worker<RequestType=Req,ReplyType=Rep>>,
   request_rx  : Receiver<Request<Req>>,
   reply_tx    : Sender<Reply<Rep>>,
 }
 
-impl<'a, Req : Copy+Send, Rep : Copy+Send> WorkerWrap<'a, Req, Rep> {
-  pub fn process(&mut self, comm : &mut WorkerComm<Req,Rep>) -> Result {
-    self.worker.process(&mut comm.request_rx, &mut comm.reply_tx)
+impl<Req : Copy+Send, Rep : Copy+Send> WorkerWrap<Req, Rep> {
+  pub fn process(&mut self) -> Result {
+    self.worker.process(&mut self.request_rx, &mut self.reply_tx)
   }
 }
 
@@ -63,9 +60,8 @@ pub fn new<'a, Req: Copy+Send, Rep: Copy+Send>(
     name            : String,
     request_q_size  : usize,
     reply_q_size    : usize,
-    worker      : &'a mut Worker<RequestType=Req,ReplyType=Rep>) ->
-    ( WorkerWrap<'a, Req, Rep>,
-      WorkerComm<Req,Rep>,
+    worker          : Box<Worker<RequestType=Req,ReplyType=Rep>>) ->
+    ( WorkerWrap<Req, Rep>,
       Sender<Request<Req>>,
       Receiver<Reply<Rep>> )
 {
@@ -75,8 +71,6 @@ pub fn new<'a, Req: Copy+Send, Rep: Copy+Send>(
     WorkerWrap{
       name        : name,
       worker      : worker,
-    },
-    WorkerComm{
       request_rx  : request_rx,
       reply_tx    : reply_tx,
     },

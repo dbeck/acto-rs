@@ -32,19 +32,18 @@ impl worker::Worker for WorkerState {
 }
 
 fn main() {
-  let mut state = WorkerState{state:0};
+  let state: Box<worker::Worker<RequestType=i32,ReplyType=i32>> = Box::new(WorkerState{state:0});
 
-  let (mut ww, mut comm, mut req_tx, mut rep_rx) = worker::new(
-    String::from("Hello"),
-    2,
-    2,
-    &mut state as &mut worker::Worker<RequestType=i32,ReplyType=i32>);
+  let (mut ww, mut req_tx, mut rep_rx) = worker::new( String::from("Hello"), 2, 2, state);
 
   req_tx.put(|v| *v = worker::Request::Value(1));
-  ww.process(&mut comm);
+  req_tx.put(|v| *v = worker::Request::Value(2));
+  ww.process();
   for r in rep_rx.iter() {
     println!("{:?}",r);
   }
 
-  scheduler::remove_me();
+  {
+    let _s = scheduler::new(); 
+  }
 }
