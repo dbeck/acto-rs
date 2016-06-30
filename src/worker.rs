@@ -12,16 +12,6 @@ pub trait Worker {
     output: &mut Sender<Reply<Self::ReplyType>>) -> Result;
 }
 
-pub trait Filter {
-  type InputType : Copy+Send;
-  type OutputType : Copy+Send;
-
-  fn process(
-    &mut self,
-    input: &mut Receiver<Reply<Self::InputType>>,
-    output: &mut Sender<Reply<Self::OutputType>>) -> Result;
-}
-
 pub struct WorkerWrap<Req: Copy+Send, Rep: Copy+Send> {
   name        : String,
   worker      : Box<Worker<RequestType=Req,ReplyType=Rep>>,

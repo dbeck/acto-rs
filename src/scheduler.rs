@@ -25,13 +25,11 @@ pub fn new(_n_threads : usize) -> Scheduler {
   ret
 }
 
-
 #[cfg(test)]
 mod tests {
   use super::*;
 
   #[test]
   fn dummy() {
-    remove_me();
   }
 }
