@@ -3,21 +3,15 @@ use std::thread;
 
 pub struct Scheduler {
   threads : Vec<thread::JoinHandle<i32>>,
+  // free inputs
+  // free outputs
 }
 
 impl Scheduler {
-
-  // start/add thread
-  // "start" loop()
-
-  // stop() "all"
-
-  // spawn "runnable" <- worker/supervisor
-  //  -- add(name,runnable)
-
-  // send msg(name[], msg)
-
-  // str???
+  // add generator
+  // add sink
+  // add worker
+  // add filter
 }
 
 pub fn new(_n_threads : usize) -> Scheduler {
