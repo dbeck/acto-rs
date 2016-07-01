@@ -3,13 +3,13 @@ use self::lossyq::spsc::{Sender, Receiver, channel};
 use super::common::{Request, Reply, Result};
 
 pub trait Worker {
-  type RequestType : Copy+Send;
-  type ReplyType : Copy+Send;
+  type RequestType  : Copy+Send;
+  type ReplyType    : Copy+Send;
 
   fn process(
     &mut self,
-    input: &mut Receiver<Request<Self::RequestType>>,
-    output: &mut Sender<Reply<Self::ReplyType>>) -> Result;
+    input:   &mut Receiver<Request<Self::RequestType>>,
+    output:  &mut Sender<Reply<Self::ReplyType>>) -> Result;
 }
 
 pub struct WorkerWrap<Req: Copy+Send, Rep: Copy+Send> {
