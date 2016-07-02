@@ -34,8 +34,8 @@ pub fn new<'a, Input: Copy+Send, Output: Copy+Send>(
       Sender<Message<Input>>,
       Receiver<Message<Output>> )
 {
-  let (input_tx, input_rx) = channel(input_q_size, Message::Empty);
-  let (output_tx, outpu_rx) = channel(output_q_size, Message::Empty);
+  let (input_tx, input_rx)   = channel(input_q_size, Message::Empty);
+  let (output_tx, output_rx) = channel(output_q_size, Message::Empty);
   (
     FilterWrap{
       name        : name,
@@ -44,7 +44,7 @@ pub fn new<'a, Input: Copy+Send, Output: Copy+Send>(
       output_tx   : output_tx,
     },
     input_tx,
-    outpu_rx
+    output_rx
   )
 }
 
