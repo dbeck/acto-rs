@@ -1,6 +1,6 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
-use super::common::{Request, Reply, Result};
+use super::common::{Message, Result};
 
 pub trait Filter {
   type InputType   : Copy+Send;
@@ -8,15 +8,15 @@ pub trait Filter {
 
   fn process(
     &mut self,
-    input:   &mut Receiver<Reply<Self::InputType>>,
-    output:  &mut Sender<Reply<Self::OutputType>>) -> Result;
+    input:   &mut Receiver<Message<Self::InputType>>,
+    output:  &mut Sender<Message<Self::OutputType>>) -> Result;
 }
 
 pub struct FilterWrap<Input: Copy+Send, Output: Copy+Send> {
   name        : String,
   filter      : Box<Filter<InputType=Input,OutputType=Output>>,
-  input_rx    : Receiver<Reply<Input>>,
-  output_tx   : Sender<Reply<Output>>,
+  input_rx    : Receiver<Message<Input>>,
+  output_tx   : Sender<Message<Output>>,
 }
 
 impl<Input : Copy+Send, Output : Copy+Send> FilterWrap<Input, Output> {
@@ -31,11 +31,11 @@ pub fn new<'a, Input: Copy+Send, Output: Copy+Send>(
     output_q_size   : usize,
     filter          : Box<Filter<InputType=Input,OutputType=Output>>) ->
     ( FilterWrap<Input, Output>,
-      Sender<Reply<Input>>,
-      Receiver<Reply<Output>> )
+      Sender<Message<Input>>,
+      Receiver<Message<Output>> )
 {
-  let (input_tx, input_rx) = channel(input_q_size, Reply::Empty);
-  let (output_tx, outpu_rx) = channel(output_q_size, Reply::Empty);
+  let (input_tx, input_rx) = channel(input_q_size, Message::Empty);
+  let (output_tx, outpu_rx) = channel(output_q_size, Message::Empty);
   (
     FilterWrap{
       name        : name,

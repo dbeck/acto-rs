@@ -1,21 +1,15 @@
 #[derive(Copy,Clone,Debug)]
-pub enum Request<T: Copy+Send>
+pub enum Message<T: Copy+Send>
 {
-  Empty,
-  Value(T)
-}
-
-#[derive(Copy,Clone,Debug)]
-pub enum Reply<T: Copy+Send>
-{
-  Empty,                      // no msg
-  Error(usize,&'static str),  // msg error
+  Empty,                      //
+  Value(T),                   //
   Ack(usize,usize),           // from-to
-  Value(usize,usize,T)        // value from-to
+  Error(usize,&'static str),  // error at
 }
 
 #[derive(Debug)]
 pub enum Result {
   Ok,
   Stop,
+  DelayMs(usize),
 }

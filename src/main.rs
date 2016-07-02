@@ -1,29 +1,29 @@
 extern crate minions;
 extern crate lossyq;
 
-use minions::{scheduler, worker};
+use minions::{scheduler, filter};
 use lossyq::spsc::Receiver;
 use lossyq::spsc::Sender;
 use minions::common;
-use minions::common::{Request, Reply};
+use minions::common::Message;
 
 #[derive(Copy, Clone)]
-struct WorkerState {
+struct FilterState {
   state : i32,
 }
 
-impl worker::Worker for WorkerState {
-  type RequestType = i32;
-  type ReplyType = i32;
+impl filter::Filter for FilterState {
+  type InputType = i32;
+  type OutputType = i32;
 
   fn process(
     &mut self,
-    input: &mut Receiver<Request<Self::RequestType>>,
-    output: &mut Sender<Reply<Self::ReplyType>>) -> common::Result {
+    input: &mut Receiver<Message<Self::InputType>>,
+    output: &mut Sender<Message<Self::OutputType>>) -> common::Result {
       for i in input.iter() {
         match i {
-          Request::Value(v) => {
-            output.put(|x| *x = Reply::Value(0,0,v));
+          Message::Value(v) => {
+            output.put(|x| *x = Message::Value(v));
           }
           _ => { println!("Unknown value"); }
         }
@@ -33,12 +33,12 @@ impl worker::Worker for WorkerState {
 }
 
 fn main() {
-  let wrk: Box<worker::Worker<RequestType=i32,ReplyType=i32>> = Box::new(WorkerState{state:0});
+  let wrk: Box<filter::Filter<InputType=i32,OutputType=i32>> = Box::new(FilterState{state:0});
 
-  let (mut ww, mut req_tx, mut rep_rx) = worker::new( String::from("Hello"), 2, 2, wrk);
+  let (mut ww, mut req_tx, mut rep_rx) = filter::new( String::from("Hello"), 2, 2, wrk);
 
-  req_tx.put(|v| *v = Request::Value(1));
-  req_tx.put(|v| *v = Request::Value(2));
+  req_tx.put(|v| *v = Message::Value(1));
+  req_tx.put(|v| *v = Message::Value(2));
   ww.process();
   for r in rep_rx.iter() {
     println!("{:?}",r);
