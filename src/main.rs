@@ -19,7 +19,7 @@ impl filter::Filter for FilterState {
   fn process(
     &mut self,
     input: &mut Receiver<Message<Self::InputType>>,
-    output: &mut Sender<Message<Self::OutputType>>) -> common::Result {
+    output: &mut Sender<Message<Self::OutputType>>) -> common::Schedule {
       for i in input.iter() {
         match i {
           Message::Value(v) => {
@@ -28,14 +28,14 @@ impl filter::Filter for FilterState {
           _ => { println!("Unknown value"); }
         }
       }
-      common::Result::Ok
+      common::Schedule::Loop
   }
 }
 
 fn main() {
-  let wrk: Box<filter::Filter<InputType=i32,OutputType=i32>> = Box::new(FilterState{state:0});
+  let fl: Box<filter::Filter<InputType=i32,OutputType=i32>> = Box::new(FilterState{state:0});
 
-  let (mut ww, mut req_tx, mut rep_rx) = filter::new( String::from("Hello"), 2, 2, wrk);
+  let (mut ww, mut req_tx, mut rep_rx) = filter::new( String::from("Hello"), 2, 2, fl);
 
   req_tx.put(|v| *v = Message::Value(1));
   req_tx.put(|v| *v = Message::Value(2));

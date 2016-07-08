@@ -1,6 +1,6 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
-use super::common::{Message, Result};
+use super::common::{Message, Schedule};
 
 pub trait YSplit {
   type InputType    : Copy+Send;
@@ -11,7 +11,7 @@ pub trait YSplit {
     &mut self,
     input:   &mut Receiver<Message<Self::InputType>>,
     output_a:  &mut Sender<Message<Self::OutputTypeA>>,
-    output_b:  &mut Sender<Message<Self::OutputTypeB>>) -> Result;
+    output_b:  &mut Sender<Message<Self::OutputTypeB>>) -> Schedule;
 }
 
 pub struct YSplitWrap<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> {
@@ -23,12 +23,12 @@ pub struct YSplitWrap<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> 
 }
 
 impl<Input : Copy+Send, OutputA : Copy+Send, OutputB : Copy+Send> YSplitWrap<Input, OutputA, OutputB> {
-  pub fn process(&mut self) -> Result {
+  pub fn process(&mut self) -> Schedule {
     self.ysplit.process(&mut self.input_rx, &mut self.output_a_tx, &mut self.output_b_tx)
   }
 }
 
-pub fn new<'a, Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send>(
+pub fn new<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send>(
     name              : String,
     input_q_size      : usize,
     output_a_q_size   : usize,

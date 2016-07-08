@@ -1,6 +1,6 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
-use super::common::{Message, Result};
+use super::common::{Message, Schedule};
 
 pub trait YMerge {
   type InputTypeA   : Copy+Send;
@@ -11,7 +11,7 @@ pub trait YMerge {
     &mut self,
     input_a:  &mut Receiver<Message<Self::InputTypeA>>,
     input_b:  &mut Receiver<Message<Self::InputTypeB>>,
-    output:   &mut Sender<Message<Self::OutputType>>) -> Result;
+    output:   &mut Sender<Message<Self::OutputType>>) -> Schedule;
 }
 
 pub struct YMergeWrap<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> {
@@ -23,12 +23,12 @@ pub struct YMergeWrap<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> {
 }
 
 impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> YMergeWrap<InputA, InputB, Output> {
-  pub fn process(&mut self) -> Result {
+  pub fn process(&mut self) -> Schedule {
     self.ymerge.process(&mut self.input_a_rx, &mut self.input_b_rx, &mut self.output_tx)
   }
 }
 
-pub fn new<'a, InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send>(
+pub fn new<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send>(
     name             : String,
     input_a_q_size   : usize,
     input_b_q_size   : usize,

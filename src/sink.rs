@@ -1,13 +1,13 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
-use super::common::{Message, Result};
+use super::common::{Message, Schedule};
 
 pub trait Sink {
   type InputType : Copy+Send;
 
   fn process(
     &mut self,
-    input: &mut Receiver<Message<Self::InputType>>) -> Result;
+    input: &mut Receiver<Message<Self::InputType>>) -> Schedule;
 }
 
 pub struct SinkWrap<Input: Copy+Send> {
@@ -17,12 +17,12 @@ pub struct SinkWrap<Input: Copy+Send> {
 }
 
 impl<Input : Copy+Send> SinkWrap<Input> {
-  pub fn process(&mut self) -> Result {
+  pub fn process(&mut self) -> Schedule {
     self.sink.process(&mut self.input_rx)
   }
 }
 
-pub fn new<'a, Input: Copy+Send>(
+pub fn new<Input: Copy+Send>(
     name            : String,
     input_q_size    : usize,
     sink            : Box<Sink<InputType=Input>>) ->

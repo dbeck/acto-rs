@@ -1,13 +1,13 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
-use super::common::{Message, Result};
+use super::common::{Message, Schedule};
 
 pub trait Source {
   type OutputType : Copy+Send;
 
   fn process(
     &mut self,
-    output: &mut Sender<Message<Self::OutputType>>) -> Result;
+    output: &mut Sender<Message<Self::OutputType>>) -> Schedule;
 }
 
 pub struct SourceWrap<Output: Copy+Send> {
@@ -17,12 +17,12 @@ pub struct SourceWrap<Output: Copy+Send> {
 }
 
 impl<Output : Copy+Send> SourceWrap<Output> {
-  pub fn process(&mut self) -> Result {
+  pub fn process(&mut self) -> Schedule {
     self.source.process(&mut self.output_tx)
   }
 }
 
-pub fn new<'a, Output: Copy+Send>(
+pub fn new<Output: Copy+Send>(
     name            : String,
     output_q_size   : usize,
     source          : Box<Source<OutputType=Output>>) ->

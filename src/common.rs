@@ -8,8 +8,10 @@ pub enum Message<T: Copy+Send>
 }
 
 #[derive(Debug)]
-pub enum Result {
-  Ok,
+pub enum Schedule {
+  Loop,
+  OnMessage,
+  EndPlusMs(usize),
+  StartPlusMs(usize),
   Stop,
-  DelayMs(usize),
 }

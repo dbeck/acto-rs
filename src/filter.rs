@@ -1,6 +1,6 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
-use super::common::{Message, Result};
+use super::common::{Message, Schedule};
 
 pub trait Filter {
   type InputType   : Copy+Send;
@@ -9,7 +9,7 @@ pub trait Filter {
   fn process(
     &mut self,
     input:   &mut Receiver<Message<Self::InputType>>,
-    output:  &mut Sender<Message<Self::OutputType>>) -> Result;
+    output:  &mut Sender<Message<Self::OutputType>>) -> Schedule;
 }
 
 pub struct FilterWrap<Input: Copy+Send, Output: Copy+Send> {
@@ -20,12 +20,12 @@ pub struct FilterWrap<Input: Copy+Send, Output: Copy+Send> {
 }
 
 impl<Input : Copy+Send, Output : Copy+Send> FilterWrap<Input, Output> {
-  pub fn process(&mut self) -> Result {
+  pub fn process(&mut self) -> Schedule {
     self.filter.process(&mut self.input_rx, &mut self.output_tx)
   }
 }
 
-pub fn new<'a, Input: Copy+Send, Output: Copy+Send>(
+pub fn new<Input: Copy+Send, Output: Copy+Send>(
     name            : String,
     input_q_size    : usize,
     output_q_size   : usize,

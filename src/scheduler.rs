@@ -1,20 +1,37 @@
 extern crate lossyq;
 use std::thread;
 
+/*
+pub enum Schedule {
+  Loop,
+  OnMessage,
+  Stop,
+  EndPlusMs(usize),
+  StartPlusMs(usize),
+}
+*/
+
 pub struct Scheduler {
   threads : Vec<thread::JoinHandle<i32>>,
-  // free inputs
-  // free outputs
+  // looping Thread
+  // - list, push back
+
+  // on msg Thread
+  // - map: ["name/type"] -> [ptr list]
+
+  // scheduled Thread
+  // - sorted multi map: [run_at] -> [ptr list]
 }
 
 impl Scheduler {
-  // add generator
+  // add source
   // add sink
-  // add worker
   // add filter
+  // add ysplit
+  // add ymerge
 }
 
-pub fn new(_n_threads : usize) -> Scheduler {
+pub fn new() -> Scheduler {
   let mut ret = Scheduler{
     threads : vec![],
   };
