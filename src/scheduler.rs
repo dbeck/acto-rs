@@ -1,13 +1,14 @@
 extern crate lossyq;
 use std::thread;
+// use super::task::{Task};
 
 /*
 pub enum Schedule {
   Loop,
   OnMessage,
   Stop,
-  EndPlusMs(usize),
-  StartPlusMs(usize),
+  EndPlusUSec(usize),
+  StartPlusUSec(usize),
 }
 */
 

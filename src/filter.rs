@@ -1,6 +1,7 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
 use super::common::{Message, Schedule};
+// use super::task::{Task};
 
 pub trait Filter {
   type InputType   : Copy+Send;

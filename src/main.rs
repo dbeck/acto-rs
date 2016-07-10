@@ -45,6 +45,6 @@ fn main() {
   }
 
   {
-    let _s = scheduler::new(1);
+    let _s = scheduler::new();
   }
 }

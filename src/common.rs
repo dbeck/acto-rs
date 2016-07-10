@@ -11,7 +11,7 @@ pub enum Message<T: Copy+Send>
 pub enum Schedule {
   Loop,
   OnMessage,
-  EndPlusMs(usize),
-  StartPlusMs(usize),
+  EndPlusUSec(usize),
+  StartPlusUSec(usize),
   Stop,
 }
