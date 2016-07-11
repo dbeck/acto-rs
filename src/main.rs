@@ -39,7 +39,7 @@ fn main() {
 
   req_tx.put(|v| *v = Message::Value(1));
   req_tx.put(|v| *v = Message::Value(2));
-  ww.process();
+  ww.execute();
   for r in rep_rx.iter() {
     println!("{:?}",r);
   }
