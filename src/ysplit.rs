@@ -1,7 +1,9 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
 use super::common::{Message, Schedule};
-use super::task::Task;
+use super::channel_id::{Id, Direction};
+use super::task::{Task};
+use super::channel_id;
 
 pub trait YSplit {
   type InputType    : Copy+Send;
@@ -10,15 +12,15 @@ pub trait YSplit {
 
   fn process(
     &mut self,
-    input:   &mut Receiver<Message<Self::InputType>>,
+    input:     &mut Receiver<Message<Self::InputType>>,
     output_a:  &mut Sender<Message<Self::OutputTypeA>>,
     output_b:  &mut Sender<Message<Self::OutputTypeB>>) -> Schedule;
 }
 
 pub struct YSplitWrap<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> {
   name          : String,
-  input_names   : Vec<String>,
-  output_names  : Vec<String>,
+  input_names   : Vec<Id>,
+  output_names  : Vec<Id>,
   ysplit        : Box<YSplit<InputType=Input, OutputTypeA=OutputA, OutputTypeB=OutputB>>,
   input_rx      : Receiver<Message<Input>>,
   output_a_tx   : Sender<Message<OutputA>>,
@@ -33,9 +35,9 @@ impl<Input : Copy+Send, OutputA : Copy+Send, OutputB : Copy+Send> Task for YSpli
       &mut self.output_b_tx
     )
   }
-  fn name(&self)         -> &String      { &self.name }
-  fn input_names(&self)  -> &Vec<String> { &self.input_names }
-  fn output_names(&self) -> &Vec<String> { &self.output_names }
+  fn name(&self)         -> &String   { &self.name }
+  fn input_names(&self)  -> &Vec<Id>  { &self.input_names }
+  fn output_names(&self) -> &Vec<Id>  { &self.output_names }
 }
 
 pub fn new<Input: 'static+Copy+Send, OutputA: 'static+Copy+Send, OutputB: 'static+Copy+Send>(
@@ -55,9 +57,11 @@ pub fn new<Input: 'static+Copy+Send, OutputA: 'static+Copy+Send, OutputB: 'stati
   (
     Box::new(
       YSplitWrap{
-        name          : name,
-        input_names   : vec![],
-        output_names  : vec![],
+        name          : name.clone(),
+        input_names   : vec![channel_id::new(name.clone(), Direction::In, 0), ],
+        output_names  : vec![
+          channel_id::new(name.clone(), Direction::Out, 0),
+          channel_id::new(name.clone(), Direction::Out, 1), ],
         ysplit        : ysplit,
         input_rx      : input_rx,
         output_a_tx   : output_a_tx,

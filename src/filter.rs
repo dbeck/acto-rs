@@ -1,7 +1,9 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
 use super::common::{Message, Schedule};
-use super::task::Task;
+use super::channel_id::{Id, Direction};
+use super::task::{Task};
+use super::channel_id;
 
 pub trait Filter {
   type InputType   : Copy+Send;
@@ -15,8 +17,8 @@ pub trait Filter {
 
 struct FilterWrap<Input: Copy+Send, Output: Copy+Send> {
   name         : String,
-  input_names  : Vec<String>,
-  output_names : Vec<String>,
+  input_names  : Vec<Id>,
+  output_names : Vec<Id>,
   filter       : Box<Filter<InputType=Input,OutputType=Output>>,
   input_rx     : Receiver<Message<Input>>,
   output_tx    : Sender<Message<Output>>,
@@ -29,9 +31,9 @@ impl<Input: Copy+Send, Output: Copy+Send> Task for FilterWrap<Input,Output> {
       &mut self.output_tx
     )
   }
-  fn name(&self)         -> &String      { &self.name }
-  fn input_names(&self)  -> &Vec<String> { &self.input_names }
-  fn output_names(&self) -> &Vec<String> { &self.output_names }
+  fn name(&self)         -> &String    { &self.name }
+  fn input_names(&self)  -> &Vec<Id>   { &self.input_names }
+  fn output_names(&self) -> &Vec<Id>   { &self.output_names }
 }
 
 pub fn new<Input: 'static+Copy+Send, Output: 'static+Copy+Send>(
@@ -48,12 +50,12 @@ pub fn new<Input: 'static+Copy+Send, Output: 'static+Copy+Send>(
   (
     Box::new(
       FilterWrap{
-        name         : name,
-        input_names  : vec![],
-        output_names : vec![],
-        filter       : filter,
-        input_rx     : input_rx,
-        output_tx    : output_tx,
+        name          : name.clone(),
+        input_names   : vec![channel_id::new(name.clone(), Direction::In, 0),],
+        output_names  : vec![channel_id::new(name.clone(), Direction::Out, 0),],
+        filter        : filter,
+        input_rx      : input_rx,
+        output_tx     : output_tx,
       }
     ),
     input_tx,

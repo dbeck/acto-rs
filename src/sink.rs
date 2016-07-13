@@ -1,7 +1,9 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
 use super::common::{Message, Schedule};
-use super::task::Task;
+use super::channel_id::{Id, Direction};
+use super::task::{Task};
+use super::channel_id;
 
 pub trait Sink {
   type InputType : Copy+Send;
@@ -13,8 +15,8 @@ pub trait Sink {
 
 struct SinkWrap<Input: Copy+Send> {
   name         : String,
-  input_names  : Vec<String>,
-  output_names : Vec<String>,
+  input_names  : Vec<Id>,
+  output_names : Vec<Id>,
   sink         : Box<Sink<InputType=Input>>,
   input_rx     : Receiver<Message<Input>>,
 }
@@ -23,9 +25,9 @@ impl<Input: Copy+Send> Task for SinkWrap<Input> {
   fn execute(&mut self) -> Schedule {
     self.sink.process(&mut self.input_rx)
   }
-  fn name(&self)         -> &String      { &self.name }
-  fn input_names(&self)  -> &Vec<String> { &self.input_names }
-  fn output_names(&self) -> &Vec<String> { &self.output_names }
+  fn name(&self)         -> &String    { &self.name }
+  fn input_names(&self)  -> &Vec<Id>   { &self.input_names }
+  fn output_names(&self) -> &Vec<Id>   { &self.output_names }
 }
 
 pub fn new<Input: 'static+Copy+Send>(
@@ -35,16 +37,15 @@ pub fn new<Input: 'static+Copy+Send>(
     ( Box<Task>,
       Sender<Message<Input>> )
 {
-  // TODO ???? How to glue this with the sender ????
   let (input_tx, input_rx) = channel(input_q_size, Message::Empty);
   (
     Box::new(
       SinkWrap{
-        name        : name,
-        input_names  : vec![],
-        output_names : vec![],
-        sink        : sink,
-        input_rx    : input_rx,
+        name          : name.clone(),
+        input_names   : vec![channel_id::new(name.clone(), Direction::In, 0),],
+        output_names  : vec![],
+        sink          : sink,
+        input_rx      : input_rx,
       }
     ),
     input_tx

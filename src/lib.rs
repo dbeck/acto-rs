@@ -6,6 +6,7 @@ pub mod ymerge;
 pub mod sink;
 pub mod task;
 pub mod common;
+pub mod channel_id;
 
 #[cfg(test)]
 mod tests {
