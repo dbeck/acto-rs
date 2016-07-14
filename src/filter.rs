@@ -1,7 +1,7 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
 use super::common::{Message, Schedule};
-use super::channel_id::{Id, Direction};
+use super::identified_receiver::{IdentifiedReceiver};
 use super::task::{Task};
 use super::channel_id;
 
@@ -17,49 +17,46 @@ pub trait Filter {
 
 struct FilterWrap<Input: Copy+Send, Output: Copy+Send> {
   name         : String,
-  input_names  : Vec<Id>,
-  output_names : Vec<Id>,
   filter       : Box<Filter<InputType=Input,OutputType=Output>>,
-  input_rx     : Receiver<Message<Input>>,
+  input_rx     : Option<IdentifiedReceiver<Input>>,
   output_tx    : Sender<Message<Output>>,
+  output_rx    : Option<IdentifiedReceiver<Output>>,
 }
 
 impl<Input: Copy+Send, Output: Copy+Send> Task for FilterWrap<Input,Output> {
   fn execute(&mut self) -> Schedule {
-    self.filter.process(
-      &mut self.input_rx,
-      &mut self.output_tx
-    )
+    match &mut self.input_rx {
+      &mut Some(ref mut identified) => {
+        self.filter.process(
+          &mut identified.input,
+          &mut self.output_tx
+        )
+      },
+      _ => Schedule::EndPlusUSec(10_000)
+    }
   }
-  fn name(&self)         -> &String    { &self.name }
-  fn input_names(&self)  -> &Vec<Id>   { &self.input_names }
-  fn output_names(&self) -> &Vec<Id>   { &self.output_names }
+  fn name(&self) -> &String { &self.name }
 }
 
 pub fn new<Input: 'static+Copy+Send, Output: 'static+Copy+Send>(
     name            : String,
-    input_q_size    : usize,
     output_q_size   : usize,
-    filter          : Box<Filter<InputType=Input,OutputType=Output>>) ->
-    ( Box<Task>,
-      Sender<Message<Input>>,
-      Receiver<Message<Output>> )
+    filter          : Box<Filter<InputType=Input,OutputType=Output>>) -> Box<Task>
 {
-  let (input_tx, input_rx)   = channel(input_q_size, Message::Empty);
   let (output_tx, output_rx) = channel(output_q_size, Message::Empty);
-  (
-    Box::new(
-      FilterWrap{
-        name          : name.clone(),
-        input_names   : vec![channel_id::new(name.clone(), Direction::In, 0),],
-        output_names  : vec![channel_id::new(name.clone(), Direction::Out, 0),],
-        filter        : filter,
-        input_rx      : input_rx,
-        output_tx     : output_tx,
-      }
-    ),
-    input_tx,
-    output_rx
+  Box::new(
+    FilterWrap{
+      name        : name.clone(),
+      filter      : filter,
+      input_rx    : None,
+      output_tx   : output_tx,
+      output_rx   : Some(
+        IdentifiedReceiver{
+          id:     channel_id::new(name.clone(), channel_id::Direction::Out, 0),
+          input:  output_rx,
+        }
+      ),
+    }
   )
 }
 

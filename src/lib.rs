@@ -7,6 +7,7 @@ pub mod sink;
 pub mod task;
 pub mod common;
 pub mod channel_id;
+pub mod identified_receiver;
 
 #[cfg(test)]
 mod tests {

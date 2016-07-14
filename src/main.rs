@@ -78,9 +78,9 @@ fn main() {
   let filter_state: Box<filter::Filter<InputType=i32,OutputType=i32>>  = Box::new(FilterState{state:0});
   let sink_state:   Box<sink::Sink<InputType=i32>>                     = Box::new(SinkState{state:0});
 
-  let (mut source_task, mut source_rx)                 = source::new( String::from("Source"), 2, source_state);
-  let (mut filter_task, mut filter_tx, mut filter_rx)  = filter::new( String::from("Filter"), 2, 2, filter_state);
-  let (mut sink_task,   mut sink_tx)                   = sink::new( String::from("Sink"), 2, sink_state);
+  let mut _source_task  = source::new( String::from("Source"), 2, source_state);
+  let mut _filter_task  = filter::new( String::from("Filter"), 2, filter_state);
+  let mut _sink_task    = sink::new( String::from("Sink"), sink_state);
 
   /*
   req_tx.put(|v| *v = Message::Value(1));
