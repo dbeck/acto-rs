@@ -26,6 +26,18 @@ pub struct YMergeWrap<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> {
   output_rx    : Option<IdentifiedReceiver<Output>>,
 }
 
+impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> YMergeWrap<InputA, InputB, Output> {
+  pub fn input_a(&mut self) -> &mut Option<IdentifiedReceiver<InputA>> {
+    &mut self.input_a_rx
+  }
+  pub fn input_b(&mut self) -> &mut Option<IdentifiedReceiver<InputB>> {
+    &mut self.input_b_rx
+  }
+  pub fn output(&mut self) -> &mut Option<IdentifiedReceiver<Output>> {
+    &mut self.output_rx
+  }
+}
+
 impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> Task for YMergeWrap<InputA, InputB, Output> {
   fn execute(&mut self) -> Schedule {
     match &mut self.input_a_rx {
@@ -38,10 +50,10 @@ impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> Task for YMergeWra
               &mut self.output_tx
             )
           },
-          _ => Schedule::EndPlusUSec(10_000)
+          &mut None => Schedule::EndPlusUSec(10_000)
         }
       },
-      _ => Schedule::EndPlusUSec(10_000)
+      &mut None => Schedule::EndPlusUSec(10_000)
     }
   }
   fn name(&self) -> &String { &self.name }
@@ -50,10 +62,11 @@ impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> Task for YMergeWra
 pub fn new<InputA: 'static+Copy+Send, InputB: 'static+Copy+Send, Output: 'static+Copy+Send>(
     name             : String,
     output_q_size    : usize,
-    ymerge           : Box<YMerge<InputTypeA=InputA, InputTypeB=InputB, OutputType=Output>>) -> Box<Task>
+    ymerge           : Box<YMerge<InputTypeA=InputA, InputTypeB=InputB, OutputType=Output>>)
+      -> Box<YMergeWrap<InputA,InputB,Output>>
 {
   let (output_tx,  output_rx)    = channel(output_q_size, Message::Empty);
-  
+
   Box::new(
     YMergeWrap{
       name          : name.clone(),

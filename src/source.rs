@@ -13,11 +13,17 @@ pub trait Source {
     output: &mut Sender<Message<Self::OutputType>>) -> Schedule;
 }
 
-struct SourceWrap<Output: Copy+Send> {
+pub struct SourceWrap<Output: Copy+Send> {
   name       : String,
   source     : Box<Source<OutputType=Output>>,
   output_tx  : Sender<Message<Output>>,
   output_rx  : Option<IdentifiedReceiver<Output>>,
+}
+
+impl<Output: Copy+Send> SourceWrap<Output> {
+  pub fn output(&mut self) -> &mut Option<IdentifiedReceiver<Output>> {
+    &mut self.output_rx
+  }
 }
 
 impl<Output: Copy+Send> Task for SourceWrap<Output> {
@@ -30,10 +36,11 @@ impl<Output: Copy+Send> Task for SourceWrap<Output> {
 pub fn new<Output: 'static+Copy+Send>(
     name            : String,
     output_q_size   : usize,
-    source          : Box<Source<OutputType=Output>>) -> Box<Task>
+    source          : Box<Source<OutputType=Output>>)
+      -> Box<SourceWrap<Output>>
 {
   let (output_tx, output_rx) = channel(output_q_size, Message::Empty);
-  
+
   Box::new(
     SourceWrap{
       name        : name.clone(),

@@ -1,7 +1,7 @@
 extern crate lossyq;
 use self::lossyq::spsc::Receiver;
 use super::common::{Message, Schedule};
-use super::identified_receiver;
+use super::identified_receiver::{IdentifiedReceiver};
 use super::task::{Task};
 
 pub trait Sink {
@@ -12,10 +12,16 @@ pub trait Sink {
     input: &mut Receiver<Message<Self::InputType>>) -> Schedule;
 }
 
-struct SinkWrap<Input: Copy+Send> {
+pub struct SinkWrap<Input: Copy+Send> {
   name      : String,
   sink      : Box<Sink<InputType=Input>>,
-  input_rx  : Option<identified_receiver::IdentifiedReceiver<Input>>,
+  input_rx  : Option<IdentifiedReceiver<Input>>,
+}
+
+impl<Input: Copy+Send> SinkWrap<Input> {
+  pub fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
+    &mut self.input_rx
+  }
 }
 
 impl<Input: Copy+Send> Task for SinkWrap<Input> {
@@ -24,7 +30,7 @@ impl<Input: Copy+Send> Task for SinkWrap<Input> {
       &mut Some(ref mut identified) => {
         self.sink.process(&mut identified.input)
       },
-      _ => Schedule::EndPlusUSec(10_000)
+      &mut None => Schedule::EndPlusUSec(10_000)
     }
   }
   fn name(&self) -> &String { &self.name }
@@ -32,7 +38,8 @@ impl<Input: Copy+Send> Task for SinkWrap<Input> {
 
 pub fn new<Input: 'static+Copy+Send>(
     name   : String,
-    sink   : Box<Sink<InputType=Input>>) -> Box<Task>
+    sink   : Box<Sink<InputType=Input>>)
+      -> Box<SinkWrap<Input>>
 {
   Box::new(
     SinkWrap{

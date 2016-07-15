@@ -27,7 +27,19 @@ pub struct YSplitWrap<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> 
   output_b_rx   : Option<IdentifiedReceiver<OutputB>>,
 }
 
-impl<Input : Copy+Send, OutputA : Copy+Send, OutputB : Copy+Send> Task for YSplitWrap<Input, OutputA, OutputB> {
+impl<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> YSplitWrap<Input, OutputA, OutputB> {
+  pub fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
+    &mut self.input_rx
+  }
+  pub fn output_a(&mut self) -> &mut Option<IdentifiedReceiver<OutputA>> {
+    &mut self.output_a_rx
+  }
+  pub fn output_b(&mut self) -> &mut Option<IdentifiedReceiver<OutputB>> {
+    &mut self.output_b_rx
+  }
+}
+
+impl<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> Task for YSplitWrap<Input, OutputA, OutputB> {
   fn execute(&mut self) -> Schedule {
     match &mut self.input_rx {
       &mut Some(ref mut identified) => {
@@ -37,7 +49,7 @@ impl<Input : Copy+Send, OutputA : Copy+Send, OutputB : Copy+Send> Task for YSpli
           &mut self.output_b_tx
         )
       },
-      _ => Schedule::EndPlusUSec(10_000)
+      &mut None => Schedule::EndPlusUSec(10_000)
     }
   }
   fn name(&self) -> &String { &self.name }
@@ -47,7 +59,8 @@ pub fn new<Input: 'static+Copy+Send, OutputA: 'static+Copy+Send, OutputB: 'stati
     name              : String,
     output_a_q_size   : usize,
     output_b_q_size   : usize,
-    ysplit            : Box<YSplit<InputType=Input, OutputTypeA=OutputA, OutputTypeB=OutputB>>) -> Box<Task>
+    ysplit            : Box<YSplit<InputType=Input, OutputTypeA=OutputA, OutputTypeB=OutputB>>)
+      -> Box<YSplitWrap<Input,OutputA,OutputB>>
 {
   let (output_a_tx, output_a_rx) = channel(output_a_q_size, Message::Empty);
   let (output_b_tx, output_b_rx) = channel(output_b_q_size, Message::Empty);
