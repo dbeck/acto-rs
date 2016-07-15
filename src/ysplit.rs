@@ -55,7 +55,7 @@ impl<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> Task for YSplitWr
   fn name(&self) -> &String { &self.name }
 }
 
-pub fn new<Input: 'static+Copy+Send, OutputA: 'static+Copy+Send, OutputB: 'static+Copy+Send>(
+pub fn new<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send>(
     name              : &str,
     output_a_q_size   : usize,
     output_b_q_size   : usize,

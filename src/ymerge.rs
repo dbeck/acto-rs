@@ -59,7 +59,7 @@ impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> Task for YMergeWra
   fn name(&self) -> &String { &self.name }
 }
 
-pub fn new<InputA: 'static+Copy+Send, InputB: 'static+Copy+Send, Output: 'static+Copy+Send>(
+pub fn new<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send>(
     name             : &str,
     output_q_size    : usize,
     ymerge           : Box<YMerge<InputTypeA=InputA, InputTypeB=InputB, OutputType=Output>>)

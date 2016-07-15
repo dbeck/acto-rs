@@ -33,7 +33,7 @@ impl<Output: Copy+Send> Task for SourceWrap<Output> {
   fn name(&self) -> &String { &self.name }
 }
 
-pub fn new<Output: 'static+Copy+Send>(
+pub fn new<Output: Copy+Send>(
     name            : &str,
     output_q_size   : usize,
     source          : Box<Source<OutputType=Output>>)

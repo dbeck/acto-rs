@@ -36,7 +36,7 @@ impl<Input: Copy+Send> Task for SinkWrap<Input> {
   fn name(&self) -> &String { &self.name }
 }
 
-pub fn new<Input: 'static+Copy+Send>(
+pub fn new<Input: Copy+Send>(
     name   : &str,
     sink   : Box<Sink<InputType=Input>>)
       -> Box<SinkWrap<Input>>

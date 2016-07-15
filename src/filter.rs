@@ -47,7 +47,7 @@ impl<Input: Copy+Send, Output: Copy+Send> Task for FilterWrap<Input,Output> {
   fn name(&self) -> &String { &self.name }
 }
 
-pub fn new<Input: 'static+Copy+Send, Output: 'static+Copy+Send>(
+pub fn new<Input: Copy+Send, Output: Copy+Send>(
     name            : &str,
     output_q_size   : usize,
     filter          : Box<Filter<InputType=Input,OutputType=Output>>)
