@@ -37,13 +37,13 @@ impl<Input: Copy+Send> Task for SinkWrap<Input> {
 }
 
 pub fn new<Input: 'static+Copy+Send>(
-    name   : String,
+    name   : &str,
     sink   : Box<Sink<InputType=Input>>)
       -> Box<SinkWrap<Input>>
 {
   Box::new(
     SinkWrap{
-      name          : name.clone(),
+      name          : String::from(name),
       sink          : sink,
       input_rx      : None,
       }

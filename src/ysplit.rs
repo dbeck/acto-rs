@@ -56,7 +56,7 @@ impl<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> Task for YSplitWr
 }
 
 pub fn new<Input: 'static+Copy+Send, OutputA: 'static+Copy+Send, OutputB: 'static+Copy+Send>(
-    name              : String,
+    name              : &str,
     output_a_q_size   : usize,
     output_b_q_size   : usize,
     ysplit            : Box<YSplit<InputType=Input, OutputTypeA=OutputA, OutputTypeB=OutputB>>)
@@ -67,20 +67,20 @@ pub fn new<Input: 'static+Copy+Send, OutputA: 'static+Copy+Send, OutputB: 'stati
 
   Box::new(
     YSplitWrap{
-      name          : name.clone(),
+      name          : String::from(name),
       ysplit        : ysplit,
       input_rx      : None,
       output_a_tx   : output_a_tx,
       output_b_tx   : output_b_tx,
       output_a_rx   : Some(
         IdentifiedReceiver{
-          id:     channel_id::new(name.clone(), channel_id::Direction::Out, 0),
+          id:     channel_id::new(String::from(name), channel_id::Direction::Out, 0),
           input:  output_a_rx,
         }
       ),
       output_b_rx   : Some(
         IdentifiedReceiver{
-          id:     channel_id::new(name.clone(), channel_id::Direction::Out, 1),
+          id:     channel_id::new(String::from(name), channel_id::Direction::Out, 1),
           input:  output_b_rx,
         }
       ),

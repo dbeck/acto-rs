@@ -60,7 +60,7 @@ impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> Task for YMergeWra
 }
 
 pub fn new<InputA: 'static+Copy+Send, InputB: 'static+Copy+Send, Output: 'static+Copy+Send>(
-    name             : String,
+    name             : &str,
     output_q_size    : usize,
     ymerge           : Box<YMerge<InputTypeA=InputA, InputTypeB=InputB, OutputType=Output>>)
       -> Box<YMergeWrap<InputA,InputB,Output>>
@@ -69,14 +69,14 @@ pub fn new<InputA: 'static+Copy+Send, InputB: 'static+Copy+Send, Output: 'static
 
   Box::new(
     YMergeWrap{
-      name          : name.clone(),
+      name          : String::from(name),
       ymerge        : ymerge,
       input_a_rx    : None,
       input_b_rx    : None,
       output_tx     : output_tx,
       output_rx   : Some(
         IdentifiedReceiver{
-          id:     channel_id::new(name.clone(), channel_id::Direction::Out, 0),
+          id:     channel_id::new(String::from(name), channel_id::Direction::Out, 0),
           input:  output_rx,
         }
       ),

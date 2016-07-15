@@ -48,7 +48,7 @@ impl<Input: Copy+Send, Output: Copy+Send> Task for FilterWrap<Input,Output> {
 }
 
 pub fn new<Input: 'static+Copy+Send, Output: 'static+Copy+Send>(
-    name            : String,
+    name            : &str,
     output_q_size   : usize,
     filter          : Box<Filter<InputType=Input,OutputType=Output>>)
       -> Box<FilterWrap<Input,Output>>
@@ -56,13 +56,13 @@ pub fn new<Input: 'static+Copy+Send, Output: 'static+Copy+Send>(
   let (output_tx, output_rx) = channel(output_q_size, Message::Empty);
   Box::new(
     FilterWrap{
-      name        : name.clone(),
+      name        : String::from(name),
       filter      : filter,
       input_rx    : None,
       output_tx   : output_tx,
       output_rx   : Some(
         IdentifiedReceiver{
-          id:     channel_id::new(name.clone(), channel_id::Direction::Out, 0),
+          id:     channel_id::new(String::from(name), channel_id::Direction::Out, 0),
           input:  output_rx,
         }
       ),

@@ -34,7 +34,7 @@ impl<Output: Copy+Send> Task for SourceWrap<Output> {
 }
 
 pub fn new<Output: 'static+Copy+Send>(
-    name            : String,
+    name            : &str,
     output_q_size   : usize,
     source          : Box<Source<OutputType=Output>>)
       -> Box<SourceWrap<Output>>
@@ -43,12 +43,12 @@ pub fn new<Output: 'static+Copy+Send>(
 
   Box::new(
     SourceWrap{
-      name        : name.clone(),
+      name        : String::from(name),
       source      : source,
       output_tx   : output_tx,
       output_rx   : Some(
         IdentifiedReceiver{
-          id:     channel_id::new(name.clone(), channel_id::Direction::Out, 0),
+          id:     channel_id::new(String::from(name), channel_id::Direction::Out, 0),
           input:  output_rx,
         }
       ),
