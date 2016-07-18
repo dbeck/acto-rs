@@ -147,6 +147,8 @@ impl ymerge::YMerge for YMergeState {
   }
 }
 
+// Option<IdentifiedReceiver<Output>>
+
 fn main() {
   let source_state: Box<source::Source<OutputType=i32>>                = Box::new(SourceState{state:0});
   let filter_state: Box<filter::Filter<InputType=i32,OutputType=i32>>  = Box::new(FilterState{state:0});
@@ -156,30 +158,25 @@ fn main() {
   let ymerge_state: Box<ymerge::YMerge<InputTypeA=i32,InputTypeB=f64,OutputType=i32>>
     = Box::new(YMergeState{state_i:0, state_f:0.0});
 
-  let mut source_task  = source::new( "Source", 2, source_state);
-  let mut filter_task  = filter::new( "Filter", 2, filter_state);
+  let (mut _source_task, mut _source_out)  = source::new( "Source", 2, source_state);
+  let (mut filter_task, mut _filter_out)  = filter::new( "Filter", 2, filter_state);
+  let (mut ysplit_task, mut _ysplit_out_a, mut _ysplit_out_b) = ysplit::new( "YSplit", 2, 2, ysplit_state);
+  let (mut ymerge_task, mut _ymerge_out) = ymerge::new( "YMerge", 2, ymerge_state);
   let mut sink_task    = sink::new( "Sink", sink_state);
-  let mut ysplit_task  = ysplit::new( "YSplit", 2, 2, ysplit_state);
-  let mut ymerge_task  = ymerge::new( "YMerge", 2, ymerge_state);
 
   {
-    let _source_out = source_task.output();
     let _filter_in  = filter_task.input();
   }
   {
-    let _filter_out  = filter_task.output();
     let _ysplit_in   = ysplit_task.input();
   }
   {
-    let _ysplit_out_a = ysplit_task.output_a();
     let _ymerge_in_a   = ymerge_task.input_a();
   }
   {
-    let _ysplit_out_b = ysplit_task.output_b();
     let _ymerge_in_b   = ymerge_task.input_b();
   }
   {
-    let _ymerge_out = ymerge_task.output();
     let _sink_in    = sink_task.input();
   }
   {

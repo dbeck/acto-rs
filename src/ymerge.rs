@@ -23,7 +23,6 @@ pub struct YMergeWrap<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> {
   input_a_rx   : Option<IdentifiedReceiver<InputA>>,
   input_b_rx   : Option<IdentifiedReceiver<InputB>>,
   output_tx    : Sender<Message<Output>>,
-  output_rx    : Option<IdentifiedReceiver<Output>>,
 }
 
 impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> YMergeWrap<InputA, InputB, Output> {
@@ -32,9 +31,6 @@ impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> YMergeWrap<InputA,
   }
   pub fn input_b(&mut self) -> &mut Option<IdentifiedReceiver<InputB>> {
     &mut self.input_b_rx
-  }
-  pub fn output(&mut self) -> &mut Option<IdentifiedReceiver<Output>> {
-    &mut self.output_rx
   }
 }
 
@@ -63,24 +59,28 @@ pub fn new<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send>(
     name             : &str,
     output_q_size    : usize,
     ymerge           : Box<YMerge<InputTypeA=InputA, InputTypeB=InputB, OutputType=Output>>)
-      -> Box<YMergeWrap<InputA,InputB,Output>>
+      -> (Box<YMergeWrap<InputA,InputB,Output>>, Box<Option<IdentifiedReceiver<Output>>>)
 {
-  let (output_tx,  output_rx)    = channel(output_q_size, Message::Empty);
+  let (output_tx,  output_rx) = channel(output_q_size, Message::Empty);
 
-  Box::new(
-    YMergeWrap{
-      name          : String::from(name),
-      ymerge        : ymerge,
-      input_a_rx    : None,
-      input_b_rx    : None,
-      output_tx     : output_tx,
-      output_rx   : Some(
+  (
+    Box::new(
+      YMergeWrap{
+        name          : String::from(name),
+        ymerge        : ymerge,
+        input_a_rx    : None,
+        input_b_rx    : None,
+        output_tx     : output_tx,
+      }
+    ),
+    Box::new(
+      Some(
         IdentifiedReceiver{
           id:     channel_id::new(String::from(name), channel_id::Direction::Out, 0),
           input:  output_rx,
         }
-      ),
-    }
+      )
+    )
   )
 }
 

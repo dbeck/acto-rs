@@ -20,15 +20,11 @@ pub struct FilterWrap<Input: Copy+Send, Output: Copy+Send> {
   filter       : Box<Filter<InputType=Input,OutputType=Output>>,
   input_rx     : Option<IdentifiedReceiver<Input>>,
   output_tx    : Sender<Message<Output>>,
-  output_rx    : Option<IdentifiedReceiver<Output>>,
 }
 
 impl<Input: Copy+Send, Output: Copy+Send> FilterWrap<Input,Output> {
   pub fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
     &mut self.input_rx
-  }
-  pub fn output(&mut self) -> &mut Option<IdentifiedReceiver<Output>> {
-    &mut self.output_rx
   }
 }
 
@@ -51,22 +47,27 @@ pub fn new<Input: Copy+Send, Output: Copy+Send>(
     name            : &str,
     output_q_size   : usize,
     filter          : Box<Filter<InputType=Input,OutputType=Output>>)
-      -> Box<FilterWrap<Input,Output>>
+      -> (Box<FilterWrap<Input,Output>>, Box<Option<IdentifiedReceiver<Output>>>)
 {
   let (output_tx, output_rx) = channel(output_q_size, Message::Empty);
-  Box::new(
-    FilterWrap{
-      name        : String::from(name),
-      filter      : filter,
-      input_rx    : None,
-      output_tx   : output_tx,
-      output_rx   : Some(
+
+  (
+    Box::new(
+      FilterWrap{
+        name        : String::from(name),
+        filter      : filter,
+        input_rx    : None,
+        output_tx   : output_tx,
+      }
+    ),
+    Box::new(
+      Some(
         IdentifiedReceiver{
           id:     channel_id::new(String::from(name), channel_id::Direction::Out, 0),
           input:  output_rx,
         }
-      ),
-    }
+      )
+    )
   )
 }
 
