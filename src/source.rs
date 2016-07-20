@@ -1,5 +1,5 @@
 extern crate lossyq;
-use self::lossyq::spsc::{Sender, Receiver, channel};
+use self::lossyq::spsc::{Sender, channel};
 use super::common::{Message, Schedule};
 use super::task::{Task};
 use super::identified_receiver::{IdentifiedReceiver};
@@ -19,7 +19,7 @@ pub struct SourceWrap<Output: Copy+Send> {
   output_tx  : Sender<Message<Output>>,
 }
 
-impl<Output: Copy+Send> Task for SourceWrap<Output> {
+impl<Output: 'static+Copy+Send> Task for SourceWrap<Output> {
   fn execute(&mut self) -> Schedule {
     self.source.process(&mut self.output_tx)
   }

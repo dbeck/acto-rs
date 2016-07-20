@@ -1,9 +1,11 @@
 
+#[derive(Copy,Clone,Debug)]
 pub enum Direction {
   In,
   Out
 }
 
+#[derive(Clone,Debug)]
 pub struct Id {
   task_name  : String,
   dir        : Direction,
