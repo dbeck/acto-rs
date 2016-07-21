@@ -3,6 +3,7 @@ use self::lossyq::spsc::{Sender, Receiver, channel};
 use super::common::{Message, Schedule};
 use super::identified_receiver::{IdentifiedReceiver};
 use super::task::{Task};
+use super::connectable::{ConnectableY};
 use super::channel_id;
 
 pub trait YMerge {
@@ -25,11 +26,15 @@ pub struct YMergeWrap<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> {
   output_tx    : Sender<Message<Output>>,
 }
 
-impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> YMergeWrap<InputA, InputB, Output> {
-  pub fn input_a(&mut self) -> &mut Option<IdentifiedReceiver<InputA>> {
+impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> ConnectableY for YMergeWrap<InputA, InputB, Output> {
+  type InputA = InputA;
+  type InputB = InputB;
+
+  fn input_a(&mut self) -> &mut Option<IdentifiedReceiver<InputA>> {
     &mut self.input_a_rx
   }
-  pub fn input_b(&mut self) -> &mut Option<IdentifiedReceiver<InputB>> {
+
+  fn input_b(&mut self) -> &mut Option<IdentifiedReceiver<InputB>> {
     &mut self.input_b_rx
   }
 }

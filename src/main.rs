@@ -3,12 +3,10 @@ extern crate lossyq;
 
 use lossyq::spsc::Receiver;
 use lossyq::spsc::Sender;
-use minions::{scheduler, source, filter, sink, ymerge, ysplit};
+use minions::{/*scheduler, */ source, filter, sink, ymerge, ysplit};
 use minions::common;
 use minions::common::Message;
-use minions::task::Task;
-use std::collections::HashMap;
-use std::any::Any;
+//use minions::task::Task;
 
 #[derive(Copy, Clone)]
 struct SourceState {
@@ -150,47 +148,18 @@ impl ymerge::YMerge for YMergeState {
   }
 }
 
-// Option<IdentifiedReceiver<Output>>
-
 fn main() {
+  use minions::connectable::{Connectable, ConnectableY};
 
-  let source_state: Box<source::Source<OutputType=i32>>                = Box::new(SourceState{state:0});
-  let filter_state: Box<filter::Filter<InputType=i32,OutputType=i32>>  = Box::new(FilterState{state:0});
-  let sink_state:   Box<sink::Sink<InputType=i32>>                     = Box::new(SinkState{state:0});
-  let ysplit_state: Box<ysplit::YSplit<InputType=i32,OutputTypeA=i32,OutputTypeB=f64>>
-    = Box::new(YSplitState{state_i:0, state_f:0.0});
-  let ymerge_state: Box<ymerge::YMerge<InputTypeA=i32,InputTypeB=f64,OutputType=i32>>
-    = Box::new(YMergeState{state_i:0, state_f:0.0});
+  let (mut _source_task, mut source_out) = source::new( "Source", 2, Box::new(SourceState{state:0}));
+  let (mut filter_task, mut filter_out) = filter::new( "Filter", 2, Box::new(FilterState{state:0}));
+  let (mut ysplit_task, mut ysplit_out_a, mut ysplit_out_b) = ysplit::new( "YSplit", 2, 2, Box::new(YSplitState{state_i:0, state_f:0.0}));
+  let (mut ymerge_task, mut ymerge_out) = ymerge::new( "YMerge", 2, Box::new(YMergeState{state_i:0, state_f:0.0}));
+  let mut sink_task = sink::new( "Sink", Box::new(SinkState{state:0}));
 
-  let (source_task, source_out)  = source::new( "Source", 2, source_state);
-  let (mut filter_task, mut _filter_out)  = filter::new( "Filter", 2, filter_state);
-  let (mut ysplit_task, mut _ysplit_out_a, mut _ysplit_out_b) = ysplit::new( "YSplit", 2, 2, ysplit_state);
-  let (mut ymerge_task, mut _ymerge_out) = ymerge::new( "YMerge", 2, ymerge_state);
-  let mut sink_task    = sink::new( "Sink", sink_state);
-
-  let mut receivers : HashMap<String, Box<Any>> = HashMap::new();
-
-  receivers.insert(source_task.name().clone(), Box::new(*source_out));
-
-  {
-    let _filter_in  = filter_task.input();
-  }
-  {
-    let _ysplit_in   = ysplit_task.input();
-  }
-  {
-    let _ymerge_in_a   = ymerge_task.input_a();
-  }
-  {
-    let _ymerge_in_b   = ymerge_task.input_b();
-  }
-  {
-    let _sink_in    = sink_task.input();
-  }
-  {
-    let mut s = scheduler::new();
-    let ss2: Box<source::Source<OutputType=i32>> = Box::new(SourceState{state:0});
-    let (t, o)  = source::new( "Source", 2, ss2);
-    s.add_source(t,o);
-  }
+  filter_task.connect(&mut source_out).unwrap();
+  ysplit_task.connect(&mut filter_out).unwrap();
+  ymerge_task.connect_a(&mut ysplit_out_a).unwrap();
+  ymerge_task.connect_b(&mut ysplit_out_b).unwrap();
+  sink_task.connect(&mut ymerge_out).unwrap();
 }

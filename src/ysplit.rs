@@ -3,6 +3,7 @@ use self::lossyq::spsc::{Sender, Receiver, channel};
 use super::common::{Message, Schedule};
 use super::identified_receiver::{IdentifiedReceiver};
 use super::task::{Task};
+use super::connectable::{Connectable};
 use super::channel_id;
 
 pub trait YSplit {
@@ -25,8 +26,10 @@ pub struct YSplitWrap<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> 
   output_b_tx   : Sender<Message<OutputB>>,
 }
 
-impl<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> YSplitWrap<Input, OutputA, OutputB> {
-  pub fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
+impl<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> Connectable for YSplitWrap<Input, OutputA, OutputB> {
+  type Input = Input;
+
+  fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
     &mut self.input_rx
   }
 }

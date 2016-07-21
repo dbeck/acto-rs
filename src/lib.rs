@@ -8,6 +8,7 @@ pub mod task;
 pub mod common;
 pub mod channel_id;
 pub mod identified_receiver;
+pub mod connectable;
 
 #[cfg(test)]
 mod tests {

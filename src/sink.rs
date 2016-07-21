@@ -3,6 +3,7 @@ use self::lossyq::spsc::Receiver;
 use super::common::{Message, Schedule};
 use super::identified_receiver::{IdentifiedReceiver};
 use super::task::{Task};
+use super::connectable::{Connectable};
 
 pub trait Sink {
   type InputType : Copy+Send;
@@ -18,8 +19,10 @@ pub struct SinkWrap<Input: Copy+Send> {
   input_rx  : Option<IdentifiedReceiver<Input>>,
 }
 
-impl<Input: Copy+Send> SinkWrap<Input> {
-  pub fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
+impl<Input: Copy+Send> Connectable for SinkWrap<Input> {
+  type Input = Input;
+
+  fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
     &mut self.input_rx
   }
 }

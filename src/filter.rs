@@ -4,6 +4,7 @@ use super::common::{Message, Schedule};
 use super::identified_receiver::{IdentifiedReceiver};
 use super::task::{Task};
 use super::channel_id;
+use super::connectable::{Connectable};
 
 pub trait Filter {
   type InputType   : Copy+Send;
@@ -22,8 +23,10 @@ pub struct FilterWrap<Input: Copy+Send, Output: Copy+Send> {
   output_tx    : Sender<Message<Output>>,
 }
 
-impl<Input: Copy+Send, Output: Copy+Send> FilterWrap<Input,Output> {
-  pub fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
+impl<Input: Copy+Send, Output: Copy+Send> Connectable for FilterWrap<Input,Output> {
+  type Input = Input;
+
+  fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
     &mut self.input_rx
   }
 }
