@@ -3,10 +3,9 @@ extern crate lossyq;
 
 use lossyq::spsc::Receiver;
 use lossyq::spsc::Sender;
-use minions::{/*scheduler, */ source, filter, sink, ymerge, ysplit};
+use minions::{scheduler, source, filter, sink, ymerge, ysplit};
 use minions::common;
 use minions::common::Message;
-//use minions::task::Task;
 
 #[derive(Copy, Clone)]
 struct SourceState {
@@ -151,7 +150,7 @@ impl ymerge::YMerge for YMergeState {
 fn main() {
   use minions::connectable::{Connectable, ConnectableY};
 
-  let (mut _source_task, mut source_out) = source::new( "Source", 2, Box::new(SourceState{state:0}));
+  let (source_task, mut source_out) = source::new( "Source", 2, Box::new(SourceState{state:0}));
   let (mut filter_task, mut filter_out) = filter::new( "Filter", 2, Box::new(FilterState{state:0}));
   let (mut ysplit_task, mut ysplit_out_a, mut ysplit_out_b) = ysplit::new( "YSplit", 2, 2, Box::new(YSplitState{state_i:0, state_f:0.0}));
   let (mut ymerge_task, mut ymerge_out) = ymerge::new( "YMerge", 2, Box::new(YMergeState{state_i:0, state_f:0.0}));
@@ -162,4 +161,11 @@ fn main() {
   ymerge_task.connect_a(&mut ysplit_out_a).unwrap();
   ymerge_task.connect_b(&mut ysplit_out_b).unwrap();
   sink_task.connect(&mut ymerge_out).unwrap();
+
+  let mut sched = scheduler::new();
+  sched.add_task(source_task);
+  sched.add_task(filter_task);
+  sched.add_task(ysplit_task);
+  sched.add_task(ymerge_task);
+  sched.add_task(sink_task);
 }
