@@ -1,7 +1,6 @@
 extern crate lossyq;
 use self::lossyq::spsc::Receiver;
-use super::common::{Message, Schedule};
-use super::identified_receiver::{IdentifiedReceiver};
+use super::common::{Message, Schedule, IdentifiedReceiver};
 use super::task::{Task};
 use super::connectable::{Connectable};
 

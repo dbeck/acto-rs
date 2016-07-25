@@ -1,10 +1,8 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
-use super::common::{Message, Schedule};
-use super::identified_receiver::{IdentifiedReceiver};
+use super::common::{Message, Schedule, IdentifiedReceiver, Direction, new_id};
 use super::task::{Task};
 use super::connectable::{ConnectableY};
-use super::channel_id;
 
 pub trait YMerge {
   type InputTypeA   : Copy+Send;
@@ -81,7 +79,7 @@ pub fn new<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send>(
     Box::new(
       Some(
         IdentifiedReceiver{
-          id:     channel_id::new(String::from(name), channel_id::Direction::Out, 0),
+          id:     new_id(String::from(name), Direction::Out, 0),
           input:  output_rx,
         }
       )

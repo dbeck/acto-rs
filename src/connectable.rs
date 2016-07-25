@@ -1,4 +1,4 @@
-use super::identified_receiver::IdentifiedReceiver;
+use super::common::IdentifiedReceiver;
 
 fn connect_to<Input: Copy+Send>(me : &mut Option<IdentifiedReceiver<Input>>,
                                 to : &mut Option<IdentifiedReceiver<Input>>)

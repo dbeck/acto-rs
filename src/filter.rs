@@ -1,9 +1,7 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
-use super::common::{Message, Schedule};
-use super::identified_receiver::{IdentifiedReceiver};
+use super::common::{Message, Schedule, IdentifiedReceiver, Direction, new_id};
 use super::task::{Task};
-use super::channel_id;
 use super::connectable::{Connectable};
 
 pub trait Filter {
@@ -66,7 +64,7 @@ pub fn new<Input: Copy+Send, Output: Copy+Send>(
     Box::new(
       Some(
         IdentifiedReceiver{
-          id:     channel_id::new(String::from(name), channel_id::Direction::Out, 0),
+          id:     new_id(String::from(name), Direction::Out, 0),
           input:  output_rx,
         }
       )

@@ -1,10 +1,8 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
-use super::common::{Message, Schedule};
-use super::identified_receiver::{IdentifiedReceiver};
+use super::common::{Message, Schedule, IdentifiedReceiver, Direction, new_id};
 use super::task::{Task};
 use super::connectable::{Connectable};
-use super::channel_id;
 
 pub trait YSplit {
   type InputType    : Copy+Send;
@@ -75,7 +73,7 @@ pub fn new<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send>(
     Box::new(
       Some(
         IdentifiedReceiver{
-          id:     channel_id::new(String::from(name), channel_id::Direction::Out, 0),
+          id:     new_id(String::from(name), Direction::Out, 0),
           input:  output_a_rx,
         }
       )
@@ -83,7 +81,7 @@ pub fn new<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send>(
     Box::new(
       Some(
         IdentifiedReceiver{
-          id:     channel_id::new(String::from(name), channel_id::Direction::Out, 1),
+          id:     new_id(String::from(name), Direction::Out, 1),
           input:  output_b_rx,
         }
       )

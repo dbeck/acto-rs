@@ -6,9 +6,9 @@ pub mod ymerge;
 pub mod sink;
 pub mod task;
 pub mod common;
-pub mod channel_id;
-pub mod identified_receiver;
 pub mod connectable;
+pub mod message_triggered;
+pub mod time_triggered;
 
 #[cfg(test)]
 mod tests {
