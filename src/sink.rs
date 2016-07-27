@@ -14,7 +14,7 @@ pub trait Sink {
 
 pub struct SinkWrap<Input: Copy+Send> {
   name      : String,
-  sink      : Box<Sink<InputType=Input>>,
+  sink      : Box<Sink<InputType=Input>+Send>,
   input_rx  : Option<IdentifiedReceiver<Input>>,
 }
 
@@ -40,7 +40,7 @@ impl<Input: Copy+Send> Task for SinkWrap<Input> {
 
 pub fn new<Input: Copy+Send>(
     name   : &str,
-    sink   : Box<Sink<InputType=Input>>)
+    sink   : Box<Sink<InputType=Input>+Send>)
       -> Box<SinkWrap<Input>>
 {
   Box::new(

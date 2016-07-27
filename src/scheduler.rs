@@ -7,8 +7,8 @@ use std::collections::VecDeque;
 use std::time::{Instant, Duration};
 
 pub struct Scheduler {
-  threads   : Vec<JoinHandle<i32>>,
-  looping   : VecDeque<Box<Task>>,
+  looper    : JoinHandle<()>,
+  looping   : VecDeque<Box<Task+Send>>,
   //tasks     : HashMap<String, Box<Task>>,
   // looping Thread
   // - list, push back
@@ -23,28 +23,28 @@ pub struct Scheduler {
 
 impl Scheduler {
 
-  pub fn add_task(&mut self, task : Box<Task>)
+  pub fn add_task(&mut self, task : Box<Task+Send>)
   {
     //use super::task::Task;
     //let n = task.name().clone();
     //self.tasks.insert(n, task);
     //self.looping.push_back(task);
     let plus_10us = Instant::now() + Duration::new(0,1000);
-    self.timed.add(plus_10us, task);
+    // self.timed.add(plus_10us, task);
   }
+}
+
+fn looper_entry() {
+
 }
 
 pub fn new() -> Scheduler {
   let mut ret = Scheduler{
-    threads    : vec![],
+    looper     : spawn(|| { looper_entry(); }),
     looping    : VecDeque::new(),
     //tasks      : HashMap::new(),
     timed      : time_triggered::new(),
   };
-  let t = spawn(|| {
-    1 as i32
-    });
-  ret.threads.push(t);
   ret
 }
 

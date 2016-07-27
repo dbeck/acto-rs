@@ -16,7 +16,7 @@ pub trait Filter {
 
 pub struct FilterWrap<Input: Copy+Send, Output: Copy+Send> {
   name         : String,
-  filter       : Box<Filter<InputType=Input,OutputType=Output>>,
+  filter       : Box<Filter<InputType=Input,OutputType=Output>+Send>,
   input_rx     : Option<IdentifiedReceiver<Input>>,
   output_tx    : Sender<Message<Output>>,
 }
@@ -47,7 +47,7 @@ impl<Input: Copy+Send, Output: Copy+Send> Task for FilterWrap<Input,Output> {
 pub fn new<Input: Copy+Send, Output: Copy+Send>(
     name            : &str,
     output_q_size   : usize,
-    filter          : Box<Filter<InputType=Input,OutputType=Output>>)
+    filter          : Box<Filter<InputType=Input,OutputType=Output>+Send>)
       -> (Box<FilterWrap<Input,Output>>, Box<Option<IdentifiedReceiver<Output>>>)
 {
   let (output_tx, output_rx) = channel(output_q_size, Message::Empty);

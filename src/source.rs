@@ -13,7 +13,7 @@ pub trait Source {
 
 pub struct SourceWrap<Output: Copy+Send> {
   name       : String,
-  source     : Box<Source<OutputType=Output>>,
+  source     : Box<Source<OutputType=Output>+Send>,
   output_tx  : Sender<Message<Output>>,
 }
 
@@ -27,7 +27,7 @@ impl<Output: 'static+Copy+Send> Task for SourceWrap<Output> {
 pub fn new<Output: Copy+Send>(
     name            : &str,
     output_q_size   : usize,
-    source          : Box<Source<OutputType=Output>>)
+    source          : Box<Source<OutputType=Output>+Send>)
       -> (Box<SourceWrap<Output>>, Box<Option<IdentifiedReceiver<Output>>>)
 {
   let (output_tx, output_rx) = channel(output_q_size, Message::Empty);

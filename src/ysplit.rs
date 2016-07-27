@@ -18,7 +18,7 @@ pub trait YSplit {
 
 pub struct YSplitWrap<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> {
   name          : String,
-  ysplit        : Box<YSplit<InputType=Input, OutputTypeA=OutputA, OutputTypeB=OutputB>>,
+  ysplit        : Box<YSplit<InputType=Input, OutputTypeA=OutputA, OutputTypeB=OutputB>+Send>,
   input_rx      : Option<IdentifiedReceiver<Input>>,
   output_a_tx   : Sender<Message<OutputA>>,
   output_b_tx   : Sender<Message<OutputB>>,
@@ -52,7 +52,7 @@ pub fn new<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send>(
     name              : &str,
     output_a_q_size   : usize,
     output_b_q_size   : usize,
-    ysplit            : Box<YSplit<InputType=Input, OutputTypeA=OutputA, OutputTypeB=OutputB>>)
+    ysplit            : Box<YSplit<InputType=Input, OutputTypeA=OutputA, OutputTypeB=OutputB>+Send>)
       -> (Box<YSplitWrap<Input,OutputA,OutputB>>,
           Box<Option<IdentifiedReceiver<OutputA>>>,
           Box<Option<IdentifiedReceiver<OutputB>>>)

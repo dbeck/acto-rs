@@ -18,7 +18,7 @@ pub trait YMerge {
 
 pub struct YMergeWrap<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> {
   name         : String,
-  ymerge       : Box<YMerge<InputTypeA=InputA, InputTypeB=InputB, OutputType=Output>>,
+  ymerge       : Box<YMerge<InputTypeA=InputA, InputTypeB=InputB, OutputType=Output>+Send>,
   input_a_rx   : Option<IdentifiedReceiver<InputA>>,
   input_b_rx   : Option<IdentifiedReceiver<InputB>>,
   output_tx    : Sender<Message<Output>>,
@@ -61,7 +61,7 @@ impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> Task for YMergeWra
 pub fn new<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send>(
     name             : &str,
     output_q_size    : usize,
-    ymerge           : Box<YMerge<InputTypeA=InputA, InputTypeB=InputB, OutputType=Output>>)
+    ymerge           : Box<YMerge<InputTypeA=InputA, InputTypeB=InputB, OutputType=Output>+Send>)
       -> (Box<YMergeWrap<InputA,InputB,Output>>, Box<Option<IdentifiedReceiver<Output>>>)
 {
   let (output_tx,  output_rx) = channel(output_q_size, Message::Empty);
