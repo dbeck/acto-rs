@@ -1,8 +1,8 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
-use super::common::{Message, Schedule, IdentifiedReceiver, Direction, new_id};
-use super::task::{Task};
-use super::connectable::{ConnectableN};
+use super::super::common::{Message, Schedule, IdentifiedReceiver, Direction, new_id};
+use super::super::task::{Task};
+use super::super::connectable::{ConnectableN};
 
 pub trait Gather {
   type InputType   : Copy+Send;

@@ -1,8 +1,8 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
-use super::common::{Message, Schedule, IdentifiedReceiver, Direction, new_id};
-use super::task::{Task};
-use super::connectable::{Connectable};
+use super::super::common::{Message, Schedule, IdentifiedReceiver, Direction, new_id};
+use super::super::task::{Task};
+use super::super::connectable::{Connectable};
 
 pub trait Scatter {
   type InputType   : Copy+Send;

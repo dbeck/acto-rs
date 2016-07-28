@@ -3,7 +3,8 @@ extern crate lossyq;
 
 use lossyq::spsc::Receiver;
 use lossyq::spsc::Sender;
-use minions::{scheduler, source, filter, sink, ymerge, ysplit};
+use minions::scheduler;
+use minions::elem::{source, filter, sink, ymerge, ysplit};
 use minions::common;
 use minions::common::Message;
 

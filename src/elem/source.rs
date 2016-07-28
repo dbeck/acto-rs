@@ -1,7 +1,7 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, channel};
-use super::common::{Message, Schedule, IdentifiedReceiver, Direction, new_id};
-use super::task::{Task};
+use super::super::common::{Message, Schedule, IdentifiedReceiver, Direction, new_id};
+use super::super::task::{Task};
 
 pub trait Source {
   type OutputType : Copy+Send;
