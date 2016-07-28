@@ -109,3 +109,31 @@ pub trait ConnectableN {
     disconnect_from(self.input(n), other)
   }
 }
+
+pub trait ConnectableYN {
+  type InputA: Copy+Send;
+  type InputB: Copy+Send;
+
+  fn input_a(&mut self, n: usize) -> &mut Option<IdentifiedReceiver<Self::InputA>>;
+  fn input_b(&mut self, n: usize) -> &mut Option<IdentifiedReceiver<Self::InputB>>;
+
+  fn connect_a(&mut self, n: usize, other: &mut Option<IdentifiedReceiver<Self::InputA>>)
+      -> Result<(),String> {
+    connect_to(self.input_a(n), other)
+  }
+
+  fn connect_b(&mut self, n: usize, other: &mut Option<IdentifiedReceiver<Self::InputB>>)
+      -> Result<(),String> {
+    connect_to(self.input_b(n), other)
+  }
+
+  fn disconnect_a(&mut self, n: usize, other: &mut Option<IdentifiedReceiver<Self::InputA>>)
+      -> Result<(),String> {
+    disconnect_from(self.input_a(n), other)
+  }
+
+  fn disconnect_b(&mut self, n: usize, other: &mut Option<IdentifiedReceiver<Self::InputB>>)
+      -> Result<(),String> {
+    disconnect_from(self.input_b(n), other)
+  }
+}

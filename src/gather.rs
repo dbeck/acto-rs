@@ -10,35 +10,41 @@ pub trait Gather {
 
   fn process(
     &mut self,
-    input:   &mut Vec<Receiver<Message<Self::InputType>>>,
+    input:   Vec<&mut Receiver<Message<Self::InputType>>>,
     output:  &mut Sender<Message<Self::OutputType>>) -> Schedule;
 }
 
 pub struct GatherWrap<Input: Copy+Send, Output: Copy+Send> {
-  name         : String,
-  state        : Box<Gather<InputType=Input,OutputType=Output>+Send>,
-  input_rx     : Vec<Option<IdentifiedReceiver<Input>>>,
-  output_tx    : Sender<Message<Output>>,
+  name          : String,
+  state         : Box<Gather<InputType=Input,OutputType=Output>+Send>,
+  input_rx_vec  : Vec<Option<IdentifiedReceiver<Input>>>,
+  output_tx     : Sender<Message<Output>>,
 }
 
 impl<Input: Copy+Send, Output: Copy+Send> ConnectableN for GatherWrap<Input,Output> {
   type Input = Input;
 
   fn input(&mut self, n: usize) -> &mut Option<IdentifiedReceiver<Input>> {
-    &mut self.input_rx
+    let ret_slice = self.input_rx_vec.as_mut_slice();
+    &mut ret_slice[n]
   }
 }
 
 impl<Input: Copy+Send, Output: Copy+Send> Task for GatherWrap<Input,Output> {
   fn execute(&mut self) -> Schedule {
-    match &mut self.input_rx {
-      &mut Some(ref mut identified) => {
-        self.filter.process(
-          &mut identified.input,
-          &mut self.output_tx
-        )
-      },
-      &mut None => Schedule::EndPlusUSec(10_000)
+    let mut input_vec = vec![];
+    for ch in &mut self.input_rx_vec {
+      match ch {
+        &mut Some(ref mut identified) => {
+          input_vec.push(&mut identified.input);
+        },
+        &mut None => {}
+      }
+    }
+    if input_vec.len() == 0 {
+      Schedule::EndPlusUSec(10_000)
+    } else {
+      self.state.process(input_vec, &mut self.output_tx)
     }
   }
   fn name(&self) -> &String { &self.name }
@@ -47,18 +53,21 @@ impl<Input: Copy+Send, Output: Copy+Send> Task for GatherWrap<Input,Output> {
 pub fn new<Input: Copy+Send, Output: Copy+Send>(
     name            : &str,
     output_q_size   : usize,
-    gather          : Box<Gather<InputType=Input,OutputType=Output>+Send>)
+    gather          : Box<Gather<InputType=Input,OutputType=Output>+Send>,
+    n_channels      : usize)
       -> (Box<GatherWrap<Input,Output>>, Box<Option<IdentifiedReceiver<Output>>>)
 {
   let (output_tx, output_rx) = channel(output_q_size, Message::Empty);
+  let mut inputs = vec![];
+  for _i in 0..n_channels { inputs.push(None); }
 
   (
     Box::new(
       GatherWrap{
-        name        : String::from(name),
-        state       : gather,
-        input_rx    : None,
-        output_tx   : output_tx,
+        name          : String::from(name),
+        state         : gather,
+        input_rx_vec  : inputs,
+        output_tx     : output_tx,
       }
     ),
     Box::new(
