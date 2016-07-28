@@ -20,6 +20,11 @@ pub enum Schedule {
   Stop,
 }
 
+pub trait Task {
+  fn execute(&mut self)  -> Schedule;
+  fn name(&self)         -> &String;
+}
+
 #[derive(Copy,Clone,Debug)]
 pub enum Direction {
   In,

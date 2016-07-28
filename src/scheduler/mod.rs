@@ -1,14 +1,37 @@
 extern crate lossyq;
 
-use super::task::{Task};
-use super::time_triggered;
+mod collector;
+
+use super::common::{Task};
+//use super::time_triggered;
 use std::thread::{spawn, JoinHandle};
 use std::collections::VecDeque;
 use std::time::{Instant, Duration};
+use std::sync::{Arc, Mutex, Condvar};
+
+//
+//
+//let pair = Arc::new((Mutex::new(false), Condvar::new()));
+//let pair2 = pair.clone();
+//
+//// Inside of our lock, spawn a new thread, and then wait for it to start
+//thread::spawn(move|| {
+//    let &(ref lock, ref cvar) = &*pair2;
+//    let mut started = lock.lock().unwrap();
+//    *started = true;
+//    cvar.notify_one();
+//});
+//
+//// wait for the thread to start up
+//let &(ref lock, ref cvar) = &*pair;
+//let mut started = lock.lock().unwrap();
+//while !*started {
+//    started = cvar.wait(started).unwrap();
+//}
 
 pub struct Scheduler {
-  looper    : JoinHandle<()>,
-  looping   : VecDeque<Box<Task+Send>>,
+  //looper    : JoinHandle<()>,
+  //looping   : VecDeque<Box<Task+Send>>,
   //tasks     : HashMap<String, Box<Task>>,
   // looping Thread
   // - list, push back
@@ -18,7 +41,7 @@ pub struct Scheduler {
 
   // scheduled Thread
   // - sorted multi map: [run_at] -> [ptr list]
-  timed : time_triggered::TimeTriggered,
+  //timed : time_triggered::TimeTriggered,
 }
 
 impl Scheduler {
@@ -62,10 +85,10 @@ fn looper_entry() {
 
 pub fn new() -> Scheduler {
   let mut ret = Scheduler{
-    looper     : spawn(|| { looper_entry(); }),
-    looping    : VecDeque::new(),
-    //tasks      : HashMap::new(),
-    timed      : time_triggered::new(),
+    //looper     : spawn(|| { looper_entry(); }),
+    //looping    : VecDeque::new(),
+    ////tasks      : HashMap::new(),
+    //timed      : time_triggered::new(),
   };
   ret
 }

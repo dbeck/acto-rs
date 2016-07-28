@@ -1,7 +1,6 @@
 extern crate lossyq;
 use self::lossyq::spsc::Receiver;
-use super::super::common::{Message, Schedule, IdentifiedReceiver};
-use super::super::task::{Task};
+use super::super::common::{Task, Message, Schedule, IdentifiedReceiver};
 use super::super::connectable::{Connectable};
 
 pub trait Sink {
