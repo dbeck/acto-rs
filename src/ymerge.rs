@@ -18,7 +18,7 @@ pub trait YMerge {
 
 pub struct YMergeWrap<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> {
   name         : String,
-  ymerge       : Box<YMerge<InputTypeA=InputA, InputTypeB=InputB, OutputType=Output>+Send>,
+  state        : Box<YMerge<InputTypeA=InputA, InputTypeB=InputB, OutputType=Output>+Send>,
   input_a_rx   : Option<IdentifiedReceiver<InputA>>,
   input_b_rx   : Option<IdentifiedReceiver<InputB>>,
   output_tx    : Sender<Message<Output>>,
@@ -43,7 +43,7 @@ impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> Task for YMergeWra
       &mut Some(ref mut identified_a) => {
         match &mut self.input_b_rx {
           &mut Some(ref mut identified_b) => {
-            self.ymerge.process(
+            self.state.process(
               &mut identified_a.input,
               &mut identified_b.input,
               &mut self.output_tx
@@ -70,7 +70,7 @@ pub fn new<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send>(
     Box::new(
       YMergeWrap{
         name          : String::from(name),
-        ymerge        : ymerge,
+        state         : ymerge,
         input_a_rx    : None,
         input_b_rx    : None,
         output_tx     : output_tx,

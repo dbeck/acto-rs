@@ -13,13 +13,13 @@ pub trait Source {
 
 pub struct SourceWrap<Output: Copy+Send> {
   name       : String,
-  source     : Box<Source<OutputType=Output>+Send>,
+  state      : Box<Source<OutputType=Output>+Send>,
   output_tx  : Sender<Message<Output>>,
 }
 
 impl<Output: 'static+Copy+Send> Task for SourceWrap<Output> {
   fn execute(&mut self) -> Schedule {
-    self.source.process(&mut self.output_tx)
+    self.state.process(&mut self.output_tx)
   }
   fn name(&self) -> &String { &self.name }
 }
@@ -36,7 +36,7 @@ pub fn new<Output: Copy+Send>(
     Box::new(
       SourceWrap{
         name        : String::from(name),
-        source      : source,
+        state       : source,
         output_tx   : output_tx,
       }
     ),

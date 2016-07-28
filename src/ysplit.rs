@@ -18,7 +18,7 @@ pub trait YSplit {
 
 pub struct YSplitWrap<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> {
   name          : String,
-  ysplit        : Box<YSplit<InputType=Input, OutputTypeA=OutputA, OutputTypeB=OutputB>+Send>,
+  state         : Box<YSplit<InputType=Input, OutputTypeA=OutputA, OutputTypeB=OutputB>+Send>,
   input_rx      : Option<IdentifiedReceiver<Input>>,
   output_a_tx   : Sender<Message<OutputA>>,
   output_b_tx   : Sender<Message<OutputB>>,
@@ -36,7 +36,7 @@ impl<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> Task for YSplitWr
   fn execute(&mut self) -> Schedule {
     match &mut self.input_rx {
       &mut Some(ref mut identified) => {
-        self.ysplit.process(
+        self.state.process(
           &mut identified.input,
           &mut self.output_a_tx,
           &mut self.output_b_tx
@@ -64,7 +64,7 @@ pub fn new<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send>(
     Box::new(
       YSplitWrap{
         name          : String::from(name),
-        ysplit        : ysplit,
+        state         : ysplit,
         input_rx      : None,
         output_a_tx   : output_a_tx,
         output_b_tx   : output_b_tx,

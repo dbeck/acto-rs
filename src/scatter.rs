@@ -4,7 +4,7 @@ use super::common::{Message, Schedule, IdentifiedReceiver, Direction, new_id};
 use super::task::{Task};
 use super::connectable::{Connectable};
 
-pub trait Filter {
+pub trait Scatter {
   type InputType   : Copy+Send;
   type OutputType  : Copy+Send;
 
@@ -14,14 +14,14 @@ pub trait Filter {
     output:  &mut Sender<Message<Self::OutputType>>) -> Schedule;
 }
 
-pub struct FilterWrap<Input: Copy+Send, Output: Copy+Send> {
+pub struct ScatterWrap<Input: Copy+Send, Output: Copy+Send> {
   name         : String,
-  state        : Box<Filter<InputType=Input,OutputType=Output>+Send>,
+  state        : Box<Scatter<InputType=Input,OutputType=Output>+Send>,
   input_rx     : Option<IdentifiedReceiver<Input>>,
   output_tx    : Sender<Message<Output>>,
 }
 
-impl<Input: Copy+Send, Output: Copy+Send> Connectable for FilterWrap<Input,Output> {
+impl<Input: Copy+Send, Output: Copy+Send> Connectable for ScatterWrap<Input,Output> {
   type Input = Input;
 
   fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
@@ -29,7 +29,7 @@ impl<Input: Copy+Send, Output: Copy+Send> Connectable for FilterWrap<Input,Outpu
   }
 }
 
-impl<Input: Copy+Send, Output: Copy+Send> Task for FilterWrap<Input,Output> {
+impl<Input: Copy+Send, Output: Copy+Send> Task for ScatterWrap<Input,Output> {
   fn execute(&mut self) -> Schedule {
     match &mut self.input_rx {
       &mut Some(ref mut identified) => {
@@ -47,16 +47,16 @@ impl<Input: Copy+Send, Output: Copy+Send> Task for FilterWrap<Input,Output> {
 pub fn new<Input: Copy+Send, Output: Copy+Send>(
     name            : &str,
     output_q_size   : usize,
-    filter          : Box<Filter<InputType=Input,OutputType=Output>+Send>)
-      -> (Box<FilterWrap<Input,Output>>, Box<Option<IdentifiedReceiver<Output>>>)
+    scatter         : Box<Scatter<InputType=Input,OutputType=Output>+Send>)
+      -> (Box<ScatterWrap<Input,Output>>, Box<Option<IdentifiedReceiver<Output>>>)
 {
   let (output_tx, output_rx) = channel(output_q_size, Message::Empty);
 
   (
     Box::new(
-      FilterWrap{
+      ScatterWrap{
         name        : String::from(name),
-        state       : filter,
+        state       : scatter,
         input_rx    : None,
         output_tx   : output_tx,
       }

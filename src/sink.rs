@@ -14,7 +14,7 @@ pub trait Sink {
 
 pub struct SinkWrap<Input: Copy+Send> {
   name      : String,
-  sink      : Box<Sink<InputType=Input>+Send>,
+  state     : Box<Sink<InputType=Input>+Send>,
   input_rx  : Option<IdentifiedReceiver<Input>>,
 }
 
@@ -30,7 +30,7 @@ impl<Input: Copy+Send> Task for SinkWrap<Input> {
   fn execute(&mut self) -> Schedule {
     match &mut self.input_rx {
       &mut Some(ref mut identified) => {
-        self.sink.process(&mut identified.input)
+        self.state.process(&mut identified.input)
       },
       &mut None => Schedule::EndPlusUSec(10_000)
     }
@@ -46,7 +46,7 @@ pub fn new<Input: Copy+Send>(
   Box::new(
     SinkWrap{
       name          : String::from(name),
-      sink          : sink,
+      state         : sink,
       input_rx      : None,
       }
     )

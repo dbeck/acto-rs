@@ -4,6 +4,8 @@ pub mod filter;
 pub mod ysplit;
 pub mod ymerge;
 pub mod sink;
+pub mod scatter;
+pub mod gather;
 pub mod task;
 pub mod common;
 pub mod connectable;
