@@ -23,16 +23,38 @@ pub struct Scheduler {
 
 impl Scheduler {
 
-  pub fn add_task(&mut self, task : Box<Task+Send>)
+  pub fn add_task(&mut self, _task : Box<Task+Send>)
   {
     //use super::task::Task;
     //let n = task.name().clone();
     //self.tasks.insert(n, task);
     //self.looping.push_back(task);
-    let plus_10us = Instant::now() + Duration::new(0,1000);
+    let _plus_10us = Instant::now() + Duration::new(0,1000);
     // self.timed.add(plus_10us, task);
   }
 }
+
+// Looping:
+// - input from add_task
+// - input from time_triggered
+// - input from message_triggered
+// - output to time_triggered
+// - output to message_triggered
+// - state
+
+// Timed:
+// - input from looping
+// - output to looping
+// - state
+
+// Message TimeTriggered:
+// - input from looping
+// - output to looping
+// - state
+
+// Stoppped:
+// - input from looping
+// - state
 
 fn looper_entry() {
 
