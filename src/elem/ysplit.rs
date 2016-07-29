@@ -4,9 +4,9 @@ use super::super::common::{Task, Message, Schedule, IdentifiedReceiver, Directio
 use super::super::connectable::{Connectable};
 
 pub trait YSplit {
-  type InputType    : Copy+Send;
-  type OutputTypeA  : Copy+Send;
-  type OutputTypeB  : Copy+Send;
+  type InputType    : Send;
+  type OutputTypeA  : Send;
+  type OutputTypeB  : Send;
 
   fn process(
     &mut self,
@@ -15,7 +15,7 @@ pub trait YSplit {
     output_b:  &mut Sender<Message<Self::OutputTypeB>>) -> Schedule;
 }
 
-pub struct YSplitWrap<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> {
+pub struct YSplitWrap<Input: Send, OutputA: Send, OutputB: Send> {
   name          : String,
   state         : Box<YSplit<InputType=Input, OutputTypeA=OutputA, OutputTypeB=OutputB>+Send>,
   input_rx      : Option<IdentifiedReceiver<Input>>,
@@ -23,7 +23,7 @@ pub struct YSplitWrap<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> 
   output_b_tx   : Sender<Message<OutputB>>,
 }
 
-impl<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> Connectable for YSplitWrap<Input, OutputA, OutputB> {
+impl<Input: Send, OutputA: Send, OutputB: Send> Connectable for YSplitWrap<Input, OutputA, OutputB> {
   type Input = Input;
 
   fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
@@ -31,7 +31,7 @@ impl<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> Connectable for Y
   }
 }
 
-impl<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> Task for YSplitWrap<Input, OutputA, OutputB> {
+impl<Input: Send, OutputA: Send, OutputB: Send> Task for YSplitWrap<Input, OutputA, OutputB> {
   fn execute(&mut self) -> Schedule {
     match &mut self.input_rx {
       &mut Some(ref mut identified) => {
@@ -47,7 +47,7 @@ impl<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send> Task for YSplitWr
   fn name(&self) -> &String { &self.name }
 }
 
-pub fn new<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send>(
+pub fn new<Input: Send, OutputA: Send, OutputB: Send>(
     name              : &str,
     output_a_q_size   : usize,
     output_b_q_size   : usize,
@@ -56,8 +56,8 @@ pub fn new<Input: Copy+Send, OutputA: Copy+Send, OutputB: Copy+Send>(
           Box<Option<IdentifiedReceiver<OutputA>>>,
           Box<Option<IdentifiedReceiver<OutputB>>>)
 {
-  let (output_a_tx, output_a_rx) = channel(output_a_q_size, Message::Empty);
-  let (output_b_tx, output_b_rx) = channel(output_b_q_size, Message::Empty);
+  let (output_a_tx, output_a_rx) = channel(output_a_q_size);
+  let (output_b_tx, output_b_rx) = channel(output_b_q_size);
 
   (
     Box::new(

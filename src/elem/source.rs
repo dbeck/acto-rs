@@ -3,33 +3,33 @@ use self::lossyq::spsc::{Sender, channel};
 use super::super::common::{Task, Message, Schedule, IdentifiedReceiver, Direction, new_id};
 
 pub trait Source {
-  type OutputType : Copy+Send;
+  type OutputType : Send;
 
   fn process(
     &mut self,
     output: &mut Sender<Message<Self::OutputType>>) -> Schedule;
 }
 
-pub struct SourceWrap<Output: Copy+Send> {
+pub struct SourceWrap<Output: Send> {
   name       : String,
   state      : Box<Source<OutputType=Output>+Send>,
   output_tx  : Sender<Message<Output>>,
 }
 
-impl<Output: 'static+Copy+Send> Task for SourceWrap<Output> {
+impl<Output: 'static+Send> Task for SourceWrap<Output> {
   fn execute(&mut self) -> Schedule {
     self.state.process(&mut self.output_tx)
   }
   fn name(&self) -> &String { &self.name }
 }
 
-pub fn new<Output: Copy+Send>(
+pub fn new<Output: Send>(
     name            : &str,
     output_q_size   : usize,
     source          : Box<Source<OutputType=Output>+Send>)
       -> (Box<SourceWrap<Output>>, Box<Option<IdentifiedReceiver<Output>>>)
 {
-  let (output_tx, output_rx) = channel(output_q_size, Message::Empty);
+  let (output_tx, output_rx) = channel(output_q_size);
 
   (
     Box::new(

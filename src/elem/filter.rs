@@ -4,8 +4,8 @@ use super::super::common::{Task, Message, Schedule, IdentifiedReceiver, Directio
 use super::super::connectable::{Connectable};
 
 pub trait Filter {
-  type InputType   : Copy+Send;
-  type OutputType  : Copy+Send;
+  type InputType   : Send;
+  type OutputType  : Send;
 
   fn process(
     &mut self,
@@ -13,14 +13,14 @@ pub trait Filter {
     output:  &mut Sender<Message<Self::OutputType>>) -> Schedule;
 }
 
-pub struct FilterWrap<Input: Copy+Send, Output: Copy+Send> {
+pub struct FilterWrap<Input: Send, Output: Send> {
   name         : String,
   state        : Box<Filter<InputType=Input,OutputType=Output>+Send>,
   input_rx     : Option<IdentifiedReceiver<Input>>,
   output_tx    : Sender<Message<Output>>,
 }
 
-impl<Input: Copy+Send, Output: Copy+Send> Connectable for FilterWrap<Input,Output> {
+impl<Input: Send, Output: Send> Connectable for FilterWrap<Input,Output> {
   type Input = Input;
 
   fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
@@ -28,7 +28,7 @@ impl<Input: Copy+Send, Output: Copy+Send> Connectable for FilterWrap<Input,Outpu
   }
 }
 
-impl<Input: Copy+Send, Output: Copy+Send> Task for FilterWrap<Input,Output> {
+impl<Input: Send, Output: Send> Task for FilterWrap<Input,Output> {
   fn execute(&mut self) -> Schedule {
     match &mut self.input_rx {
       &mut Some(ref mut identified) => {
@@ -43,13 +43,13 @@ impl<Input: Copy+Send, Output: Copy+Send> Task for FilterWrap<Input,Output> {
   fn name(&self) -> &String { &self.name }
 }
 
-pub fn new<Input: Copy+Send, Output: Copy+Send>(
+pub fn new<Input: Send, Output: Send>(
     name            : &str,
     output_q_size   : usize,
     filter          : Box<Filter<InputType=Input,OutputType=Output>+Send>)
       -> (Box<FilterWrap<Input,Output>>, Box<Option<IdentifiedReceiver<Output>>>)
 {
-  let (output_tx, output_rx) = channel(output_q_size, Message::Empty);
+  let (output_tx, output_rx) = channel(output_q_size);
 
   (
     Box::new(

@@ -1,8 +1,8 @@
 use super::common::IdentifiedReceiver;
 
-fn connect_to<Input: Copy+Send>(me : &mut Option<IdentifiedReceiver<Input>>,
-                                to : &mut Option<IdentifiedReceiver<Input>>)
-                                -> Result<(),String>
+fn connect_to<Input: Send>(me : &mut Option<IdentifiedReceiver<Input>>,
+                           to : &mut Option<IdentifiedReceiver<Input>>)
+    -> Result<(),String>
 {
   use std::mem;
   if me.is_some() {
@@ -25,9 +25,9 @@ fn connect_to<Input: Copy+Send>(me : &mut Option<IdentifiedReceiver<Input>>,
   }
 }
 
-fn disconnect_from<Input: Copy+Send>(me   : &mut Option<IdentifiedReceiver<Input>>,
-                                    from : &mut Option<IdentifiedReceiver<Input>>)
-                                    -> Result<(),String>
+fn disconnect_from<Input: Send>(me   : &mut Option<IdentifiedReceiver<Input>>,
+                                from : &mut Option<IdentifiedReceiver<Input>>)
+    -> Result<(),String>
 {
   use std::mem;
   if me.is_none() {
@@ -51,7 +51,7 @@ fn disconnect_from<Input: Copy+Send>(me   : &mut Option<IdentifiedReceiver<Input
 }
 
 pub trait Connectable {
-  type Input: Copy+Send;
+  type Input: Send;
 
   fn input(&mut self) -> &mut Option<IdentifiedReceiver<Self::Input>>;
 
@@ -67,8 +67,8 @@ pub trait Connectable {
 }
 
 pub trait ConnectableY {
-  type InputA: Copy+Send;
-  type InputB: Copy+Send;
+  type InputA: Send;
+  type InputB: Send;
 
   fn input_a(&mut self) -> &mut Option<IdentifiedReceiver<Self::InputA>>;
   fn input_b(&mut self) -> &mut Option<IdentifiedReceiver<Self::InputB>>;
@@ -95,7 +95,7 @@ pub trait ConnectableY {
 }
 
 pub trait ConnectableN {
-  type Input: Copy+Send;
+  type Input: Send;
 
   fn input(&mut self, n: usize) -> &mut Option<IdentifiedReceiver<Self::Input>>;
 
@@ -111,8 +111,8 @@ pub trait ConnectableN {
 }
 
 pub trait ConnectableYN {
-  type InputA: Copy+Send;
-  type InputB: Copy+Send;
+  type InputA: Send;
+  type InputB: Send;
 
   fn input_a(&mut self, n: usize) -> &mut Option<IdentifiedReceiver<Self::InputA>>;
   fn input_b(&mut self, n: usize) -> &mut Option<IdentifiedReceiver<Self::InputB>>;

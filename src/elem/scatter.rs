@@ -4,8 +4,8 @@ use super::super::common::{Task, Message, Schedule, IdentifiedReceiver, Directio
 use super::super::connectable::{Connectable};
 
 pub trait Scatter {
-  type InputType   : Copy+Send;
-  type OutputType  : Copy+Send;
+  type InputType   : Send;
+  type OutputType  : Send;
 
   fn process(
     &mut self,
@@ -13,14 +13,14 @@ pub trait Scatter {
     output:  &mut Vec<Sender<Message<Self::OutputType>>>) -> Schedule;
 }
 
-pub struct ScatterWrap<Input: Copy+Send, Output: Copy+Send> {
+pub struct ScatterWrap<Input: Send, Output: Send> {
   name           : String,
   state          : Box<Scatter<InputType=Input,OutputType=Output>+Send>,
   input_rx       : Option<IdentifiedReceiver<Input>>,
   output_tx_vec  : Vec<Sender<Message<Output>>>,
 }
 
-impl<Input: Copy+Send, Output: Copy+Send> Connectable for ScatterWrap<Input,Output> {
+impl<Input: Send, Output: Send> Connectable for ScatterWrap<Input,Output> {
   type Input = Input;
 
   fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
@@ -28,7 +28,7 @@ impl<Input: Copy+Send, Output: Copy+Send> Connectable for ScatterWrap<Input,Outp
   }
 }
 
-impl<Input: Copy+Send, Output: Copy+Send> Task for ScatterWrap<Input,Output> {
+impl<Input: Send, Output: Send> Task for ScatterWrap<Input,Output> {
   fn execute(&mut self) -> Schedule {
     match &mut self.input_rx {
       &mut Some(ref mut identified) => {
@@ -43,7 +43,7 @@ impl<Input: Copy+Send, Output: Copy+Send> Task for ScatterWrap<Input,Output> {
   fn name(&self) -> &String { &self.name }
 }
 
-pub fn new<Input: Copy+Send, Output: Copy+Send>(
+pub fn new<Input: Send, Output: Send>(
     name            : &str,
     output_q_size   : usize,
     scatter         : Box<Scatter<InputType=Input,OutputType=Output>+Send>,
@@ -54,7 +54,7 @@ pub fn new<Input: Copy+Send, Output: Copy+Send>(
   let mut rx_vec = vec![];
 
   for i in 0..n_channels {
-    let (output_tx, output_rx) = channel(output_q_size, Message::Empty);
+    let (output_tx, output_rx) = channel(output_q_size);
     tx_vec.push(output_tx);
     rx_vec.push(
       Box::new(

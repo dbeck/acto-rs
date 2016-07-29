@@ -1,6 +1,6 @@
 [package]
 name = "minions"
-version = "0.0.1"
+version = "0.1.2"
 authors = ["David Beck <david.beck.priv@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/dbeck/minions_rs"
@@ -11,4 +11,4 @@ homepage = "https://github.com/dbeck/minions_rs"
 #documentation = "..."
 
 [dependencies]
-lossyq = "0.1.5"
+lossyq = "0.1.6"

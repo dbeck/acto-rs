@@ -3,7 +3,7 @@ use self::lossyq::spsc::Receiver;
 use std::fmt;
 
 #[derive(Copy,Clone,Debug)]
-pub enum Message<T: Copy+Send>
+pub enum Message<T: Send>
 {
   Empty,                      //
   Value(T),                   //
@@ -38,7 +38,7 @@ pub struct Id {
   id         : usize,
 }
 
-pub struct IdentifiedReceiver<Input: Copy+Send> {
+pub struct IdentifiedReceiver<Input: Send> {
   pub id    : Id,
   pub input : Receiver<Message<Input>>,
 }

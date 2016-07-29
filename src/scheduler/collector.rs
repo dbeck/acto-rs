@@ -2,17 +2,17 @@ extern crate lossyq;
 
 use self::lossyq::spsc::{Sender, Receiver};
 use std::collections::VecDeque;
-use super::super::common::{Message};
+use super::super::common::{Task, Message};
 use super::super::elem::gather::Gather;
 use super::super::common::Schedule;
 
 struct Collector {
-  overflow: VecDeque<usize>,
+  overflow: VecDeque<Box<Task + Send>>,
 }
 
 impl Gather for Collector {
-  type InputType  = usize;
-  type OutputType = usize;
+  type InputType  = Box<Task + Send>;
+  type OutputType = Box<Task + Send>;
 
   fn process(
           &mut self,

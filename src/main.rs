@@ -20,7 +20,7 @@ impl source::Source for SourceState {
         &mut self,
         output: &mut Sender<Message<Self::OutputType>>)
       -> common::Schedule {
-    output.put(|x| *x = Message::Value(self.state));
+    output.put(|x| *x = Some(Message::Value(self.state)));
     self.state += 1;
     common::Schedule::Loop
   }
@@ -44,7 +44,7 @@ impl filter::Filter for FilterState {
       match i {
         Message::Value(v) => {
           self.state = v;
-          output.put(|x| *x = Message::Value(self.state));
+          output.put(|x| *x =  Some(Message::Value(self.state)));
         }
         _ => { println!("Unknown value"); }
       }
@@ -99,8 +99,8 @@ impl ysplit::YSplit for YSplitState {
         Message::Value(v) => {
           self.state_i = v;
           self.state_f = v as f64;
-          output_a.put(|x| *x = Message::Value(self.state_i));
-          output_b.put(|x| *x = Message::Value(self.state_f));
+          output_a.put(|x| *x = Some(Message::Value(self.state_i)));
+          output_b.put(|x| *x = Some(Message::Value(self.state_f)));
         }
         _ => { println!("Unknown value"); }
       }
@@ -130,7 +130,7 @@ impl ymerge::YMerge for YMergeState {
       match i {
         Message::Value(v) => {
           self.state_i = v;
-          output.put(|x| *x = Message::Value(self.state_i));
+          output.put(|x| *x =  Some(Message::Value(self.state_i)));
         }
         _ => { println!("Unknown value"); }
       }
@@ -139,7 +139,7 @@ impl ymerge::YMerge for YMergeState {
       match i {
         Message::Value(v) => {
           self.state_f = v as f64;
-          output.put(|x| *x = Message::Value(self.state_f as i32));
+          output.put(|x| *x =  Some(Message::Value(self.state_f as i32)));
         }
         _ => { println!("Unknown value"); }
       }

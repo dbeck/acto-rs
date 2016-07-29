@@ -4,9 +4,9 @@ use super::super::common::{Task, Message, Schedule, IdentifiedReceiver, Directio
 use super::super::connectable::{ConnectableY};
 
 pub trait YMerge {
-  type InputTypeA   : Copy+Send;
-  type InputTypeB   : Copy+Send;
-  type OutputType   : Copy+Send;
+  type InputTypeA   : Send;
+  type InputTypeB   : Send;
+  type OutputType   : Send;
 
   fn process(
     &mut self,
@@ -15,7 +15,7 @@ pub trait YMerge {
     output:   &mut Sender<Message<Self::OutputType>>) -> Schedule;
 }
 
-pub struct YMergeWrap<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> {
+pub struct YMergeWrap<InputA: Send, InputB: Send, Output: Send> {
   name         : String,
   state        : Box<YMerge<InputTypeA=InputA, InputTypeB=InputB, OutputType=Output>+Send>,
   input_a_rx   : Option<IdentifiedReceiver<InputA>>,
@@ -23,7 +23,7 @@ pub struct YMergeWrap<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> {
   output_tx    : Sender<Message<Output>>,
 }
 
-impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> ConnectableY for YMergeWrap<InputA, InputB, Output> {
+impl<InputA: Send, InputB: Send, Output: Send> ConnectableY for YMergeWrap<InputA, InputB, Output> {
   type InputA = InputA;
   type InputB = InputB;
 
@@ -36,7 +36,7 @@ impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> ConnectableY for Y
   }
 }
 
-impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> Task for YMergeWrap<InputA, InputB, Output> {
+impl<InputA: Send, InputB: Send, Output: Send> Task for YMergeWrap<InputA, InputB, Output> {
   fn execute(&mut self) -> Schedule {
     match &mut self.input_a_rx {
       &mut Some(ref mut identified_a) => {
@@ -57,13 +57,13 @@ impl<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send> Task for YMergeWra
   fn name(&self) -> &String { &self.name }
 }
 
-pub fn new<InputA: Copy+Send, InputB: Copy+Send, Output: Copy+Send>(
+pub fn new<InputA: Send, InputB: Send, Output: Send>(
     name             : &str,
     output_q_size    : usize,
     ymerge           : Box<YMerge<InputTypeA=InputA, InputTypeB=InputB, OutputType=Output>+Send>)
       -> (Box<YMergeWrap<InputA,InputB,Output>>, Box<Option<IdentifiedReceiver<Output>>>)
 {
-  let (output_tx,  output_rx) = channel(output_q_size, Message::Empty);
+  let (output_tx,  output_rx) = channel(output_q_size);
 
   (
     Box::new(

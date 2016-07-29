@@ -4,8 +4,8 @@ use super::super::common::{Task, Message, Schedule, IdentifiedReceiver, Directio
 use super::super::connectable::{ConnectableN};
 
 pub trait Gather {
-  type InputType   : Copy+Send;
-  type OutputType  : Copy+Send;
+  type InputType   : Send;
+  type OutputType  : Send;
 
   fn process(
     &mut self,
@@ -13,14 +13,14 @@ pub trait Gather {
     output:  &mut Sender<Message<Self::OutputType>>) -> Schedule;
 }
 
-pub struct GatherWrap<Input: Copy+Send, Output: Copy+Send> {
+pub struct GatherWrap<Input: Send, Output: Send> {
   name          : String,
   state         : Box<Gather<InputType=Input,OutputType=Output>+Send>,
   input_rx_vec  : Vec<Option<IdentifiedReceiver<Input>>>,
   output_tx     : Sender<Message<Output>>,
 }
 
-impl<Input: Copy+Send, Output: Copy+Send> ConnectableN for GatherWrap<Input,Output> {
+impl<Input: Send, Output: Send> ConnectableN for GatherWrap<Input,Output> {
   type Input = Input;
 
   fn input(&mut self, n: usize) -> &mut Option<IdentifiedReceiver<Input>> {
@@ -29,7 +29,7 @@ impl<Input: Copy+Send, Output: Copy+Send> ConnectableN for GatherWrap<Input,Outp
   }
 }
 
-impl<Input: Copy+Send, Output: Copy+Send> Task for GatherWrap<Input,Output> {
+impl<Input: Send, Output: Send> Task for GatherWrap<Input,Output> {
   fn execute(&mut self) -> Schedule {
     let mut input_vec = vec![];
     for ch in &mut self.input_rx_vec {
@@ -49,14 +49,14 @@ impl<Input: Copy+Send, Output: Copy+Send> Task for GatherWrap<Input,Output> {
   fn name(&self) -> &String { &self.name }
 }
 
-pub fn new<Input: Copy+Send, Output: Copy+Send>(
+pub fn new<Input: Send, Output: Send>(
     name            : &str,
     output_q_size   : usize,
     gather          : Box<Gather<InputType=Input,OutputType=Output>+Send>,
     n_channels      : usize)
       -> (Box<GatherWrap<Input,Output>>, Box<Option<IdentifiedReceiver<Output>>>)
 {
-  let (output_tx, output_rx) = channel(output_q_size, Message::Empty);
+  let (output_tx, output_rx) = channel(output_q_size);
   let mut inputs = vec![];
   for _i in 0..n_channels { inputs.push(None); }
 

@@ -4,20 +4,20 @@ use super::super::common::{Task, Message, Schedule, IdentifiedReceiver};
 use super::super::connectable::{Connectable};
 
 pub trait Sink {
-  type InputType : Copy+Send;
+  type InputType : Send;
 
   fn process(
     &mut self,
     input: &mut Receiver<Message<Self::InputType>>) -> Schedule;
 }
 
-pub struct SinkWrap<Input: Copy+Send> {
+pub struct SinkWrap<Input: Send> {
   name      : String,
   state     : Box<Sink<InputType=Input>+Send>,
   input_rx  : Option<IdentifiedReceiver<Input>>,
 }
 
-impl<Input: Copy+Send> Connectable for SinkWrap<Input> {
+impl<Input: Send> Connectable for SinkWrap<Input> {
   type Input = Input;
 
   fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
@@ -25,7 +25,7 @@ impl<Input: Copy+Send> Connectable for SinkWrap<Input> {
   }
 }
 
-impl<Input: Copy+Send> Task for SinkWrap<Input> {
+impl<Input: Send> Task for SinkWrap<Input> {
   fn execute(&mut self) -> Schedule {
     match &mut self.input_rx {
       &mut Some(ref mut identified) => {
@@ -37,7 +37,7 @@ impl<Input: Copy+Send> Task for SinkWrap<Input> {
   fn name(&self) -> &String { &self.name }
 }
 
-pub fn new<Input: Copy+Send>(
+pub fn new<Input: Send>(
     name   : &str,
     sink   : Box<Sink<InputType=Input>+Send>)
       -> Box<SinkWrap<Input>>
