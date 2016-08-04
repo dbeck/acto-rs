@@ -1,17 +1,14 @@
 [package]
 name = "minions"
-version = "0.1.3"
+version = "0.1.4"
 authors = ["David Beck <david.beck.priv@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/dbeck/minions_rs"
-description = "Dont't use this package yet. Only a placeholder for my experimental actor library."
+description = "Experimental actor library, under constant development."
 keywords = ["actor", "concurrency"]
 readme = "README.md"
 homepage = "https://github.com/dbeck/minions_rs"
 #documentation = "..."
 
 [dependencies]
-lossyq = "0.1.7"
-
-[dev-dependencies]
-quickcheck = "0.3"
+lossyq = "0.1.8"
