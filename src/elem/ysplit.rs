@@ -90,7 +90,7 @@ pub fn new<Input: Send, OutputA: Send, OutputB: Send>(
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+  //use super::*;
 
   #[test]
   fn dummy() { }
