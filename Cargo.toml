@@ -11,4 +11,4 @@ homepage = "https://github.com/dbeck/minions_rs"
 #documentation = "..."
 
 [dependencies]
-lossyq = "0.1.8"
+lossyq = "0.1.9"
