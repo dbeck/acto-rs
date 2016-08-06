@@ -1,6 +1,6 @@
 [package]
 name = "minions"
-version = "0.1.4"
+version = "0.1.5"
 authors = ["David Beck <david.beck.priv@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/dbeck/minions_rs"
