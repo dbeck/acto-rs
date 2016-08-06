@@ -8,9 +8,9 @@ mod stopped;
 
 use self::lossyq::spsc::{Sender, channel};
 use super::common::{Task, Message, IdentifiedReceiver, Direction, new_id};
-use super::elem::{gather};
+use super::elem::{gather, scatter, sink};
 //use std::thread::{spawn, JoinHandle};
-use std::collections::VecDeque;
+//use std::collections::VecDeque;
 //use std::time::{Instant, Duration};
 //use std::sync::{Arc, Mutex, Condvar};
 
@@ -36,8 +36,11 @@ use std::collections::VecDeque;
 
 pub struct Scheduler {
   // looper    : JoinHandle<()>,
-  looping   : VecDeque<Box<Task+Send>>,
   gate      : Sender<Message<Box<Task+Send>>>,
+  collector : Box<Task+Send>,
+  executor  : Box<Task+Send>,
+  stopped   : Box<Task+Send>,
+
   //tasks     : HashMap<String, Box<Task>>,
   // looping Thread
   // - list, push back
@@ -73,9 +76,30 @@ impl Scheduler {
 pub fn new() -> Scheduler {
 
   use connectable::ConnectableN; // for collector
-
   let (gate_tx, gate_rx) = channel(100);
-  let (mut collector_task, mut _collector_input) = gather::new( "Collector", 2, Box::new(collector::new()), 1);
+
+  let (mut collector_task, mut _collector_output) =
+    gather::new(
+      ".scheduler.collector",
+      2,
+      Box::new(collector::new()),
+      1);
+
+  let (mut executor_task, mut _executor_outputs) =
+    scatter::new(
+      ".scheduler.executor",
+      2,
+      Box::new(executor::new()),
+      1);
+
+  let (mut executor_task, mut _executor_outputs) =
+    scatter::new(
+      ".scheduler.executor",
+      2,
+      Box::new(executor::new()),
+      1);
+
+  let mut stopped_task = sink::new( ".scheduler.stopped", Box::new(stopped::new()));
 
   let mut gate_rx_opt = Some(
     IdentifiedReceiver{
@@ -86,16 +110,15 @@ pub fn new() -> Scheduler {
 
   collector_task.connect(0, &mut gate_rx_opt).unwrap();
 
-  let mut ret = Scheduler{
+  Scheduler{
     // looper     : spawn(|| { looper_entry(); }),
-    looping    : VecDeque::new(),
-    gate       : gate_tx,
+    collector    : collector_task,
+    gate         : gate_tx,
+    executor     : executor_task,
+    stopped      : stopped_task,
     ////tasks      : HashMap::new(),
     //timed      : time_triggered::new(),
-  };
-
-  ret.looping.push_back(collector_task);
-  ret
+  }
 }
 
 #[cfg(test)]
