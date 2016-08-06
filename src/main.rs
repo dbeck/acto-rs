@@ -1,5 +1,6 @@
 extern crate minions;
 extern crate lossyq;
+extern crate parking_lot;
 
 use lossyq::spsc::Receiver;
 use lossyq::spsc::Sender;

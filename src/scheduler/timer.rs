@@ -1,7 +1,7 @@
 use std::collections::BinaryHeap;
 use std::time::{Instant};
 use std::cmp::{PartialOrd, PartialEq, Eq, Ordering};
-use super::task::{Task};
+use super::super::common::{Task};
 
 // add task:
 // - task
