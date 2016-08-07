@@ -5,6 +5,7 @@ mod executor;
 mod timer;
 mod on_msg;
 mod stopped;
+mod event;
 
 use self::lossyq::spsc::{Sender, channel};
 use super::common::{Task, Message, IdentifiedReceiver, Direction, new_id};
