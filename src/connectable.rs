@@ -1,7 +1,7 @@
 use super::common::IdentifiedReceiver;
 
-fn connect_to<Input: Send>(me : &mut Option<IdentifiedReceiver<Input>>,
-                           to : &mut Option<IdentifiedReceiver<Input>>)
+pub fn connect_to<Input: Send>(me : &mut Option<IdentifiedReceiver<Input>>,
+                               to : &mut Option<IdentifiedReceiver<Input>>)
     -> Result<(),String>
 {
   use std::mem;
@@ -25,8 +25,8 @@ fn connect_to<Input: Send>(me : &mut Option<IdentifiedReceiver<Input>>,
   }
 }
 
-fn disconnect_from<Input: Send>(me   : &mut Option<IdentifiedReceiver<Input>>,
-                                from : &mut Option<IdentifiedReceiver<Input>>)
+pub fn disconnect_from<Input: Send>(me   : &mut Option<IdentifiedReceiver<Input>>,
+                                    from : &mut Option<IdentifiedReceiver<Input>>)
     -> Result<(),String>
 {
   use std::mem;

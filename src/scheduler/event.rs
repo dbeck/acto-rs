@@ -8,6 +8,12 @@ pub struct Event {
 }
 
 impl Event {
+  pub fn notify(&mut self) {
+
+  }
+
+  pub fn wait(&mut self, timeout_usec: usize) {
+  }
 }
 
 pub fn new() -> Event {

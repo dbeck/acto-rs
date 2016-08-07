@@ -4,12 +4,12 @@ mod collector;
 mod executor;
 mod timer;
 mod on_msg;
-mod stopped;
 mod event;
+mod loop_back;
 
 use self::lossyq::spsc::{Sender, channel};
 use super::common::{Task, Message, IdentifiedReceiver, Direction, new_id};
-use super::elem::{gather, scatter, sink};
+use super::elem::{gather, scatter, sink, filter};
 //use std::thread::{spawn, JoinHandle};
 //use std::collections::VecDeque;
 //use std::time::{Instant, Duration};
@@ -40,7 +40,8 @@ pub struct Scheduler {
   gate      : Sender<Message<Box<Task+Send>>>,
   collector : Box<Task+Send>,
   executor  : Box<Task+Send>,
-  stopped   : Box<Task+Send>,
+  loopback  : Box<Task+Send>,
+  stopped   : Option<IdentifiedReceiver<Box<Task+Send>>>,
 
   //tasks     : HashMap<String, Box<Task>>,
   // looping Thread
@@ -93,14 +94,14 @@ pub fn new() -> Scheduler {
       Box::new(executor::new()),
       1);
 
-  let (mut executor_task, mut _executor_outputs) =
-    scatter::new(
-      ".scheduler.executor",
-      2,
-      Box::new(executor::new()),
-      1);
+  // output 0: stopped tasks
+  // output 1: looped back
 
-  let mut stopped_task = sink::new( ".scheduler.stopped", Box::new(stopped::new()));
+  let (mut loopback_task, mut loopback_output) =
+    filter::new(
+      ".scheduler.loopback",
+      2,
+      Box::new(loop_back::new()));
 
   let mut gate_rx_opt = Some(
     IdentifiedReceiver{
@@ -113,10 +114,11 @@ pub fn new() -> Scheduler {
 
   Scheduler{
     // looper     : spawn(|| { looper_entry(); }),
-    collector    : collector_task,
     gate         : gate_tx,
+    collector    : collector_task,
     executor     : executor_task,
-    stopped      : stopped_task,
+    loopback     : loopback_task,
+    stopped      : None,
     ////tasks      : HashMap::new(),
     //timed      : time_triggered::new(),
   }
