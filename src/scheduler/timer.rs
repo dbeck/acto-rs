@@ -1,7 +1,37 @@
-use std::collections::BinaryHeap;
-use std::time::{Instant};
-use std::cmp::{PartialOrd, PartialEq, Eq, Ordering};
-use super::super::common::{Task};
+extern crate lossyq;
+
+use self::lossyq::spsc::{Sender, Receiver};
+use super::super::common::{Task, Message};
+use super::super::elem::filter::Filter;
+use super::super::common::Schedule;
+
+//use std::collections::BinaryHeap;
+//use std::time::{Instant};
+//use std::cmp::{PartialOrd, PartialEq, Eq, Ordering};
+//use std::collections::VecDeque;
+//use std::mem;
+
+pub struct Timer {
+  // dummyx: usize,
+}
+
+impl Filter for Timer {
+  type InputType  = Box<Task + Send>;
+  type OutputType = Box<Task + Send>;
+
+  fn process(
+          &mut self,
+          _input:   &mut Receiver<Message<Self::InputType>>,
+          _output:  &mut Sender<Message<Self::OutputType>>) -> Schedule {
+    Schedule::Loop
+  }
+}
+
+pub fn new() -> Timer {
+  Timer {
+    // dummyx: 0,
+  }
+}
 
 // add task:
 // - task
@@ -13,6 +43,7 @@ use super::super::common::{Task};
 // callback:
 // - add to looped tasks
 
+/*
 struct Item {
   at   : Instant,
   task : Box<Task>,
@@ -57,9 +88,12 @@ impl TimeTriggered {
     self.items.push(Item{at: at, task: task});
   }
 }
+*/
 
+/*
 pub fn new() -> TimeTriggered {
   TimeTriggered {
     items : BinaryHeap::new(),
   }
 }
+*/

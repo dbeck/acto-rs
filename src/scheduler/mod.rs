@@ -9,7 +9,9 @@ mod loop_back;
 
 use self::lossyq::spsc::{Sender, channel};
 use super::common::{Task, Message, IdentifiedReceiver, Direction, new_id};
-use super::elem::{gather, scatter, sink, filter};
+use super::elem::{gather, scatter, filter};
+use super::connectable;
+
 //use std::thread::{spawn, JoinHandle};
 //use std::collections::VecDeque;
 //use std::time::{Instant, Duration};
@@ -41,6 +43,8 @@ pub struct Scheduler {
   collector : Box<Task+Send>,
   executor  : Box<Task+Send>,
   loopback  : Box<Task+Send>,
+  onmsg     : Box<Task+Send>,
+  timer     : Box<Task+Send>,
   stopped   : Option<IdentifiedReceiver<Box<Task+Send>>>,
 
   //tasks     : HashMap<String, Box<Task>>,
@@ -78,16 +82,18 @@ impl Scheduler {
 pub fn new() -> Scheduler {
 
   use connectable::ConnectableN; // for collector
+  use connectable::Connectable;  // for executor
+
   let (gate_tx, gate_rx) = channel(100);
 
-  let (mut collector_task, mut _collector_output) =
+  let (mut collector_task, mut collector_output) =
     gather::new(
       ".scheduler.collector",
       2,
       Box::new(collector::new()),
       1);
 
-  let (mut executor_task, mut _executor_outputs) =
+  let (mut executor_task, mut executor_outputs) =
     scatter::new(
       ".scheduler.executor",
       2,
@@ -103,6 +109,18 @@ pub fn new() -> Scheduler {
       2,
       Box::new(loop_back::new()));
 
+  let (mut onmsg_task, mut onmsg_output) =
+    filter::new(
+      ".scheduler.onmsg",
+      2,
+      Box::new(on_msg::new()));
+
+  let (mut timer_task, mut timer_output) =
+    filter::new(
+      ".scheduler.timer",
+      2,
+      Box::new(timer::new()));
+
   let mut gate_rx_opt = Some(
     IdentifiedReceiver{
       id:     new_id(String::from("Gate"), Direction::Out, 0),
@@ -110,7 +128,20 @@ pub fn new() -> Scheduler {
     }
   );
 
+  let mut stopped : Option<IdentifiedReceiver<Box<Task+Send>>> = None;
+
   collector_task.connect(0, &mut gate_rx_opt).unwrap();
+  collector_task.connect(1, &mut loopback_output).unwrap();
+  collector_task.connect(2, &mut onmsg_output).unwrap();
+  collector_task.connect(3, &mut timer_output).unwrap();
+
+  executor_task.connect(&mut collector_output).unwrap();
+
+  let sliced_executor_outputs = executor_outputs.as_mut_slice();
+  connectable::connect_to(&mut stopped, &mut *sliced_executor_outputs[0]).unwrap();
+  loopback_task.connect(&mut *sliced_executor_outputs[1]).unwrap();
+  onmsg_task.connect(&mut *sliced_executor_outputs[2]).unwrap();
+  timer_task.connect(&mut *sliced_executor_outputs[3]).unwrap();
 
   Scheduler{
     // looper     : spawn(|| { looper_entry(); }),
@@ -118,7 +149,9 @@ pub fn new() -> Scheduler {
     collector    : collector_task,
     executor     : executor_task,
     loopback     : loopback_task,
-    stopped      : None,
+    onmsg        : onmsg_task,
+    timer        : timer_task,
+    stopped      : stopped,
     ////tasks      : HashMap::new(),
     //timed      : time_triggered::new(),
   }

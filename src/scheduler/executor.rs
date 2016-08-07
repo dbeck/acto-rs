@@ -8,7 +8,7 @@ use super::super::common::Schedule;
 //use std::mem;
 
 pub struct Executor {
-  dummy : i32,
+  //dummy : i32,
 }
 
 impl Scatter for Executor {
@@ -25,6 +25,6 @@ impl Scatter for Executor {
 
 pub fn new() -> Executor {
   Executor {
-    dummy: 0,
+    //dummy: 0,
   }
 }

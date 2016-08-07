@@ -4,11 +4,11 @@ use self::lossyq::spsc::{Sender, Receiver};
 use super::super::common::{Task, Message};
 use super::super::elem::filter::Filter;
 use super::super::common::Schedule;
-use std::collections::VecDeque;
-use std::mem;
+// use std::collections::VecDeque;
+// use std::mem;
 
 pub struct LoopBack {
-  dummyx: usize,
+  // dummyx: usize,
 }
 
 impl Filter for LoopBack {
@@ -17,14 +17,14 @@ impl Filter for LoopBack {
 
   fn process(
           &mut self,
-          input:   &mut Receiver<Message<Self::InputType>>,
-          output:  &mut Sender<Message<Self::OutputType>>) -> Schedule {
+          _input:   &mut Receiver<Message<Self::InputType>>,
+          _output:  &mut Sender<Message<Self::OutputType>>) -> Schedule {
     Schedule::Loop
   }
 }
 
 pub fn new() -> LoopBack {
   LoopBack {
-    dummyx: 0,
+    // dummyx: 0,
   }
 }
