@@ -158,10 +158,4 @@ pub fn new() -> Scheduler {
 }
 
 #[cfg(test)]
-mod tests {
-  // use super::*;
-
-  #[test]
-  fn dummy() {
-  }
-}
+pub mod tests;

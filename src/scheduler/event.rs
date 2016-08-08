@@ -21,11 +21,3 @@ pub fn new() -> Event {
     condvar: Arc::new((Mutex::new(0u64), Condvar::new())),
   }
 }
-
-#[cfg(test)]
-mod tests {
-  //use super::*;
-
-  #[test]
-  fn dummy() { }
-}

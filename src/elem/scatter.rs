@@ -80,11 +80,3 @@ pub fn new<Input: Send, Output: Send>(
     rx_vec
   )
 }
-
-#[cfg(test)]
-mod tests {
-  //use super::*;
-
-  #[test]
-  fn dummy() { }
-}

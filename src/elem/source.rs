@@ -49,11 +49,3 @@ pub fn new<Output: Send>(
     )
   )
 }
-
-#[cfg(test)]
-mod tests {
-  //use super::*;
-
-  #[test]
-  fn dummy() { }
-}
