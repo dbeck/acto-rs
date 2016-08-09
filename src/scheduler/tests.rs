@@ -2,24 +2,14 @@
 #[test]
 fn event_test() {
   use std::thread;
-  use std::sync::Arc;
 
-  use parking_lot::{Mutex, Condvar};
-  let pair = Arc::new((Mutex::new(false), Condvar::new()));
-  let pair2 = pair.clone();
+  let mut e1 = super::event::new();
+  let mut e2 = e1.clone();
 
   let t = thread::spawn(move|| {
-    let &(ref lock, ref cvar) = &*pair2;
-    let mut started = lock.lock();
-    *started = true;
-    cvar.notify_one();
+    assert_eq!(e1.wait(0, 200_000), 1);
   });
 
-  // wait for the thread to start up
-  let &(ref lock, ref cvar) = &*pair;
-  let mut started = lock.lock();
-  while !*started {
-      cvar.wait(&mut started);
-  }
+  e2.notify();
   t.join().unwrap();
 }

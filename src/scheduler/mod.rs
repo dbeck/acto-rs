@@ -12,12 +12,11 @@ use super::common::{Task, Message, IdentifiedReceiver, Direction, new_id};
 use super::elem::{gather, scatter, filter};
 use super::connectable;
 
-//use std::thread::{spawn, JoinHandle};
+use std::thread::{spawn, JoinHandle};
 //use std::collections::VecDeque;
 //use std::time::{Instant, Duration};
 //use std::sync::{Arc, Mutex, Condvar};
 
-//
 //
 //let pair = Arc::new((Mutex::new(false), Condvar::new()));
 //let pair2 = pair.clone();
@@ -38,14 +37,16 @@ use super::connectable;
 //}
 
 pub struct Scheduler {
-  // looper    : JoinHandle<()>,
-  gate      : Sender<Message<Box<Task+Send>>>,
-  collector : Box<Task+Send>,
-  executor  : Box<Task+Send>,
-  loopback  : Box<Task+Send>,
-  onmsg     : Box<Task+Send>,
-  timer     : Box<Task+Send>,
-  stopped   : Option<IdentifiedReceiver<Box<Task+Send>>>,
+  // gate to add new tasks:
+  gate            : Sender<Message<Box<Task+Send>>>,
+  process_event   : event::Event,
+  process_thread  : JoinHandle<()>,
+  onmsg_event     : event::Event,
+  onmsg_thread    : JoinHandle<()>,
+  timer_event     : event::Event,
+  timer_thread    : JoinHandle<()>,
+  stopped_event   : event::Event,
+  stopped_thread  : JoinHandle<()>,
 
   //tasks     : HashMap<String, Box<Task>>,
   // looping Thread
@@ -77,7 +78,25 @@ impl Scheduler {
   }
 }
 
-//fn looper_entry() {}
+
+fn process_entry(collector : Box<Task+Send>,
+                 executor  : Box<Task+Send>,
+                 loopback  : Box<Task+Send>,
+                 event     : event::Event) {
+
+}
+
+fn onmsg_entry(onmsg : Box<Task+Send>,
+               event : event::Event) {
+}
+
+fn timer_entry(timer : Box<Task+Send>,
+               event : event::Event) {
+}
+
+fn stopped_entry(stopped : IdentifiedReceiver<Box<Task+Send>>,
+                 event   : event::Event) {
+}
 
 pub fn new() -> Scheduler {
 
@@ -87,39 +106,19 @@ pub fn new() -> Scheduler {
   let (gate_tx, gate_rx) = channel(100);
 
   let (mut collector_task, mut collector_output) =
-    gather::new(
-      ".scheduler.collector",
-      2,
-      Box::new(collector::new()),
-      1);
+    gather::new(".scheduler.collector", 100, Box::new(collector::new()), 4);
 
   let (mut executor_task, mut executor_outputs) =
-    scatter::new(
-      ".scheduler.executor",
-      2,
-      Box::new(executor::new()),
-      1);
-
-  // output 0: stopped tasks
-  // output 1: looped back
+    scatter::new(".scheduler.executor", 100, Box::new(executor::new()), 4);
 
   let (mut loopback_task, mut loopback_output) =
-    filter::new(
-      ".scheduler.loopback",
-      2,
-      Box::new(loop_back::new()));
+    filter::new(".scheduler.loopback", 100, Box::new(loop_back::new()));
 
   let (mut onmsg_task, mut onmsg_output) =
-    filter::new(
-      ".scheduler.onmsg",
-      2,
-      Box::new(on_msg::new()));
+    filter::new(".scheduler.onmsg", 100, Box::new(on_msg::new()));
 
   let (mut timer_task, mut timer_output) =
-    filter::new(
-      ".scheduler.timer",
-      2,
-      Box::new(timer::new()));
+    filter::new( ".scheduler.timer", 100, Box::new(timer::new()));
 
   let mut gate_rx_opt = Some(
     IdentifiedReceiver{
@@ -130,30 +129,49 @@ pub fn new() -> Scheduler {
 
   let mut stopped : Option<IdentifiedReceiver<Box<Task+Send>>> = None;
 
+  // 0: new tasks through the gate
+  // 1: loop_back
+  // 2: on_msg
+  // 3: timer
   collector_task.connect(0, &mut gate_rx_opt).unwrap();
   collector_task.connect(1, &mut loopback_output).unwrap();
   collector_task.connect(2, &mut onmsg_output).unwrap();
   collector_task.connect(3, &mut timer_output).unwrap();
 
   executor_task.connect(&mut collector_output).unwrap();
-
+  // 0: stopped
+  // 1: loop_back
+  // 2: on_msg
+  // 3: timer
   let sliced_executor_outputs = executor_outputs.as_mut_slice();
   connectable::connect_to(&mut stopped, &mut *sliced_executor_outputs[0]).unwrap();
   loopback_task.connect(&mut *sliced_executor_outputs[1]).unwrap();
   onmsg_task.connect(&mut *sliced_executor_outputs[2]).unwrap();
   timer_task.connect(&mut *sliced_executor_outputs[3]).unwrap();
 
+  let process_event = event::new();
+  let onmsg_event   = event::new();
+  let timer_event   = event::new();
+  let stopped_event = event::new();
+
   Scheduler{
-    // looper     : spawn(|| { looper_entry(); }),
-    gate         : gate_tx,
-    collector    : collector_task,
-    executor     : executor_task,
-    loopback     : loopback_task,
-    onmsg        : onmsg_task,
-    timer        : timer_task,
-    stopped      : stopped,
-    ////tasks      : HashMap::new(),
-    //timed      : time_triggered::new(),
+    gate            : gate_tx,
+    process_event   : process_event.clone(),
+    process_thread  : spawn(move || {
+      process_entry(collector_task, executor_task, loopback_task, process_event);
+    }),
+    onmsg_event     : onmsg_event.clone(),
+    onmsg_thread    : spawn(move || {
+      onmsg_entry(onmsg_task, onmsg_event);
+    }),
+    timer_event     : timer_event.clone(),
+    timer_thread    : spawn(move || {
+      timer_entry(timer_task, timer_event);
+    }),
+    stopped_event   : stopped_event.clone() ,
+    stopped_thread  : spawn(move || {
+      stopped_entry(stopped.unwrap(), stopped_event);
+    }),
   }
 }
 
