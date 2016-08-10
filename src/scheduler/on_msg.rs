@@ -4,6 +4,7 @@ use self::lossyq::spsc::{Sender, Receiver};
 use super::super::common::{Task, Message};
 use super::super::elem::filter::Filter;
 use super::super::common::Schedule;
+use super::executor::TaskResults;
 //use std::collections::VecDeque;
 //use std::mem;
 
@@ -12,7 +13,7 @@ pub struct OnMsg {
 }
 
 impl Filter for OnMsg {
-  type InputType  = Box<Task + Send>;
+  type InputType  = TaskResults;
   type OutputType = Box<Task + Send>;
 
   fn process(

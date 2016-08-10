@@ -1,4 +1,5 @@
 extern crate lossyq;
+extern crate time;
 
 mod collector;
 mod executor;
@@ -8,7 +9,7 @@ mod event;
 mod loop_back;
 
 use self::lossyq::spsc::{Sender, channel};
-use super::common::{Task, Message, IdentifiedReceiver, Direction, new_id};
+use super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, Direction, new_id};
 use super::elem::{gather, scatter, filter};
 use super::connectable;
 
@@ -78,24 +79,93 @@ impl Scheduler {
   }
 }
 
-
-fn process_entry(collector : Box<Task+Send>,
-                 executor  : Box<Task+Send>,
-                 loopback  : Box<Task+Send>,
-                 event     : event::Event) {
-
+struct CountingReporter {
+  pub count : usize,
 }
 
-fn onmsg_entry(onmsg : Box<Task+Send>,
-               event : event::Event) {
+impl Reporter for CountingReporter {
+  fn message_sent(&mut self, _channel_id: usize, _last_msg_id: usize) {
+    self.count += 1;
+  }
+}
+
+fn process_entry(collector : Box<Task+Send>,
+                 executor : Box<Task+Send>,
+                 loopback : Box<Task+Send>,
+                 event    : event::Event) {
+  // rebind mutable parameters
+  let mut collector = collector;
+  let mut executor  = executor;
+  let mut loopback  = loopback;
+  let mut event     = event;
+  //
+  let mut spin   = 0;
+  let mut ticket = 0;
+
+  loop {
+    let mut reporter = CountingReporter{ count: 0 };
+    collector.execute(&mut reporter);
+    executor.execute(&mut reporter);
+    loopback.execute(&mut reporter);
+    if reporter.count == 0 {
+      if spin > 100 {
+        ticket = event.wait(ticket, spin);
+      }
+      spin += 1;
+    } else {
+      spin = 0;
+    }
+  }
 }
 
 fn timer_entry(timer : Box<Task+Send>,
-               event : event::Event) {
+               timer_event : event::Event,
+               process_event : event::Event) {
+  // rebind mutable parameters
+  let mut timer         = timer;
+  let mut timer_event   = timer_event;
+  let mut process_event = process_event;
+  //
+  let mut ticket = 0;
+
+  loop {
+    let mut reporter = CountingReporter{ count: 0 };
+    let start_ns = time::precise_time_ns();
+    let result = timer.execute(&mut reporter);
+    if reporter.count > 0 {
+      // tell process event that the timer emitted a task
+      process_event.notify();
+    }
+    match result {
+      Schedule::Loop => {
+        // continue execution
+      },
+      Schedule::OnMessage(_) => {
+        // this is not handled
+      },
+      Schedule::EndPlusUSec(us) => {
+        ticket = timer_event.wait(ticket, us as u64);
+      },
+      Schedule::StartPlusUSec(us) => {
+        let diff_ns = time::precise_time_ns() - start_ns;
+        let us_u64 : u64 = us as u64;
+        if diff_ns/1000 < us_u64 {
+          ticket = timer_event.wait(ticket, us_u64 - (diff_ns/1000));
+        }
+      },
+      Schedule::Stop => {
+        // ignore for the time being
+      }
+    }
+  }
 }
 
-fn stopped_entry(stopped : IdentifiedReceiver<Box<Task+Send>>,
-                 event   : event::Event) {
+fn onmsg_entry(_onmsg : Box<Task+Send>,
+               _event : event::Event) {
+}
+
+fn stopped_entry(_stopped : IdentifiedReceiver<executor::TaskResults>,
+                 _event   : event::Event) {
 }
 
 pub fn new() -> Scheduler {
@@ -103,22 +173,22 @@ pub fn new() -> Scheduler {
   use connectable::ConnectableN; // for collector
   use connectable::Connectable;  // for executor
 
-  let (gate_tx, gate_rx) = channel(100);
+  let (gate_tx, gate_rx) = channel(1000);
 
   let (mut collector_task, mut collector_output) =
-    gather::new(".scheduler.collector", 100, Box::new(collector::new()), 4);
+    gather::new(".scheduler.collector", 1000, Box::new(collector::new()), 4);
 
   let (mut executor_task, mut executor_outputs) =
-    scatter::new(".scheduler.executor", 100, Box::new(executor::new()), 4);
+    scatter::new(".scheduler.executor", 1000, Box::new(executor::new()), 4);
 
   let (mut loopback_task, mut loopback_output) =
-    filter::new(".scheduler.loopback", 100, Box::new(loop_back::new()));
+    filter::new(".scheduler.loopback", 1000, Box::new(loop_back::new()));
 
   let (mut onmsg_task, mut onmsg_output) =
-    filter::new(".scheduler.onmsg", 100, Box::new(on_msg::new()));
+    filter::new(".scheduler.onmsg", 1000, Box::new(on_msg::new()));
 
   let (mut timer_task, mut timer_output) =
-    filter::new( ".scheduler.timer", 100, Box::new(timer::new()));
+    filter::new( ".scheduler.timer", 1000, Box::new(timer::new()));
 
   let mut gate_rx_opt = Some(
     IdentifiedReceiver{
@@ -127,7 +197,7 @@ pub fn new() -> Scheduler {
     }
   );
 
-  let mut stopped : Option<IdentifiedReceiver<Box<Task+Send>>> = None;
+  let mut stopped : Option<IdentifiedReceiver<executor::TaskResults>> = None;
 
   // 0: new tasks through the gate
   // 1: loop_back
@@ -154,6 +224,9 @@ pub fn new() -> Scheduler {
   let timer_event   = event::new();
   let stopped_event = event::new();
 
+  // cloned events
+  let process_event_timer = process_event.clone();
+
   Scheduler{
     gate            : gate_tx,
     process_event   : process_event.clone(),
@@ -166,7 +239,7 @@ pub fn new() -> Scheduler {
     }),
     timer_event     : timer_event.clone(),
     timer_thread    : spawn(move || {
-      timer_entry(timer_task, timer_event);
+      timer_entry(timer_task, timer_event, process_event_timer);
     }),
     stopped_event   : stopped_event.clone() ,
     stopped_thread  : spawn(move || {

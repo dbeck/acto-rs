@@ -61,7 +61,8 @@ impl Gather for Collector {
       }
     }
 
-    // check tmp value of output channel
+    // check tmp value of output channel and saves it
+    // to the overflow queue
     {
       let mut val : Option<Message<Self::InputType>> = None;
       output.tmp( |t| { mem::swap(&mut val, t); });

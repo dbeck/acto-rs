@@ -4,6 +4,7 @@ use self::lossyq::spsc::{Sender, Receiver};
 use super::super::common::{Task, Message};
 use super::super::elem::filter::Filter;
 use super::super::common::Schedule;
+use super::executor::TaskResults;
 
 //use std::collections::BinaryHeap;
 //use std::time::{Instant};
@@ -16,7 +17,7 @@ pub struct Timer {
 }
 
 impl Filter for Timer {
-  type InputType  = Box<Task + Send>;
+  type InputType  = TaskResults;
   type OutputType = Box<Task + Send>;
 
   fn process(
