@@ -1,6 +1,6 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
-use super::super::common::{Task, Message, Schedule, IdentifiedReceiver, Direction, new_id};
+use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, Direction, new_id};
 use super::super::connectable::{Connectable};
 
 pub trait Filter {
@@ -29,13 +29,18 @@ impl<Input: Send, Output: Send> Connectable for FilterWrap<Input,Output> {
 }
 
 impl<Input: Send, Output: Send> Task for FilterWrap<Input,Output> {
-  fn execute(&mut self) -> Schedule {
+  fn execute(&mut self, reporter: &mut Reporter) -> Schedule {
     match &mut self.input_rx {
       &mut Some(ref mut identified) => {
-        self.state.process(
-          &mut identified.input,
-          &mut self.output_tx
-        )
+        // TODO : make this nicer. repetitive for all elems!
+        let msg_id = self.output_tx.seqno();
+        let retval = self.state.process(&mut identified.input,
+                                        &mut self.output_tx);
+        let new_msg_id = self.output_tx.seqno();
+        if msg_id != new_msg_id {
+          reporter.message_sent(0, new_msg_id);
+        }
+        retval
       },
       &mut None => Schedule::EndPlusUSec(10_000)
     }

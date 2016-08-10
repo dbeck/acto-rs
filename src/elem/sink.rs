@@ -1,6 +1,6 @@
 extern crate lossyq;
 use self::lossyq::spsc::Receiver;
-use super::super::common::{Task, Message, Schedule, IdentifiedReceiver};
+use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver};
 use super::super::connectable::{Connectable};
 
 pub trait Sink {
@@ -26,7 +26,7 @@ impl<Input: Send> Connectable for SinkWrap<Input> {
 }
 
 impl<Input: Send> Task for SinkWrap<Input> {
-  fn execute(&mut self) -> Schedule {
+  fn execute(&mut self, _reporter: &mut Reporter) -> Schedule {
     match &mut self.input_rx {
       &mut Some(ref mut identified) => {
         self.state.process(&mut identified.input)

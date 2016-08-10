@@ -1,6 +1,6 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, channel};
-use super::super::common::{Task, Message, Schedule, IdentifiedReceiver, Direction, new_id};
+use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, Direction, new_id};
 
 pub trait Source {
   type OutputType : Send;
@@ -17,8 +17,15 @@ pub struct SourceWrap<Output: Send> {
 }
 
 impl<Output: 'static+Send> Task for SourceWrap<Output> {
-  fn execute(&mut self) -> Schedule {
-    self.state.process(&mut self.output_tx)
+  fn execute(&mut self, reporter: &mut Reporter) -> Schedule {
+    // TODO : make this nicer. repetitive for all elems!
+    let msg_id = self.output_tx.seqno();
+    let retval = self.state.process(&mut self.output_tx);
+    let new_msg_id = self.output_tx.seqno();
+    if msg_id != new_msg_id {
+      reporter.message_sent(0, new_msg_id);
+    }
+    retval
   }
   fn name(&self) -> &String { &self.name }
 }

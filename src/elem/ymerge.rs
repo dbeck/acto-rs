@@ -1,6 +1,6 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
-use super::super::common::{Task, Message, Schedule, IdentifiedReceiver, Direction, new_id};
+use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, Direction, new_id};
 use super::super::connectable::{ConnectableY};
 
 pub trait YMerge {
@@ -37,16 +37,21 @@ impl<InputA: Send, InputB: Send, Output: Send> ConnectableY for YMergeWrap<Input
 }
 
 impl<InputA: Send, InputB: Send, Output: Send> Task for YMergeWrap<InputA, InputB, Output> {
-  fn execute(&mut self) -> Schedule {
+  fn execute(&mut self, reporter: &mut Reporter) -> Schedule {
     match &mut self.input_a_rx {
       &mut Some(ref mut identified_a) => {
         match &mut self.input_b_rx {
           &mut Some(ref mut identified_b) => {
-            self.state.process(
-              &mut identified_a.input,
-              &mut identified_b.input,
-              &mut self.output_tx
-            )
+            // TODO : make this nicer. repetitive for all elems!
+            let msg_id = self.output_tx.seqno();
+            let retval = self.state.process(&mut identified_a.input,
+                                            &mut identified_b.input,
+                                            &mut self.output_tx);
+            let new_msg_id = self.output_tx.seqno();
+            if msg_id != new_msg_id {
+              reporter.message_sent(0, new_msg_id);
+            }
+            retval
           },
           &mut None => Schedule::EndPlusUSec(10_000)
         }

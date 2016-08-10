@@ -1,6 +1,6 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
-use super::super::common::{Task, Message, Schedule, IdentifiedReceiver, Direction, new_id};
+use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, Direction, new_id};
 use super::super::connectable::{Connectable};
 
 pub trait Scatter {
@@ -29,13 +29,25 @@ impl<Input: Send, Output: Send> Connectable for ScatterWrap<Input,Output> {
 }
 
 impl<Input: Send, Output: Send> Task for ScatterWrap<Input,Output> {
-  fn execute(&mut self) -> Schedule {
+  fn execute(&mut self, reporter: &mut Reporter) -> Schedule {
     match &mut self.input_rx {
       &mut Some(ref mut identified) => {
-        self.state.process(
-          &mut identified.input,
-          &mut self.output_tx_vec
-        )
+        // TODO : make this nicer. repetitive for all elems!
+        let mut msg_ids = vec![];
+        for otx in &self.output_tx_vec {
+          msg_ids.push(otx.seqno());
+        }
+        let retval = self.state.process(&mut identified.input,
+                                        &mut self.output_tx_vec);
+        let otx_slice = self.output_tx_vec.as_slice();
+        let ids_slice = msg_ids.as_slice();
+        for i in 0..msg_ids.len() {
+          let new_msg_id = otx_slice[i].seqno();
+          if ids_slice[i] != new_msg_id {
+            reporter.message_sent(i, new_msg_id);
+          }
+        }
+        retval
       },
       &mut None => Schedule::EndPlusUSec(10_000)
     }

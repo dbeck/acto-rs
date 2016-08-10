@@ -20,9 +20,13 @@ pub enum Schedule {
   Stop,
 }
 
+pub trait Reporter {
+  fn message_sent(&mut self, channel_id: usize, last_msg_id: usize);
+}
+
 pub trait Task {
-  fn execute(&mut self)  -> Schedule;
-  fn name(&self)         -> &String;
+  fn execute(&mut self, reporter: &mut Reporter) -> Schedule;
+  fn name(&self)  -> &String;
 }
 
 #[derive(Copy,Clone,Debug)]

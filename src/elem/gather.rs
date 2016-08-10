@@ -1,6 +1,6 @@
 extern crate lossyq;
 use self::lossyq::spsc::{Sender, Receiver, channel};
-use super::super::common::{Task, Message, Schedule, IdentifiedReceiver, Direction, new_id};
+use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, Direction, new_id};
 use super::super::connectable::{ConnectableN};
 
 pub trait Gather {
@@ -30,7 +30,7 @@ impl<Input: Send, Output: Send> ConnectableN for GatherWrap<Input,Output> {
 }
 
 impl<Input: Send, Output: Send> Task for GatherWrap<Input,Output> {
-  fn execute(&mut self) -> Schedule {
+  fn execute(&mut self, reporter: &mut Reporter) -> Schedule {
     let mut input_vec = vec![];
     for ch in &mut self.input_rx_vec {
       match ch {
@@ -43,7 +43,15 @@ impl<Input: Send, Output: Send> Task for GatherWrap<Input,Output> {
     if input_vec.len() == 0 {
       Schedule::EndPlusUSec(10_000)
     } else {
-      self.state.process(input_vec, &mut self.output_tx)
+      // TODO : make this nicer. repetitive for all elems!
+      let msg_id = self.output_tx.seqno();
+      let retval = self.state.process(input_vec,
+                                      &mut self.output_tx);
+      let new_msg_id = self.output_tx.seqno();
+      if msg_id != new_msg_id {
+        reporter.message_sent(0, new_msg_id);
+      }
+      retval
     }
   }
   fn name(&self) -> &String { &self.name }
