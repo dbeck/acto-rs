@@ -7,6 +7,7 @@ mod timer;
 mod on_msg;
 mod event;
 mod loop_back;
+mod lossless;
 
 use self::lossyq::spsc::{Sender, channel};
 use super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, Direction, new_id};

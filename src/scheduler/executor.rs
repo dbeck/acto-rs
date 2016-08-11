@@ -1,11 +1,11 @@
 extern crate lossyq;
 
 use self::lossyq::spsc::{Sender, Receiver};
-use super::super::common::{Task, Message};
+use super::super::common::{Task, Message, Schedule};
 use super::super::elem::scatter::Scatter;
-use super::super::common::Schedule;
-//use std::collections::VecDeque;
-//use std::mem;
+use std::collections::VecDeque;
+use super::CountingReporter;
+use std::mem;
 
 pub struct TaskResults {
   pub task      : Box<Task + Send>,
@@ -13,7 +13,7 @@ pub struct TaskResults {
 }
 
 pub struct Executor {
-  //dummy : i32,
+  overflow: VecDeque<TaskResults>,
 }
 
 impl Scatter for Executor {
@@ -25,10 +25,30 @@ impl Scatter for Executor {
           input:   &mut Receiver<Message<Self::InputType>>,
           output:  &mut Vec<Sender<Message<Self::OutputType>>>) -> Schedule {
 
-    for _i in input.iter() {
-      /*match i {
+    for i in input.iter() {
 
-      }*/
+      match i {
+        // TODO : check these cases
+        Message::Empty => {}, // ignore
+        Message::Value(mut v) => {
+          let mut reporter = CountingReporter{ count: 0 };
+          let result = v.execute(&mut reporter);
+          // 0: stopped
+          // 1: loop_back
+          // 2: on_msg
+          // 3: timer
+          let _out_channels = output.as_mut_slice();
+          match result {
+            Schedule::Loop => {},
+            Schedule::OnMessage(_id)  => {},
+            Schedule::EndPlusUSec(_usec) => {},
+            Schedule::StartPlusUSec(_usec) => {},
+            Schedule::Stop => {},
+          };
+        },
+        Message::Ack(_,_) => {}, // ignore
+        Message::Error(_,_) => {},  // ignore
+      };
     }
     Schedule::Loop
   }
@@ -36,6 +56,6 @@ impl Scatter for Executor {
 
 pub fn new() -> Executor {
   Executor {
-    //dummy: 0,
+    overflow: VecDeque::new(),
   }
 }
