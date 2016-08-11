@@ -1,5 +1,6 @@
 extern crate lossyq;
 extern crate parking_lot;
+extern crate time;
 
 pub mod scheduler;
 pub mod common;

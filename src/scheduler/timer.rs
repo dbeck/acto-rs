@@ -1,6 +1,4 @@
-extern crate lossyq;
-
-use self::lossyq::spsc::{Sender, Receiver};
+use lossyq::spsc::{Sender, Receiver};
 use super::super::common::{Task, Message};
 use super::super::elem::filter::Filter;
 use super::super::common::Schedule;

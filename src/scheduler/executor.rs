@@ -1,6 +1,4 @@
-extern crate lossyq;
-
-use self::lossyq::spsc::{Sender, Receiver};
+use lossyq::spsc::{noloss, Sender, Receiver};
 use super::super::common::{Task, Message, Schedule};
 use super::super::elem::scatter::Scatter;
 use std::collections::VecDeque;
@@ -13,7 +11,22 @@ pub struct TaskResults {
 }
 
 pub struct Executor {
-  overflow: VecDeque<TaskResults>,
+  overflow: VecDeque<Message<TaskResults>>,
+}
+
+impl noloss::Overflow for Executor {
+  type Input = Message<TaskResults>;
+
+  fn overflow(&mut self, val : &mut Option<Self::Input>) {
+    let mut tmp : Option<Self::Input> = None;
+    mem::swap(&mut tmp, val);
+    match tmp {
+      Some(v) => {
+        self.overflow.push_back(v);
+      },
+      None => {}
+    }
+  }
 }
 
 impl Scatter for Executor {

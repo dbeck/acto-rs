@@ -1,9 +1,7 @@
-extern crate parking_lot;
-extern crate time;
-
 use std::time::Duration;
 use std::sync::Arc;
-use self::parking_lot::{Mutex, Condvar};
+use parking_lot::{Mutex, Condvar};
+use time;
 
 #[derive(Clone)]
 pub struct Event {

@@ -1,5 +1,4 @@
-extern crate lossyq;
-use self::lossyq::spsc::{Sender, Receiver, channel};
+use lossyq::spsc::{Sender, Receiver, channel};
 use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, Direction, new_id};
 use super::super::connectable::{ConnectableN};
 

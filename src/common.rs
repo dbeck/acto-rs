@@ -1,5 +1,4 @@
-extern crate lossyq;
-use self::lossyq::spsc::Receiver;
+use lossyq::spsc::Receiver;
 use std::fmt;
 
 #[derive(Copy,Clone,Debug)]
