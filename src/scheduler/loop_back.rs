@@ -8,6 +8,7 @@ use std::mem;
 
 pub struct LoopBack {
   overflow: VecDeque<Message<Box<Task + Send>>>,
+  tmp_overflow: VecDeque<Message<Box<Task + Send>>>,
 }
 
 impl noloss::Overflow for LoopBack {
@@ -18,7 +19,7 @@ impl noloss::Overflow for LoopBack {
     mem::swap(&mut tmp, val);
     match tmp {
       Some(v) => {
-        self.overflow.push_back(v);
+        self.tmp_overflow.push_back(v);
       },
       None => {}
     }
@@ -35,15 +36,12 @@ impl Filter for LoopBack {
           output:  &mut Sender<Message<Self::OutputType>>) -> Schedule {
 
     {
-
-      let mut tmp_overflow = LoopBack { overflow: VecDeque::new() };
-
       // process the previously overflown items
       loop {
         match self.overflow.pop_front() {
           Some(item) => {
             let mut opt_item : Option<Message<Self::OutputType>> = Some(item);
-            match noloss::pour(&mut opt_item, output, &mut tmp_overflow) {
+            match noloss::pour(&mut opt_item, output, self) {
               (noloss::PourResult::Overflowed, _) => { break; }
               _ => {}
             }
@@ -60,7 +58,7 @@ impl Filter for LoopBack {
             match item {
               Message::Value(v) => {
                 let mut opt_item : Option<Message<Self::OutputType>> = Some(Message::Value(v.task));
-                match noloss::pour(&mut opt_item, output, &mut tmp_overflow) {
+                match noloss::pour(&mut opt_item, output, self) {
                   (noloss::PourResult::Overflowed, _) => {}
                   _ => {}
                 }
@@ -75,7 +73,7 @@ impl Filter for LoopBack {
       }
 
       // move the newly overflown items in
-      self.overflow.append(&mut tmp_overflow.overflow);
+      self.overflow.append(&mut self.tmp_overflow);
     }
     Schedule::Loop
   }
@@ -84,5 +82,6 @@ impl Filter for LoopBack {
 pub fn new() -> LoopBack {
   LoopBack {
     overflow: VecDeque::new(),
+    tmp_overflow: VecDeque::new(),
   }
 }

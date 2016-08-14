@@ -93,9 +93,11 @@ fn process_entry(collector : Box<Task+Send>,
   let mut m_c = MeasureTime::new();
   let mut m_e = MeasureTime::new();
   let mut m_l = MeasureTime::new();
+  let mut m_x = MeasureTime::new();
 
   loop {
     let mut reporter = CountingReporter{ count: 0 };
+    m_x.start();
     m_c.start();
     collector.execute(&mut reporter);
     m_c.end();
@@ -105,9 +107,11 @@ fn process_entry(collector : Box<Task+Send>,
     m_l.start();
     loopback.execute(&mut reporter);
     m_l.end();
+    m_x.end();
     m_c.print("Collector thread: collector");
     m_e.print("Collector thread:  executor");
     m_l.print("Collector thread: loop_back");
+    m_x.print("Collector thread: all");
     if reporter.count == 0 {
       if spin > 100 {
         ticket = event.wait(ticket, spin);
