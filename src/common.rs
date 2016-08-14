@@ -13,9 +13,9 @@ pub enum Message<T: Send>
 #[derive(Debug)]
 pub enum Schedule {
   Loop,
-  OnMessage(usize),
-  EndPlusUSec(usize),
-  StartPlusUSec(usize),
+  OnMessage(u64),
+  EndPlusUSec(u64),
+  StartPlusUSec(u64),
   Stop,
 }
 

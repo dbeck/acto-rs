@@ -1,5 +1,5 @@
 use lossyq::spsc::{noloss, Sender, Receiver};
-use super::super::common::{Task, Message};
+use super::super::common::{Task, Message, IdentifiedReceiver};
 use super::super::elem::filter::Filter;
 use super::super::common::Schedule;
 use super::executor::TaskResults;
@@ -31,10 +31,11 @@ impl Filter for LoopBack {
 
   fn process(
           &mut self,
-          input:   &mut Receiver<Message<Self::InputType>>,
+          input:   &mut Option<IdentifiedReceiver<Self::InputType>>,
           output:  &mut Sender<Message<Self::OutputType>>) -> Schedule {
 
     {
+
       let mut tmp_overflow = LoopBack { overflow: VecDeque::new() };
 
       // process the previously overflown items
@@ -51,20 +52,26 @@ impl Filter for LoopBack {
         }
       }
 
-      // process the incoming items
-      for item in input.iter() {
-        match item {
-          Message::Value(v) => {
-            let mut opt_item : Option<Message<Self::OutputType>> = Some(Message::Value(v.task));
-            match noloss::pour(&mut opt_item, output, &mut tmp_overflow) {
-              (noloss::PourResult::Overflowed, _) => { break; }
-              _ => {}
+      match input {
+        &mut Some(ref mut identified) => {
+          // process the incoming items
+
+          for item in identified.input.iter() {
+            match item {
+              Message::Value(v) => {
+                let mut opt_item : Option<Message<Self::OutputType>> = Some(Message::Value(v.task));
+                match noloss::pour(&mut opt_item, output, &mut tmp_overflow) {
+                  (noloss::PourResult::Overflowed, _) => {}
+                  _ => {}
+                }
+              },
+              Message::Empty => {},       // ignore
+              Message::Ack(_,_) => {},    // ignore
+              Message::Error(_,_) => {},  // ignore
             }
-          },
-          Message::Empty => {},       // ignore
-          Message::Ack(_,_) => {},    // ignore
-          Message::Error(_,_) => {},  // ignore
-        }
+          }
+        },
+        &mut None => {}
       }
 
       // move the newly overflown items in

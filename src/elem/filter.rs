@@ -8,7 +8,7 @@ pub trait Filter {
 
   fn process(
     &mut self,
-    input:   &mut Receiver<Message<Self::InputType>>,
+    input:   &mut Option<IdentifiedReceiver<Self::InputType>>,
     output:  &mut Sender<Message<Self::OutputType>>) -> Schedule;
 }
 
@@ -29,20 +29,15 @@ impl<Input: Send, Output: Send> Connectable for FilterWrap<Input,Output> {
 
 impl<Input: Send, Output: Send> Task for FilterWrap<Input,Output> {
   fn execute(&mut self, reporter: &mut Reporter) -> Schedule {
-    match &mut self.input_rx {
-      &mut Some(ref mut identified) => {
-        // TODO : make this nicer. repetitive for all elems!
-        let msg_id = self.output_tx.seqno();
-        let retval = self.state.process(&mut identified.input,
-                                        &mut self.output_tx);
-        let new_msg_id = self.output_tx.seqno();
-        if msg_id != new_msg_id {
-          reporter.message_sent(0, new_msg_id);
-        }
-        retval
-      },
-      &mut None => Schedule::EndPlusUSec(10_000)
+    // TODO : make this nicer. repetitive for all elems!
+    let msg_id = self.output_tx.seqno();
+    let retval = self.state.process(&mut self.input_rx,
+                                    &mut self.output_tx);
+    let new_msg_id = self.output_tx.seqno();
+    if msg_id != new_msg_id {
+      reporter.message_sent(0, new_msg_id);
     }
+    retval
   }
   fn name(&self) -> &String { &self.name }
 }

@@ -1,5 +1,5 @@
 use lossyq::spsc::{noloss, Sender, Receiver};
-use super::super::common::{Task, Message};
+use super::super::common::{Task, Message, IdentifiedReceiver};
 use super::super::elem::gather::Gather;
 use super::super::common::Schedule;
 use std::collections::VecDeque;
@@ -30,7 +30,7 @@ impl Gather for Collector {
 
   fn process(
           &mut self,
-          input_vec:   Vec<&mut Receiver<Message<Self::InputType>>>,
+          input_vec:   &mut Vec<Option<IdentifiedReceiver<Self::InputType>>>,
           output:      &mut Sender<Message<Self::OutputType>>) -> Schedule {
 
     {
@@ -52,12 +52,17 @@ impl Gather for Collector {
 
       // process the incoming items
       for input in input_vec {
-        for item in input.iter() {
-          let mut opt_item : Option<Message<Self::InputType>> = Some(item);
-          match noloss::pour(&mut opt_item, output, &mut tmp_overflow) {
-            (noloss::PourResult::Overflowed, _) => { break; }
-            _ => {}
-          }
+        match input {
+          &mut Some(ref mut identified) => {
+            for item in identified.input.iter() {
+              let mut opt_item : Option<Message<Self::InputType>> = Some(item);
+              match noloss::pour(&mut opt_item, output, &mut tmp_overflow) {
+                (noloss::PourResult::Overflowed, _) => {}
+                _ => {}
+              }
+            }
+          },
+          &mut None => {},
         }
       }
 

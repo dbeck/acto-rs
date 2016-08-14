@@ -9,8 +9,8 @@ pub trait YMerge {
 
   fn process(
     &mut self,
-    input_a:  &mut Receiver<Message<Self::InputTypeA>>,
-    input_b:  &mut Receiver<Message<Self::InputTypeB>>,
+    input_a:  &mut Option<IdentifiedReceiver<Self::InputTypeA>>,
+    input_b:  &mut Option<IdentifiedReceiver<Self::InputTypeB>>,
     output:   &mut Sender<Message<Self::OutputType>>) -> Schedule;
 }
 
@@ -37,26 +37,16 @@ impl<InputA: Send, InputB: Send, Output: Send> ConnectableY for YMergeWrap<Input
 
 impl<InputA: Send, InputB: Send, Output: Send> Task for YMergeWrap<InputA, InputB, Output> {
   fn execute(&mut self, reporter: &mut Reporter) -> Schedule {
-    match &mut self.input_a_rx {
-      &mut Some(ref mut identified_a) => {
-        match &mut self.input_b_rx {
-          &mut Some(ref mut identified_b) => {
-            // TODO : make this nicer. repetitive for all elems!
-            let msg_id = self.output_tx.seqno();
-            let retval = self.state.process(&mut identified_a.input,
-                                            &mut identified_b.input,
-                                            &mut self.output_tx);
-            let new_msg_id = self.output_tx.seqno();
-            if msg_id != new_msg_id {
-              reporter.message_sent(0, new_msg_id);
-            }
-            retval
-          },
-          &mut None => Schedule::EndPlusUSec(10_000)
-        }
-      },
-      &mut None => Schedule::EndPlusUSec(10_000)
+    // TODO : make this nicer. repetitive for all elems!
+    let msg_id = self.output_tx.seqno();
+    let retval = self.state.process(&mut self.input_a_rx,
+                                    &mut self.input_b_rx,
+                                    &mut self.output_tx);
+    let new_msg_id = self.output_tx.seqno();
+    if msg_id != new_msg_id {
+      reporter.message_sent(0, new_msg_id);
     }
+    retval
   }
   fn name(&self) -> &String { &self.name }
 }

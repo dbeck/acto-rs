@@ -1,9 +1,9 @@
-mod collector;
+pub mod collector; // TODO: make non public later!!
 mod executor;
 mod timer;
 mod on_msg;
 mod event;
-mod loop_back;
+pub mod loop_back; // TODO: make non public later!!
 
 use time;
 use lossyq::spsc::{Sender, channel};
@@ -12,28 +12,6 @@ use super::elem::{gather, scatter, filter};
 use super::connectable;
 
 use std::thread::{spawn, JoinHandle};
-//use std::collections::VecDeque;
-//use std::time::{Instant, Duration};
-//use std::sync::{Arc, Mutex, Condvar};
-
-//
-//let pair = Arc::new((Mutex::new(false), Condvar::new()));
-//let pair2 = pair.clone();
-//
-//// Inside of our lock, spawn a new thread, and then wait for it to start
-//thread::spawn(move|| {
-//    let &(ref lock, ref cvar) = &*pair2;
-//    let mut started = lock.lock().unwrap();
-//    *started = true;
-//    cvar.notify_one();
-//});
-//
-//// wait for the thread to start up
-//let &(ref lock, ref cvar) = &*pair;
-//let mut started = lock.lock().unwrap();
-//while !*started {
-//    started = cvar.wait(started).unwrap();
-//}
 
 pub struct Scheduler {
   // gate to add new tasks:
@@ -46,17 +24,6 @@ pub struct Scheduler {
   timer_thread    : JoinHandle<()>,
   stopped_event   : event::Event,
   stopped_thread  : JoinHandle<()>,
-
-  //tasks     : HashMap<String, Box<Task>>,
-  // looping Thread
-  // - list, push back
-
-  // on msg Thread
-  // - map: ["name/type"] -> [ptr list]
-
-  // scheduled Thread
-  // - sorted multi map: [run_at] -> [ptr list]
-  //timed : time_triggered::TimeTriggered,
 }
 
 impl Scheduler {
@@ -64,26 +31,49 @@ impl Scheduler {
   pub fn add_task(&mut self, task: Box<Task+Send>)
   {
     use std::mem;
-    //use super::task::Task;
-    //let n = task.name().clone();
-    //self.tasks.insert(n, task);
-    //self.looping.push_back(task);
-    // let _plus_10us = Instant::now() + Duration::new(0,1000);
-    // self.timed.add(plus_10us, task);
-
     let mut to_send : Option<Message<Box<Task+Send>>> = Some(Message::Value(task));
     self.gate.put( |v| mem::swap(&mut to_send, v) );
     // TODO : handle overflow here
+    self.process_event.notify();
+  }
+
+  pub fn stop(self) {
+    self.process_thread.join().unwrap();
+    self.onmsg_thread.join().unwrap();
+    self.timer_thread.join().unwrap();
+    self.stopped_thread.join().unwrap();
   }
 }
 
-struct CountingReporter {
+pub struct CountingReporter {
   pub count : usize,
 }
 
 impl Reporter for CountingReporter {
   fn message_sent(&mut self, _channel_id: usize, _last_msg_id: usize) {
     self.count += 1;
+  }
+}
+
+pub struct MeasureTime {
+  time_diff: u64,
+  last: u64,
+  count: u64,
+}
+
+impl MeasureTime {
+  pub fn new() -> MeasureTime { MeasureTime{time_diff: 0, last: 0, count: 0} }
+  pub fn start(&mut self) {
+    self.last = time::precise_time_ns();
+  }
+  pub fn end(&mut self) {
+    self.count += 1;
+    self.time_diff += time::precise_time_ns() - self.last;
+  }
+  pub fn print(&mut self, prefix: &'static str) {
+    if self.count % 1000000 == 0 {
+      println!("{} diff t: {} {} {}/sec",prefix ,self.time_diff/self.count,self.count,1_000_000_000/(self.time_diff/self.count));
+    }
   }
 }
 
@@ -100,11 +90,24 @@ fn process_entry(collector : Box<Task+Send>,
   let mut spin   = 0;
   let mut ticket = 0;
 
+  let mut m_c = MeasureTime::new();
+  let mut m_e = MeasureTime::new();
+  let mut m_l = MeasureTime::new();
+
   loop {
     let mut reporter = CountingReporter{ count: 0 };
+    m_c.start();
     collector.execute(&mut reporter);
+    m_c.end();
+    m_e.start();
     executor.execute(&mut reporter);
+    m_e.end();
+    m_l.start();
     loopback.execute(&mut reporter);
+    m_l.end();
+    m_c.print("Collector thread: collector");
+    m_e.print("Collector thread:  executor");
+    m_l.print("Collector thread: loop_back");
     if reporter.count == 0 {
       if spin > 100 {
         ticket = event.wait(ticket, spin);
@@ -171,7 +174,7 @@ pub fn new() -> Scheduler {
   use connectable::ConnectableN; // for collector
   use connectable::Connectable;  // for executor
 
-  let (gate_tx, gate_rx) = channel(1000);
+  let (gate_tx, gate_rx) = channel(10000);
 
   let (mut collector_task, mut collector_output) =
     gather::new(".scheduler.collector", 1000, Box::new(collector::new()), 4);

@@ -8,15 +8,15 @@ pub trait Gather {
 
   fn process(
     &mut self,
-    input:   Vec<&mut Receiver<Message<Self::InputType>>>,
+    input:   &mut Vec<Option<IdentifiedReceiver<Self::InputType>>>,
     output:  &mut Sender<Message<Self::OutputType>>) -> Schedule;
 }
 
 pub struct GatherWrap<Input: Send, Output: Send> {
-  name          : String,
-  state         : Box<Gather<InputType=Input,OutputType=Output>+Send>,
-  input_rx_vec  : Vec<Option<IdentifiedReceiver<Input>>>,
-  output_tx     : Sender<Message<Output>>,
+  name           : String,
+  state          : Box<Gather<InputType=Input,OutputType=Output>+Send>,
+  input_rx_vec   : Vec<Option<IdentifiedReceiver<Input>>>,
+  output_tx      : Sender<Message<Output>>,
 }
 
 impl<Input: Send, Output: Send> ConnectableN for GatherWrap<Input,Output> {
@@ -30,28 +30,15 @@ impl<Input: Send, Output: Send> ConnectableN for GatherWrap<Input,Output> {
 
 impl<Input: Send, Output: Send> Task for GatherWrap<Input,Output> {
   fn execute(&mut self, reporter: &mut Reporter) -> Schedule {
-    let mut input_vec = vec![];
-    for ch in &mut self.input_rx_vec {
-      match ch {
-        &mut Some(ref mut identified) => {
-          input_vec.push(&mut identified.input);
-        },
-        &mut None => {}
-      }
+    // TODO : make this nicer. repetitive for all elems!
+    let msg_id = self.output_tx.seqno();
+    let retval = self.state.process(&mut self.input_rx_vec,
+                                    &mut self.output_tx);
+    let new_msg_id = self.output_tx.seqno();
+    if msg_id != new_msg_id {
+      reporter.message_sent(0, new_msg_id);
     }
-    if input_vec.len() == 0 {
-      Schedule::EndPlusUSec(10_000)
-    } else {
-      // TODO : make this nicer. repetitive for all elems!
-      let msg_id = self.output_tx.seqno();
-      let retval = self.state.process(input_vec,
-                                      &mut self.output_tx);
-      let new_msg_id = self.output_tx.seqno();
-      if msg_id != new_msg_id {
-        reporter.message_sent(0, new_msg_id);
-      }
-      retval
-    }
+    retval
   }
   fn name(&self) -> &String { &self.name }
 }
@@ -70,10 +57,10 @@ pub fn new<Input: Send, Output: Send>(
   (
     Box::new(
       GatherWrap{
-        name          : String::from(name),
-        state         : gather,
-        input_rx_vec  : inputs,
-        output_tx     : output_tx,
+        name                   : String::from(name),
+        state                  : gather,
+        input_rx_vec           : inputs,
+        output_tx              : output_tx,
       }
     ),
     Box::new(

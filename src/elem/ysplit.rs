@@ -9,7 +9,7 @@ pub trait YSplit {
 
   fn process(
     &mut self,
-    input:     &mut Receiver<Message<Self::InputType>>,
+    input:     &mut Option<IdentifiedReceiver<Self::InputType>>,
     output_a:  &mut Sender<Message<Self::OutputTypeA>>,
     output_b:  &mut Sender<Message<Self::OutputTypeB>>) -> Schedule;
 }
@@ -32,26 +32,21 @@ impl<Input: Send, OutputA: Send, OutputB: Send> Connectable for YSplitWrap<Input
 
 impl<Input: Send, OutputA: Send, OutputB: Send> Task for YSplitWrap<Input, OutputA, OutputB> {
   fn execute(&mut self, reporter: &mut Reporter) -> Schedule {
-    match &mut self.input_rx {
-      &mut Some(ref mut identified) => {
-        // TODO : make this nicer. repetitive for all elems!
-        let msg_a_id = self.output_a_tx.seqno();
-        let msg_b_id = self.output_b_tx.seqno();
-        let retval = self.state.process(&mut identified.input,
-                                        &mut self.output_a_tx,
-                                        &mut self.output_b_tx);
-        let new_msg_a_id = self.output_a_tx.seqno();
-        if msg_a_id != new_msg_a_id {
-          reporter.message_sent(0, new_msg_a_id);
-        }
-        let new_msg_b_id = self.output_b_tx.seqno();
-        if msg_b_id != new_msg_b_id {
-          reporter.message_sent(1, new_msg_b_id);
-        }
-        retval
-      },
-      &mut None => Schedule::EndPlusUSec(10_000)
+    // TODO : make this nicer. repetitive for all elems!
+    let msg_a_id = self.output_a_tx.seqno();
+    let msg_b_id = self.output_b_tx.seqno();
+    let retval = self.state.process(&mut self.input_rx,
+                                    &mut self.output_a_tx,
+                                    &mut self.output_b_tx);
+    let new_msg_a_id = self.output_a_tx.seqno();
+    if msg_a_id != new_msg_a_id {
+      reporter.message_sent(0, new_msg_a_id);
     }
+    let new_msg_b_id = self.output_b_tx.seqno();
+    if msg_b_id != new_msg_b_id {
+      reporter.message_sent(1, new_msg_b_id);
+    }
+    retval
   }
   fn name(&self) -> &String { &self.name }
 }

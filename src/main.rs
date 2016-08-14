@@ -1,173 +1,152 @@
 extern crate minions;
 extern crate lossyq;
 extern crate parking_lot;
+extern crate time;
 
-use lossyq::spsc::Receiver;
-use lossyq::spsc::Sender;
+//use lossyq::spsc::Receiver;
+use lossyq::spsc::{channel, Sender};
 use minions::scheduler;
-use minions::elem::{source, filter, sink, ymerge, ysplit};
+use minions::elem::{source, /*, filter, sink, ymerge, ysplit*/ };
 use minions::common;
-use minions::common::Message;
+use minions::common::{Message, Task};
 
 #[derive(Copy, Clone)]
 struct SourceState {
-  state : i32,
+  count      : u64,
+  start      : u64,
 }
 
 impl source::Source for SourceState {
-  type OutputType = i32;
+  type OutputType = u64;
 
   fn process(
         &mut self,
         output: &mut Sender<Message<Self::OutputType>>)
       -> common::Schedule {
-    output.put(|x| *x = Some(Message::Value(self.state)));
-    self.state += 1;
-    common::Schedule::Loop
-  }
-}
-
-#[derive(Copy, Clone)]
-struct FilterState {
-  state : i32,
-}
-
-impl filter::Filter for FilterState {
-  type InputType = i32;
-  type OutputType = i32;
-
-  fn process(
-        &mut self,
-        input: &mut Receiver<Message<Self::InputType>>,
-        output: &mut Sender<Message<Self::OutputType>>)
-      -> common::Schedule {
-    for i in input.iter() {
-      match i {
-        Message::Value(v) => {
-          self.state = v;
-          output.put(|x| *x =  Some(Message::Value(self.state)));
-        }
-        _ => { println!("Unknown value"); }
-      }
+    output.put(|x| *x = Some(Message::Value(self.count)));
+    self.count += 1;
+    if self.count % 1000000 == 0 {
+      let now = time::precise_time_ns();
+      let diff_t = now-self.start;
+      println!("diff t: {} {} {}/sec", diff_t/self.count,self.count,1_000_000_000/(diff_t/self.count));
     }
     common::Schedule::Loop
   }
 }
 
-#[derive(Copy, Clone)]
-struct SinkState {
-  state : i32,
+fn test_sched() {
+  //use minions::connectable::{Connectable, ConnectableY};
+  let (source_task_1, mut _source_out) = source::new( "Source 1", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
+  let (source_task_2, mut _source_out) = source::new( "Source 2", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
+  let (source_task_3, mut _source_out) = source::new( "Source 3", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
+  let (source_task_4, mut _source_out) = source::new( "Source 4", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
+  let (source_task_5, mut _source_out) = source::new( "Source 5", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
+  let (source_task_6, mut _source_out) = source::new( "Source 6", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
+  let (source_task_7, mut _source_out) = source::new( "Source 7", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
+  let (source_task_8, mut _source_out) = source::new( "Source 8", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
+  let (source_task_9, mut _source_out) = source::new( "Source 9", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
+  let mut sched = scheduler::new();
+  sched.add_task(source_task_1);
+  sched.add_task(source_task_2);
+  sched.add_task(source_task_3);
+  sched.add_task(source_task_4);
+  sched.add_task(source_task_5);
+  sched.add_task(source_task_6);
+  sched.add_task(source_task_7);
+  sched.add_task(source_task_8);
+  sched.add_task(source_task_9);
+  sched.stop();
 }
 
-impl sink::Sink for SinkState {
-  type InputType = i32;
-
-  fn process(
-        &mut self,
-        input: &mut Receiver<Message<Self::InputType>>)
-      -> common::Schedule {
-    for i in input.iter() {
-      match i {
-        Message::Value(v) => {
-          self.state = v;
-        }
-        _ => { println!("Unknown value"); }
-      }
-    }
-    common::Schedule::Loop
+fn time_baseline() {
+  let start = time::precise_time_ns();
+  let mut end = 0;
+  for _i in 0..1_000_000 {
+    end = time::precise_time_ns();
   }
+  let diff = end - start;
+  println!("timer overhead: {} ns", diff/1_000_000);
 }
 
-#[derive(Copy, Clone)]
-struct YSplitState {
-  state_i : i32,
-  state_f : f64,
-}
-
-impl ysplit::YSplit for YSplitState {
-  type InputType    = i32;
-  type OutputTypeA  = i32;
-  type OutputTypeB  = f64;
-
-  fn process(
-        &mut self,
-        input:     &mut Receiver<Message<Self::InputType>>,
-        output_a:  &mut Sender<Message<Self::OutputTypeA>>,
-        output_b:  &mut Sender<Message<Self::OutputTypeB>>) -> common::Schedule
-  {
-    for i in input.iter() {
-      match i {
-        Message::Value(v) => {
-          self.state_i = v;
-          self.state_f = v as f64;
-          output_a.put(|x| *x = Some(Message::Value(self.state_i)));
-          output_b.put(|x| *x = Some(Message::Value(self.state_f)));
-        }
-        _ => { println!("Unknown value"); }
-      }
-    }
-    common::Schedule::Loop
+fn send_data() {
+  let start = time::precise_time_ns();
+  let (mut tx, _rx) = channel(100);
+  for i in 0..10_000_000i32 {
+    tx.put(|v| *v = Some(i));
   }
+  let end = time::precise_time_ns();
+  let diff = end - start;
+  println!("send i32 overhead: {} ns",diff/10_000_000);
 }
 
-#[derive(Copy, Clone)]
-struct YMergeState {
-  state_i : i32,
-  state_f : f64,
-}
-
-impl ymerge::YMerge for YMergeState {
-  type InputTypeA  = i32;
-  type InputTypeB  = f64;
-  type OutputType  = i32;
-
-  fn process(
-        &mut self,
-        input_a: &mut Receiver<Message<Self::InputTypeA>>,
-        input_b: &mut Receiver<Message<Self::InputTypeB>>,
-        output: &mut Sender<Message<Self::OutputType>>)
-      -> common::Schedule {
-    for i in input_a.iter() {
-      match i {
-        Message::Value(v) => {
-          self.state_i = v;
-          output.put(|x| *x =  Some(Message::Value(self.state_i)));
-        }
-        _ => { println!("Unknown value"); }
-      }
+fn receive_data() {
+  let start = time::precise_time_ns();
+  let (_tx, mut rx) = channel(100);
+  let mut sum = 0;
+  for _i in 0..10_000_000i32 {
+    for i in rx.iter() {
+      sum += i;
     }
-    for i in input_b.iter() {
-      match i {
-        Message::Value(v) => {
-          self.state_f = v as f64;
-          output.put(|x| *x =  Some(Message::Value(self.state_f as i32)));
-        }
-        _ => { println!("Unknown value"); }
-      }
-    }
-    common::Schedule::Loop
   }
+  let end = time::precise_time_ns();
+  let diff = end - start;
+  println!("receive i32 overhead: {} ns  sum:{}",diff/10_000_000,sum);
+}
+
+
+fn source_send_data() {
+  let (mut source_task, mut _source_out) =
+    source::new( "Source", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
+  let mut reporter = scheduler::CountingReporter{ count: 0 };
+
+  let start = time::precise_time_ns();
+  for _i in 0..10_000_000i32 {
+    source_task.execute(&mut reporter);
+  }
+  let end = time::precise_time_ns();
+  let diff = end - start;
+  println!("source execute: {} ns",diff/10_000_000);
+}
+
+
+fn collector_time() {
+  use minions::elem::{gather, filter};
+  use minions::connectable::ConnectableN; // for collector
+  use minions::scheduler::{collector, loop_back};
+
+  let (mut collector_task, mut _collector_output) =
+    gather::new(".scheduler.collector", 1000, Box::new(collector::new()), 4);
+
+  let (mut _loopback_task, mut loopback_output_1) =
+    filter::new(".scheduler.loopback", 1000, Box::new(loop_back::new()));
+  let (mut _loopback_task, mut loopback_output_2) =
+    filter::new(".scheduler.loopback", 1000, Box::new(loop_back::new()));
+  let (mut _loopback_task, mut loopback_output_3) =
+    filter::new(".scheduler.loopback", 1000, Box::new(loop_back::new()));
+  let (mut _loopback_task, mut loopback_output_4) =
+    filter::new(".scheduler.loopback", 1000, Box::new(loop_back::new()));
+
+  collector_task.connect(0, &mut loopback_output_1).unwrap();
+  collector_task.connect(1, &mut loopback_output_2).unwrap();
+  collector_task.connect(2, &mut loopback_output_3).unwrap();
+  collector_task.connect(3, &mut loopback_output_4).unwrap();
+
+  let mut reporter = scheduler::CountingReporter{ count: 0 };
+
+  let start = time::precise_time_ns();
+  for _i in 0..10_000_000i32 {
+    collector_task.execute(&mut reporter);
+  }
+  let end = time::precise_time_ns();
+  let diff = end - start;
+  println!("collector execute: {} ns",diff/10_000_000);
 }
 
 fn main() {
-  use minions::connectable::{Connectable, ConnectableY};
-
-  let (source_task, mut source_out) = source::new( "Source", 2, Box::new(SourceState{state:0}));
-  let (mut filter_task, mut filter_out) = filter::new( "Filter", 2, Box::new(FilterState{state:0}));
-  let (mut ysplit_task, mut ysplit_out_a, mut ysplit_out_b) = ysplit::new( "YSplit", 2, 2, Box::new(YSplitState{state_i:0, state_f:0.0}));
-  let (mut ymerge_task, mut ymerge_out) = ymerge::new( "YMerge", 2, Box::new(YMergeState{state_i:0, state_f:0.0}));
-  let mut sink_task = sink::new( "Sink", Box::new(SinkState{state:0}));
-
-  filter_task.connect(&mut source_out).unwrap();
-  ysplit_task.connect(&mut filter_out).unwrap();
-  ymerge_task.connect_a(&mut ysplit_out_a).unwrap();
-  ymerge_task.connect_b(&mut ysplit_out_b).unwrap();
-  sink_task.connect(&mut ymerge_out).unwrap();
-
-  let mut sched = scheduler::new();
-  sched.add_task(source_task);
-  sched.add_task(filter_task);
-  sched.add_task(ysplit_task);
-  sched.add_task(ymerge_task);
-  sched.add_task(sink_task);
+  time_baseline();
+  send_data();
+  receive_data();
+  source_send_data();
+  collector_time();
+  test_sched();
 }

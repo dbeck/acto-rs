@@ -7,7 +7,7 @@ pub trait Sink {
 
   fn process(
     &mut self,
-    input: &mut Receiver<Message<Self::InputType>>) -> Schedule;
+    input: &mut Option<IdentifiedReceiver<Self::InputType>>) -> Schedule;
 }
 
 pub struct SinkWrap<Input: Send> {
@@ -26,12 +26,7 @@ impl<Input: Send> Connectable for SinkWrap<Input> {
 
 impl<Input: Send> Task for SinkWrap<Input> {
   fn execute(&mut self, _reporter: &mut Reporter) -> Schedule {
-    match &mut self.input_rx {
-      &mut Some(ref mut identified) => {
-        self.state.process(&mut identified.input)
-      },
-      &mut None => Schedule::EndPlusUSec(10_000)
-    }
+    self.state.process(&mut self.input_rx)
   }
   fn name(&self) -> &String { &self.name }
 }

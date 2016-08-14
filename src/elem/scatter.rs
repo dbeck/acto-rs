@@ -1,6 +1,7 @@
 use lossyq::spsc::{Sender, Receiver, channel};
 use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, Direction, new_id};
 use super::super::connectable::{Connectable};
+use super::super::scheduler::MeasureTime;
 
 pub trait Scatter {
   type InputType   : Send;
@@ -8,7 +9,7 @@ pub trait Scatter {
 
   fn process(
     &mut self,
-    input:   &mut Receiver<Message<Self::InputType>>,
+    input:   &mut Option<IdentifiedReceiver<Self::InputType>>,
     output:  &mut Vec<Sender<Message<Self::OutputType>>>) -> Schedule;
 }
 
@@ -17,6 +18,7 @@ pub struct ScatterWrap<Input: Send, Output: Send> {
   state          : Box<Scatter<InputType=Input,OutputType=Output>+Send>,
   input_rx       : Option<IdentifiedReceiver<Input>>,
   output_tx_vec  : Vec<Sender<Message<Output>>>,
+  p1             : MeasureTime,
 }
 
 impl<Input: Send, Output: Send> Connectable for ScatterWrap<Input,Output> {
@@ -29,27 +31,25 @@ impl<Input: Send, Output: Send> Connectable for ScatterWrap<Input,Output> {
 
 impl<Input: Send, Output: Send> Task for ScatterWrap<Input,Output> {
   fn execute(&mut self, reporter: &mut Reporter) -> Schedule {
-    match &mut self.input_rx {
-      &mut Some(ref mut identified) => {
-        // TODO : make this nicer. repetitive for all elems!
-        let mut msg_ids = vec![];
-        for otx in &self.output_tx_vec {
-          msg_ids.push(otx.seqno());
-        }
-        let retval = self.state.process(&mut identified.input,
-                                        &mut self.output_tx_vec);
-        let otx_slice = self.output_tx_vec.as_slice();
-        let ids_slice = msg_ids.as_slice();
-        for i in 0..msg_ids.len() {
-          let new_msg_id = otx_slice[i].seqno();
-          if ids_slice[i] != new_msg_id {
-            reporter.message_sent(i, new_msg_id);
-          }
-        }
-        retval
-      },
-      &mut None => Schedule::EndPlusUSec(10_000)
+    self.p1.start();
+    // TODO : make this nicer. repetitive for all elems!
+    let mut msg_ids = vec![];
+    for otx in &self.output_tx_vec {
+      msg_ids.push(otx.seqno());
     }
+    let retval = self.state.process(&mut self.input_rx,
+                                    &mut self.output_tx_vec);
+    let otx_slice = self.output_tx_vec.as_slice();
+    let ids_slice = msg_ids.as_slice();
+    for i in 0..msg_ids.len() {
+      let new_msg_id = otx_slice[i].seqno();
+      if ids_slice[i] != new_msg_id {
+        reporter.message_sent(i, new_msg_id);
+      }
+    }
+    self.p1.end();
+    self.p1.print("Scatter: p1");
+    retval
   }
   fn name(&self) -> &String { &self.name }
 }
@@ -86,6 +86,7 @@ pub fn new<Input: Send, Output: Send>(
         state          : scatter,
         input_rx       : None,
         output_tx_vec  : tx_vec,
+        p1             : MeasureTime::new(),
       }
     ),
     rx_vec
