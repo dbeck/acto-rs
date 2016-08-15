@@ -46,15 +46,15 @@ fn test_sched() {
   let (source_task_8, mut _source_out) = source::new( "Source 8", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
   let (source_task_9, mut _source_out) = source::new( "Source 9", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
   let mut sched = scheduler::new();
-  sched.add_task(source_task_1);
-  sched.add_task(source_task_2);
-  sched.add_task(source_task_3);
-  sched.add_task(source_task_4);
-  sched.add_task(source_task_5);
-  sched.add_task(source_task_6);
-  sched.add_task(source_task_7);
-  sched.add_task(source_task_8);
-  sched.add_task(source_task_9);
+  sched.add_task(source_task_1); // 189 243 166
+  sched.add_task(source_task_2); // 244 369 221
+  sched.add_task(source_task_3); // 307 508 280
+  sched.add_task(source_task_4); // 363 645 335
+  sched.add_task(source_task_5); // 422 768 392
+  sched.add_task(source_task_6); // 482 910 451
+  sched.add_task(source_task_7); // 533 1033 504
+  sched.add_task(source_task_8); // 598 1170 562
+  sched.add_task(source_task_9); // 
   sched.stop();
 }
 
@@ -79,6 +79,63 @@ fn send_data() {
   println!("send i32 overhead: {} ns",diff/10_000_000);
 }
 
+fn indirect_send_data() {
+  let start = time::precise_time_ns();
+  let (mut tx, _rx) = channel(100);
+  for i in 0..10_000_000i32 {
+    let sender = |val: i32, chan: &mut lossyq::spsc::Sender<i32>| {
+      chan.put(|v: &mut Option<i32>| *v = Some(val));
+    };
+    sender(i, &mut tx);
+  }
+  let end = time::precise_time_ns();
+  let diff = end - start;
+  println!("indirect i32 overhead: {} ns",diff/10_000_000);
+}
+
+fn locked_send_data() {
+  use std::sync::{Arc, Mutex};
+  let start = time::precise_time_ns();
+  let (tx, _rx) = channel(100);
+  let locked = Arc::new(Mutex::new(tx));
+  for i in 0..10_000_000i32 {
+    let mut x = locked.lock().unwrap();
+    x.put(|v| *v = Some(i));
+  }
+  let end = time::precise_time_ns();
+  let diff = end - start;
+  println!("locked send i32 overhead: {} ns",diff/10_000_000);
+}
+
+fn lotted_send_data() {
+  use std::sync::{Arc};
+  use parking_lot::Mutex;
+  let start = time::precise_time_ns();
+  let (tx, _rx) = channel(100);
+  let locked = Arc::new(Mutex::new(tx));
+  for i in 0..10_000_000i32 {
+    let mut x = locked.lock();
+    x.put(|v| *v = Some(i));
+  }
+  let end = time::precise_time_ns();
+  let diff = end - start;
+  println!("lotted send i32 overhead: {} ns",diff/10_000_000);
+}
+
+fn mpsc_send_data() {
+  use std::sync::{Arc,mpsc};
+  let start = time::precise_time_ns();
+  let (tx, rx) = mpsc::channel();
+  let atx = Arc::new(tx);
+  for i in 0..10_000_000i32 {
+    atx.send(i).unwrap();
+    rx.recv().unwrap();
+  }
+  let end = time::precise_time_ns();
+  let diff = end - start;
+  println!("mpsc send i32 overhead: {} ns",diff/10_000_000);
+}
+
 fn receive_data() {
   let start = time::precise_time_ns();
   let (_tx, mut rx) = channel(100);
@@ -93,7 +150,6 @@ fn receive_data() {
   println!("receive i32 overhead: {} ns  sum:{}",diff/10_000_000,sum);
 }
 
-
 fn source_send_data() {
   let (mut source_task, mut _source_out) =
     source::new( "Source", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
@@ -107,7 +163,6 @@ fn source_send_data() {
   let diff = end - start;
   println!("source execute: {} ns",diff/10_000_000);
 }
-
 
 fn collector_time() {
   use minions::elem::{gather, filter};
@@ -145,6 +200,10 @@ fn collector_time() {
 fn main() {
   time_baseline();
   send_data();
+  indirect_send_data();
+  locked_send_data();
+  lotted_send_data();
+  mpsc_send_data();
   receive_data();
   source_send_data();
   collector_time();
