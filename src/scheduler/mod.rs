@@ -11,22 +11,60 @@ use super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, Direc
 use super::elem::{gather, scatter, filter};
 use super::connectable;
 
+//use std::sync::{Arc};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread::{spawn, JoinHandle};
 
+struct TaskWrap {
+}
+
+#[allow(dead_code)]
+struct TaskArray {
+  tasks_l2: Vec<TaskWrap>,
+}
+
+#[allow(dead_code)]
 pub struct Scheduler {
+  max_id: AtomicUsize,
+  tasks_l1: Vec<Option<TaskArray>>,
+}
+
+// L1: 64k entries preallocated
+// L2: 1k entries on-demand
+impl Scheduler {
+  pub fn add_task(&mut self, _task: Box<Task+Send>) {
+  }
+}
+
+pub fn new() -> Scheduler {
+  let mut ret = Scheduler{
+    max_id: AtomicUsize::new(0),
+    tasks_l1: Vec::new(),
+  };
+  for _i in 0..(64*1024) {
+    ret.tasks_l1.push(None);
+  }
+  ret
+}
+
+//////////////////////////////////////////////////////
+// Old/Slow Implementation Below
+//////////////////////////////////////////////////////
+
+pub struct SchedulerOld {
   // gate to add new tasks:
   gate            : Sender<Message<Box<Task+Send>>>,
   process_event   : event::Event,
   process_thread  : JoinHandle<()>,
-  onmsg_event     : event::Event,
+  //onmsg_event     : event::Event,
   onmsg_thread    : JoinHandle<()>,
-  timer_event     : event::Event,
+  //timer_event     : event::Event,
   timer_thread    : JoinHandle<()>,
-  stopped_event   : event::Event,
+  //stopped_event   : event::Event,
   stopped_thread  : JoinHandle<()>,
 }
 
-impl Scheduler {
+impl SchedulerOld {
 
   pub fn add_task(&mut self, task: Box<Task+Send>)
   {
@@ -173,7 +211,7 @@ fn stopped_entry(_stopped : IdentifiedReceiver<executor::TaskResults>,
                  _event   : event::Event) {
 }
 
-pub fn new() -> Scheduler {
+pub fn new_old() -> SchedulerOld {
 
   use connectable::ConnectableN; // for collector
   use connectable::Connectable;  // for executor
@@ -232,21 +270,21 @@ pub fn new() -> Scheduler {
   // cloned events
   let process_event_timer = process_event.clone();
 
-  Scheduler{
+  SchedulerOld{
     gate            : gate_tx,
     process_event   : process_event.clone(),
     process_thread  : spawn(move || {
       process_entry(collector_task, executor_task, loopback_task, process_event);
     }),
-    onmsg_event     : onmsg_event.clone(),
+    //onmsg_event     : onmsg_event.clone(),
     onmsg_thread    : spawn(move || {
       onmsg_entry(onmsg_task, onmsg_event);
     }),
-    timer_event     : timer_event.clone(),
+    //timer_event     : timer_event.clone(),
     timer_thread    : spawn(move || {
       timer_entry(timer_task, timer_event, process_event_timer);
     }),
-    stopped_event   : stopped_event.clone() ,
+    //stopped_event   : stopped_event.clone() ,
     stopped_thread  : spawn(move || {
       stopped_entry(stopped.unwrap(), stopped_event);
     }),

@@ -1,10 +1,9 @@
-use lossyq::spsc::{noloss, Sender, Receiver};
+use lossyq::spsc::{noloss, Sender};
 use time;
 use super::super::common::{Task, Message, Schedule, IdentifiedReceiver};
 use super::super::elem::scatter::Scatter;
 use std::collections::VecDeque;
 use super::CountingReporter;
-use super::MeasureTime;
 use std::mem;
 
 pub struct TaskResults {
@@ -45,7 +44,7 @@ impl Scatter for Executor {
 
     let mut output = output;
     {
-      let mut forward = |me: &mut Self,
+      let forward = |me: &mut Self,
                          msg: Self::OutputType,
                          outvec: &mut Vec<Sender<Message<Self::OutputType>>>|
       {

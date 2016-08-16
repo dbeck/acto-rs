@@ -1,5 +1,4 @@
-use lossyq::spsc::Receiver;
-use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver};
+use super::super::common::{Task, Reporter, Schedule, IdentifiedReceiver};
 use super::super::connectable::{Connectable};
 
 pub trait Sink {

@@ -1,4 +1,4 @@
-use lossyq::spsc::{Sender, Receiver};
+use lossyq::spsc::{Sender};
 use super::super::common::{Task, Message, IdentifiedReceiver};
 use super::super::elem::filter::Filter;
 use super::super::common::Schedule;

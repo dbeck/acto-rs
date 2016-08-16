@@ -1,4 +1,4 @@
-use lossyq::spsc::{noloss, Sender, Receiver};
+use lossyq::spsc::{noloss, Sender};
 use super::super::common::{Task, Message, IdentifiedReceiver};
 use super::super::elem::gather::Gather;
 use super::super::common::Schedule;

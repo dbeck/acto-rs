@@ -45,16 +45,16 @@ fn test_sched() {
   let (source_task_7, mut _source_out) = source::new( "Source 7", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
   let (source_task_8, mut _source_out) = source::new( "Source 8", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
   let (source_task_9, mut _source_out) = source::new( "Source 9", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
-  let mut sched = scheduler::new();
-  sched.add_task(source_task_1); // 189 243 166
-  sched.add_task(source_task_2); // 244 369 221
-  sched.add_task(source_task_3); // 307 508 280
-  sched.add_task(source_task_4); // 363 645 335
-  sched.add_task(source_task_5); // 422 768 392
-  sched.add_task(source_task_6); // 482 910 451
-  sched.add_task(source_task_7); // 533 1033 504
-  sched.add_task(source_task_8); // 598 1170 562
-  sched.add_task(source_task_9); // 
+  let mut sched = scheduler::new_old();
+  sched.add_task(source_task_1); // 189  243 166  -- -- --- --
+  sched.add_task(source_task_2); // 244  369 221  -- 55 126 55
+  sched.add_task(source_task_3); // 307  508 280  --163 139 59
+  sched.add_task(source_task_4); // 363  645 335  -- 56 137 55
+  sched.add_task(source_task_5); // 422  768 392  -- 59 123 57
+  sched.add_task(source_task_6); // 482  910 451  -- 60 142 59
+  sched.add_task(source_task_7); // 533 1033 504  -- 51 123 53
+  sched.add_task(source_task_8); // 598 1170 562  -- 65 137 111
+  sched.add_task(source_task_9); // 650 1286 615  -- 52 116 53
   sched.stop();
 }
 
@@ -197,6 +197,24 @@ fn collector_time() {
   println!("collector execute: {} ns",diff/10_000_000);
 }
 
+fn add_task_time() {
+  let mut sources = vec![];
+  for _i in 0..1_000_000i32 {
+    let (source_task, mut _source_out) =
+      source::new( "Source", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
+    sources.push(source_task);
+  }
+  let mut sched = scheduler::new();
+
+  let start = time::precise_time_ns();
+  for i in sources {
+    sched.add_task(i);
+  }
+  let end = time::precise_time_ns();
+  let diff = end - start;
+  println!("source add: {} ns",diff/1_000_000);
+}
+
 fn main() {
   time_baseline();
   send_data();
@@ -207,5 +225,6 @@ fn main() {
   receive_data();
   source_send_data();
   collector_time();
+  add_task_time();
   test_sched();
 }
