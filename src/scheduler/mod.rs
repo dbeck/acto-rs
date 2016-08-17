@@ -14,36 +14,73 @@ use super::connectable;
 //use std::sync::{Arc};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread::{spawn, JoinHandle};
+use std::mem;
 
 struct TaskWrap {
+  task: Option<Box<Task+Send>>,
 }
 
 #[allow(dead_code)]
 struct TaskArray {
-  tasks_l2: Vec<TaskWrap>,
+  l2: Vec<TaskWrap>,
 }
 
 #[allow(dead_code)]
 pub struct Scheduler {
   max_id: AtomicUsize,
-  tasks_l1: Vec<Option<TaskArray>>,
+  l1: Vec<Option<TaskArray>>,
 }
 
 // L1: 64k entries preallocated
-// L2: 1k entries on-demand
+// L2: 4k entries on-demand
 impl Scheduler {
-  pub fn add_task(&mut self, _task: Box<Task+Send>) {
+
+  fn add_l2_bucket(&mut self, idx: usize) {
+    let l1_slice = self.l1.as_mut_slice();
+    let mut bucket = Vec::new();
+    for _i in 0..(4*1024) {
+      bucket.push(TaskWrap{task: None});
+    }
+    let mut tasks = Some(TaskArray{ l2: bucket });
+    mem::swap(&mut tasks, &mut l1_slice[idx]);
+  }
+
+  fn position(&self, idx: usize) -> (usize, usize) {
+    (idx>>12, idx&0xfff)
+  }
+
+  pub fn add_task(&mut self, task: Box<Task+Send>) {
+    let (l1, l2) = self.position(self.max_id.fetch_add(1, Ordering::SeqCst));
+    if l2 == 0 {
+      // make sure the next bucket exists when needed
+      self.add_l2_bucket(l1+1);
+    }
+    let l1_slice = self.l1.as_mut_slice();
+    match &mut l1_slice[l1] {
+      &mut Some(ref mut task_array) => {
+        let mut wrap = TaskWrap{task: Some(task)};
+        let l2_slice = task_array.l2.as_mut_slice();
+        mem::swap(&mut wrap, &mut l2_slice[l2]);
+      },
+      &mut None => {
+        panic!("inconsistent internal state");
+      }
+    }
   }
 }
 
 pub fn new() -> Scheduler {
   let mut ret = Scheduler{
     max_id: AtomicUsize::new(0),
-    tasks_l1: Vec::new(),
+    l1: Vec::new(),
   };
+  // fill the l1 bucket
   for _i in 0..(64*1024) {
-    ret.tasks_l1.push(None);
+    ret.l1.push(None);
   }
+
+  // add an initial l2 bucket
+  ret.add_l2_bucket(0);
   ret
 }
 
