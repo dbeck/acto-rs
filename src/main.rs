@@ -250,36 +250,32 @@ fn sched_loop_time() {
 }
 
 use std::sync::atomic::{AtomicPtr, Ordering};
-use std::sync::Arc;
-
-fn gen_ptr(val: usize) -> Arc<AtomicPtr<usize>> {
-  let mut val = val;
-  Arc::new(AtomicPtr::new(&mut val))
-}
+use std::ptr;
 
 fn main() {
 
-  let nil = gen_ptr(0);
-  let p1  = gen_ptr(1);
-  let p2  = nil.clone();
+  let mut v = Box::new(9 as usize);
+  let nil = AtomicPtr::new(ptr::null_mut::<usize>());
+  let p1  = AtomicPtr::new(v.as_mut());
+  let p2  = AtomicPtr::new(ptr::null_mut::<usize>());
 
-  unsafe { println!("nil {:?} {:?}", nil.load(Ordering::SeqCst), *nil.load(Ordering::SeqCst)); }
-  unsafe { println!("p1 {:?} {:?}",  p1.load(Ordering::SeqCst), *p1.load(Ordering::SeqCst)); }
-  unsafe { println!("p2 {:?} {:?}",  p2.load(Ordering::SeqCst), *p2.load(Ordering::SeqCst)); }
+  println!("nil {:?}", nil.load(Ordering::SeqCst));
+  println!("p1 {:?}",  p1.load(Ordering::SeqCst));
+  println!("p2 {:?}",  p2.load(Ordering::SeqCst));
 
-  //assert!(p1.load(Ordering::SeqCst) == nil.load(Ordering::SeqCst));
-  //assert!(p2.load(Ordering::SeqCst) == nil.load(Ordering::SeqCst));
+  assert!(p1.load(Ordering::SeqCst) != nil.load(Ordering::SeqCst));
+  assert!(p2.load(Ordering::SeqCst) == nil.load(Ordering::SeqCst));
 
-  time_baseline();
-  send_data();
-  indirect_send_data();
-  locked_send_data();
-  lotted_send_data();
-  mpsc_send_data();
-  receive_data();
-  source_send_data();
-  collector_time();
-  add_task_time();
-  sched_loop_time();
-  test_sched();
+  //time_baseline();
+  //send_data();
+  //indirect_send_data();
+  //locked_send_data();
+  //lotted_send_data();
+  //mpsc_send_data();
+  //receive_data();
+  //source_send_data();
+  //collector_time();
+  //add_task_time();
+  //sched_loop_time();
+  //test_sched();
 }
