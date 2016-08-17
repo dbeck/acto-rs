@@ -11,6 +11,6 @@ homepage = "https://github.com/dbeck/minions_rs"
 #documentation = "..."
 
 [dependencies]
-lossyq = "0.1.14"
+lossyq = "0.1.15"
 parking_lot = "0.2"
 time = "0.1"

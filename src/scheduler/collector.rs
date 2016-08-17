@@ -7,7 +7,6 @@ use std::mem;
 
 pub struct Collector {
   overflow: VecDeque<Message<Box<Task + Send>>>,
-  tmp_overflow: VecDeque<Message<Box<Task + Send>>>,
 }
 
 impl noloss::Overflow for Collector {
@@ -18,7 +17,7 @@ impl noloss::Overflow for Collector {
     mem::swap(&mut tmp, val);
     match tmp {
       Some(v) => {
-        self.tmp_overflow.push_back(v);
+        self.overflow.push_back(v);
       },
       None => {}
     }
@@ -36,6 +35,8 @@ impl Gather for Collector {
 
     {
       // process the previously overflown items
+      let mut pos : usize = 0;
+      let overflowed_count = self.overflow.len();
       loop {
         match self.overflow.pop_front() {
           Some(item) => {
@@ -46,6 +47,10 @@ impl Gather for Collector {
             }
           },
           None => { break; }
+        }
+        pos += 1;
+        if pos == overflowed_count {
+          break;
         }
       }
 
@@ -64,9 +69,6 @@ impl Gather for Collector {
           &mut None => {},
         }
       }
-
-      // move the newly overflown items in
-      self.overflow.append(&mut self.tmp_overflow);
     }
 
     Schedule::Loop
@@ -76,6 +78,5 @@ impl Gather for Collector {
 pub fn new() -> Collector {
   Collector {
     overflow: VecDeque::new(),
-    tmp_overflow: VecDeque::new(),
   }
 }

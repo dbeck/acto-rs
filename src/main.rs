@@ -16,6 +16,7 @@ struct SourceState {
   start      : u64,
 }
 
+#[allow(dead_code)]
 impl source::Source for SourceState {
   type OutputType = u64;
 
@@ -25,7 +26,7 @@ impl source::Source for SourceState {
       -> common::Schedule {
     output.put(|x| *x = Some(Message::Value(self.count)));
     self.count += 1;
-    if self.count % 1000000 == 0 {
+    if self.count % 1_000_000 == 0 {
       let now = time::precise_time_ns();
       let diff_t = now-self.start;
       println!("diff t: {} {} {}/sec", diff_t/self.count,self.count,1_000_000_000/(diff_t/self.count));
@@ -34,6 +35,7 @@ impl source::Source for SourceState {
   }
 }
 
+#[allow(dead_code)]
 fn test_sched() {
   //use minions::connectable::{Connectable, ConnectableY};
   let (source_task_1, mut _source_out) = source::new( "Source 1", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
@@ -58,6 +60,7 @@ fn test_sched() {
   sched.stop();
 }
 
+#[allow(dead_code)]
 fn time_baseline() {
   let start = time::precise_time_ns();
   let mut end = 0;
@@ -68,6 +71,7 @@ fn time_baseline() {
   println!("timer overhead: {} ns", diff/1_000_000);
 }
 
+#[allow(dead_code)]
 fn send_data() {
   let start = time::precise_time_ns();
   let (mut tx, _rx) = channel(100);
@@ -79,6 +83,7 @@ fn send_data() {
   println!("send i32 overhead: {} ns",diff/10_000_000);
 }
 
+#[allow(dead_code)]
 fn indirect_send_data() {
   let start = time::precise_time_ns();
   let (mut tx, _rx) = channel(100);
@@ -93,6 +98,7 @@ fn indirect_send_data() {
   println!("indirect i32 overhead: {} ns",diff/10_000_000);
 }
 
+#[allow(dead_code)]
 fn locked_send_data() {
   use std::sync::{Arc, Mutex};
   let start = time::precise_time_ns();
@@ -107,6 +113,7 @@ fn locked_send_data() {
   println!("locked send i32 overhead: {} ns",diff/10_000_000);
 }
 
+#[allow(dead_code)]
 fn lotted_send_data() {
   use std::sync::{Arc};
   use parking_lot::Mutex;
@@ -122,6 +129,7 @@ fn lotted_send_data() {
   println!("lotted send i32 overhead: {} ns",diff/10_000_000);
 }
 
+#[allow(dead_code)]
 fn mpsc_send_data() {
   use std::sync::{Arc,mpsc};
   let start = time::precise_time_ns();
@@ -136,6 +144,7 @@ fn mpsc_send_data() {
   println!("mpsc send i32 overhead: {} ns",diff/10_000_000);
 }
 
+#[allow(dead_code)]
 fn receive_data() {
   let start = time::precise_time_ns();
   let (_tx, mut rx) = channel(100);
@@ -150,6 +159,7 @@ fn receive_data() {
   println!("receive i32 overhead: {} ns  sum:{}",diff/10_000_000,sum);
 }
 
+#[allow(dead_code)]
 fn source_send_data() {
   let (mut source_task, mut _source_out) =
     source::new( "Source", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
@@ -164,6 +174,7 @@ fn source_send_data() {
   println!("source execute: {} ns",diff/10_000_000);
 }
 
+#[allow(dead_code)]
 fn collector_time() {
   use minions::elem::{gather, filter};
   use minions::connectable::ConnectableN; // for collector
@@ -189,19 +200,20 @@ fn collector_time() {
   let mut reporter = scheduler::CountingReporter{ count: 0 };
 
   let start = time::precise_time_ns();
-  for _i in 0..10_000_000i32 {
+  for _i in 0..100_000_000i32 {
     collector_task.execute(&mut reporter);
   }
   let end = time::precise_time_ns();
   let diff = end - start;
-  println!("collector execute: {} ns",diff/10_000_000);
+  println!("collector execute: {} ns",diff/100_000_000);
 }
 
+#[allow(dead_code)]
 fn add_task_time() {
   let mut sources = vec![];
-  for _i in 0..1_000_000i32 {
+  for _i in 0..10_000_000i32 {
     let (source_task, mut _source_out) =
-      source::new( "Source", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
+      source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
     sources.push(source_task);
   }
   let mut sched = scheduler::new();
@@ -212,10 +224,52 @@ fn add_task_time() {
   }
   let end = time::precise_time_ns();
   let diff = end - start;
-  println!("source add to sched: {} ns",diff/1_000_000);
+  println!("source add to sched: {} ns",diff/10_000_000);
+}
+
+#[allow(dead_code)]
+fn sched_loop_time() {
+  let mut sources = vec![];
+  for _i in 0..50_000i32 {
+    let (source_task, mut _source_out) =
+      source::new( "Source", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
+    sources.push(source_task);
+  }
+  let mut sched = scheduler::new();
+  for i in sources {
+    sched.add_task(i);
+  }
+
+  let start = time::precise_time_ns();
+  for _i in 0..5_000 {
+    sched.start();
+  }
+  let end = time::precise_time_ns();
+  let diff = end - start;
+  println!("sched loop: {} ns => {} ns",diff/5_000,diff/5_000/50_000);
+}
+
+use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::Arc;
+
+fn gen_ptr(val: usize) -> Arc<AtomicPtr<usize>> {
+  let mut val = val;
+  Arc::new(AtomicPtr::new(&mut val))
 }
 
 fn main() {
+
+  let nil = gen_ptr(0);
+  let p1  = gen_ptr(1);
+  let p2  = nil.clone();
+
+  unsafe { println!("nil {:?} {:?}", nil.load(Ordering::SeqCst), *nil.load(Ordering::SeqCst)); }
+  unsafe { println!("p1 {:?} {:?}",  p1.load(Ordering::SeqCst), *p1.load(Ordering::SeqCst)); }
+  unsafe { println!("p2 {:?} {:?}",  p2.load(Ordering::SeqCst), *p2.load(Ordering::SeqCst)); }
+
+  //assert!(p1.load(Ordering::SeqCst) == nil.load(Ordering::SeqCst));
+  //assert!(p2.load(Ordering::SeqCst) == nil.load(Ordering::SeqCst));
+
   time_baseline();
   send_data();
   indirect_send_data();
@@ -226,5 +280,6 @@ fn main() {
   source_send_data();
   collector_time();
   add_task_time();
+  sched_loop_time();
   test_sched();
 }

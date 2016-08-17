@@ -37,8 +37,8 @@ impl Scheduler {
 
   fn add_l2_bucket(&mut self, idx: usize) {
     let l1_slice = self.l1.as_mut_slice();
-    let mut bucket = Vec::new();
-    for _i in 0..(4*1024) {
+    let mut bucket = Vec::with_capacity(4096);
+    for _i in 0..(4096) {
       bucket.push(TaskWrap{task: None});
     }
     let mut tasks = Some(TaskArray{ l2: bucket });
@@ -59,11 +59,41 @@ impl Scheduler {
     match &mut l1_slice[l1] {
       &mut Some(ref mut task_array) => {
         let mut wrap = TaskWrap{task: Some(task)};
-        let l2_slice = task_array.l2.as_mut_slice();
-        mem::swap(&mut wrap, &mut l2_slice[l2]);
+        unsafe {
+          mem::swap(&mut wrap, task_array.l2.get_unchecked_mut(l2));
+        }
       },
       &mut None => {
         panic!("inconsistent internal state");
+      }
+    }
+  }
+
+  pub fn start(&mut self) {
+    let max_id = self.max_id.load(Ordering::SeqCst);
+    let mut pos = 0;
+    loop {
+      for l1i in &mut self.l1 {
+        match l1i {
+          &mut Some(ref mut task_array) => {
+            for l2i in &mut task_array.l2 {
+              match &mut l2i.task {
+                &mut Some(ref mut task) => {
+                  let mut reporter = CountingReporter{ count: 0 };
+                  task.execute(&mut reporter);
+                },
+                &mut None => {}
+              }
+              pos += 1;
+            }
+          },
+          &mut None => {
+            break;
+          }
+        }
+      }
+      if pos >= max_id {
+        break;
       }
     }
   }
@@ -72,7 +102,7 @@ impl Scheduler {
 pub fn new() -> Scheduler {
   let mut ret = Scheduler{
     max_id: AtomicUsize::new(0),
-    l1: Vec::new(),
+    l1: Vec::with_capacity(65536),
   };
   // fill the l1 bucket
   for _i in 0..(64*1024) {

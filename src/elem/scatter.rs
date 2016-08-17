@@ -55,8 +55,8 @@ pub fn new<Input: Send, Output: Send>(
     n_channels      : usize)
       -> (Box<ScatterWrap<Input,Output>>, Vec<Box<Option<IdentifiedReceiver<Output>>>>)
 {
-  let mut tx_vec = vec![];
-  let mut rx_vec = vec![];
+  let mut tx_vec = Vec::with_capacity(n_channels);
+  let mut rx_vec = Vec::with_capacity(n_channels);
 
   for i in 0..n_channels {
     let (output_tx, output_rx) = channel(output_q_size);

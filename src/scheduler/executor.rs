@@ -15,7 +15,6 @@ pub struct TaskResults {
 
 pub struct Executor {
   overflow: VecDeque<Message<TaskResults>>,
-  tmp_overflow: VecDeque<Message<TaskResults>>,
 }
 
 impl noloss::Overflow for Executor {
@@ -26,7 +25,7 @@ impl noloss::Overflow for Executor {
     mem::swap(&mut tmp, val);
     match tmp {
       Some(v) => {
-        self.tmp_overflow.push_back(v);
+        self.overflow.push_back(v);
       },
       None => {}
     }
@@ -52,7 +51,9 @@ impl Scatter for Executor {
                                 out: &mut Sender<Message<Self::OutputType>>| {
           // pour message in
           let mut opt_item : Option<Message<Self::OutputType>> = Some(Message::Value(msg));
-          noloss::pour(&mut opt_item, out, me)
+          //noloss::pour(&mut opt_item, out, me)
+          out.put(|v| mem::swap(v, &mut opt_item));
+          (noloss::PourResult::Poured,0)
         };
 
         // 0: stopped
@@ -94,6 +95,9 @@ impl Scatter for Executor {
       };
 
       // process the previously overflowed items
+      /*
+      let mut pos : usize = 0;
+      let overflowed_count = self.overflow.len();
       loop {
         match self.overflow.pop_front() {
           // Option<Message<TaskResults>>
@@ -108,7 +112,12 @@ impl Scatter for Executor {
           _ => {
           }, // ignore everything else
         }
+        pos += 1;
+        if pos == overflowed_count {
+          break;
+        }
       }
+      */
 
       // process inputs
       match input {
@@ -126,7 +135,9 @@ impl Scatter for Executor {
                   start_ns: 0,
                   end_ns: 0
                 };
+                // TODO : inline forward fn here
                 forward(self, task_res, &mut output);
+
               },
               _ => {}, // ignore everything else
             };
@@ -136,11 +147,6 @@ impl Scatter for Executor {
       }
     }
 
-    {
-      // move the newly overflown items in
-      self.overflow.append(&mut self.tmp_overflow);
-    }
-
     Schedule::Loop
   }
 }
@@ -148,6 +154,5 @@ impl Scatter for Executor {
 pub fn new() -> Executor {
   Executor {
     overflow: VecDeque::new(),
-    tmp_overflow: VecDeque::new(),
   }
 }
