@@ -254,10 +254,17 @@ use std::ptr;
 
 fn main() {
 
-  let mut v = Box::new(9 as usize);
   let nil = AtomicPtr::new(ptr::null_mut::<usize>());
-  let p1  = AtomicPtr::new(v.as_mut());
+  let p1  = AtomicPtr::new(ptr::null_mut::<usize>());
   let p2  = AtomicPtr::new(ptr::null_mut::<usize>());
+  {
+    let mut v = Box::new(9 as usize);
+    p1.store(v.as_mut(), Ordering::SeqCst);
+    *v = 3;
+  }
+  unsafe { assert_eq!(3, *p1.load(Ordering::SeqCst)); }
+  unsafe { *p1.load(Ordering::SeqCst) = 4; };
+  unsafe { assert_eq!(4, *p1.load(Ordering::SeqCst)); }
 
   println!("nil {:?}", nil.load(Ordering::SeqCst));
   println!("p1 {:?}",  p1.load(Ordering::SeqCst));
@@ -275,7 +282,7 @@ fn main() {
   //receive_data();
   //source_send_data();
   //collector_time();
-  //add_task_time();
+  add_task_time();
   //sched_loop_time();
   //test_sched();
 }
