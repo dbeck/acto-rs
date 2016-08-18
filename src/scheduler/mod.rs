@@ -12,23 +12,23 @@ use super::elem::{gather, scatter, filter};
 use super::connectable;
 
 //use std::sync::{Arc};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::ptr;
+use std::sync::atomic::{AtomicUsize, Ordering, AtomicPtr};
 use std::thread::{spawn, JoinHandle};
-use std::mem;
 
 struct TaskWrap {
-  task: Option<Box<Task+Send>>,
+  task: Box<Task+Send>,
 }
 
 #[allow(dead_code)]
 struct TaskArray {
-  l2: Vec<TaskWrap>,
+  l2: Vec<AtomicPtr<TaskWrap>>,
 }
 
 #[allow(dead_code)]
 pub struct Scheduler {
   max_id: AtomicUsize,
-  l1: Vec<Option<TaskArray>>,
+  l1: Vec<AtomicPtr<TaskArray>>,
 }
 
 // L1: 64k entries preallocated
@@ -39,10 +39,10 @@ impl Scheduler {
     let l1_slice = self.l1.as_mut_slice();
     let mut bucket = Vec::with_capacity(4096);
     for _i in 0..(4096) {
-      bucket.push(TaskWrap{task: None});
+      bucket.push(AtomicPtr::default());
     }
-    let mut tasks = Some(TaskArray{ l2: bucket });
-    mem::swap(&mut tasks, &mut l1_slice[idx]);
+    let array = Box::new(TaskArray{ l2: bucket });
+    l1_slice[idx].store(Box::into_raw(array), Ordering::SeqCst);
   }
 
   fn position(&self, idx: usize) -> (usize, usize) {
@@ -55,45 +55,36 @@ impl Scheduler {
       // make sure the next bucket exists when needed
       self.add_l2_bucket(l1+1);
     }
-    let l1_slice = self.l1.as_mut_slice();
-    match &mut l1_slice[l1] {
-      &mut Some(ref mut task_array) => {
-        let mut wrap = TaskWrap{task: Some(task)};
-        unsafe {
-          mem::swap(&mut wrap, task_array.l2.get_unchecked_mut(l2));
-        }
-      },
-      &mut None => {
-        panic!("inconsistent internal state");
+    //if l1 == 65534 {
+      // TODO:
+    //}
+    unsafe {
+      let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::SeqCst);
+      if l1_ptr.is_null() == false {
+        let wrap = Box::new(TaskWrap{task: task});
+        let l2_atomic_ptr = (*l1_ptr).l2.get_unchecked_mut(l2);
+        l2_atomic_ptr.store(Box::into_raw(wrap),Ordering::SeqCst);
       }
     }
   }
 
   pub fn start(&mut self) {
-    let max_id = self.max_id.load(Ordering::SeqCst);
-    let mut pos = 0;
-    loop {
-      for l1i in &mut self.l1 {
-        match l1i {
-          &mut Some(ref mut task_array) => {
-            for l2i in &mut task_array.l2 {
-              match &mut l2i.task {
-                &mut Some(ref mut task) => {
-                  let mut reporter = CountingReporter{ count: 0 };
-                  task.execute(&mut reporter);
-                },
-                &mut None => {}
-              }
-              pos += 1;
+    for l1i in &mut self.l1 {
+      let l1_ptr = l1i.load(Ordering::SeqCst);
+      if l1_ptr.is_null() {
+        break;
+      } else {
+        unsafe {
+          let l2_vec = &mut (*l1_ptr).l2;
+          for l2i in l2_vec {
+            let wrk = l2i.swap(ptr::null_mut::<TaskWrap>(), Ordering::SeqCst);
+            if wrk.is_null() == false {
+              let mut reporter = CountingReporter{ count: 0 };
+              (*wrk).task.execute(&mut reporter);
+              l2i.swap(wrk, Ordering::SeqCst);
             }
-          },
-          &mut None => {
-            break;
           }
         }
-      }
-      if pos >= max_id {
-        break;
       }
     }
   }
@@ -106,9 +97,8 @@ pub fn new() -> Scheduler {
   };
   // fill the l1 bucket
   for _i in 0..(64*1024) {
-    ret.l1.push(None);
+    ret.l1.push(AtomicPtr::default());
   }
-
   // add an initial l2 bucket
   ret.add_l2_bucket(0);
   ret

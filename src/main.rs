@@ -10,6 +10,21 @@ use minions::elem::{source, /*, filter, sink, ymerge, ysplit*/ };
 use minions::common;
 use minions::common::{Message, Task};
 
+struct DummySource {
+}
+
+impl source::Source for DummySource {
+  type OutputType = u64;
+
+  fn process(
+        &mut self,
+        _output: &mut Sender<Message<Self::OutputType>>)
+      -> common::Schedule {
+    common::Schedule::Loop
+  }
+}
+
+
 #[derive(Copy, Clone)]
 struct SourceState {
   count      : u64,
@@ -211,7 +226,7 @@ fn collector_time() {
 #[allow(dead_code)]
 fn add_task_time() {
   let mut sources = vec![];
-  for _i in 0..10_000_000i32 {
+  for _i in 0..3_000_000i32 {
     let (source_task, mut _source_out) =
       source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
     sources.push(source_task);
@@ -224,15 +239,15 @@ fn add_task_time() {
   }
   let end = time::precise_time_ns();
   let diff = end - start;
-  println!("source add to sched: {} ns",diff/10_000_000);
+  println!("source add to sched: {} ns",diff/3_000_000);
 }
 
 #[allow(dead_code)]
 fn sched_loop_time() {
   let mut sources = vec![];
-  for _i in 0..50_000i32 {
+  for _i in 0..5_000i32 {
     let (source_task, mut _source_out) =
-      source::new( "Source", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
+      source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
     sources.push(source_task);
   }
   let mut sched = scheduler::new();
@@ -241,38 +256,37 @@ fn sched_loop_time() {
   }
 
   let start = time::precise_time_ns();
-  for _i in 0..5_000 {
+  for _i in 0..10_000 {
     sched.start();
   }
   let end = time::precise_time_ns();
   let diff = end - start;
-  println!("sched loop: {} ns => {} ns",diff/5_000,diff/5_000/50_000);
+  println!("sched loop: {} ns => {} ns",diff/10_000,diff/10_000/5_000);
 }
 
-use std::sync::atomic::{AtomicPtr, Ordering};
-use std::ptr;
+#[allow(dead_code)]
+fn sched_dummy_loop() {
+  let mut sources = vec![];
+  for _i in 0..35_000i32 {
+    let (source_task, mut _source_out) =
+      source::new( "Source", 2, Box::new(DummySource{}));
+    sources.push(source_task);
+  }
+  let mut sched = scheduler::new();
+  for i in sources {
+    sched.add_task(i);
+  }
+
+  let start = time::precise_time_ns();
+  for _i in 0..10_000 {
+    sched.start();
+  }
+  let end = time::precise_time_ns();
+  let diff = end - start;
+  println!("sched loop: {} ns => {} ns",diff/10_000,diff/10_000/35_000);
+}
 
 fn main() {
-
-  let nil = AtomicPtr::new(ptr::null_mut::<usize>());
-  let p1  = AtomicPtr::new(ptr::null_mut::<usize>());
-  let p2  = AtomicPtr::new(ptr::null_mut::<usize>());
-  {
-    let mut v = Box::new(9 as usize);
-    p1.store(v.as_mut(), Ordering::SeqCst);
-    *v = 3;
-  }
-  unsafe { assert_eq!(3, *p1.load(Ordering::SeqCst)); }
-  unsafe { *p1.load(Ordering::SeqCst) = 4; };
-  unsafe { assert_eq!(4, *p1.load(Ordering::SeqCst)); }
-
-  println!("nil {:?}", nil.load(Ordering::SeqCst));
-  println!("p1 {:?}",  p1.load(Ordering::SeqCst));
-  println!("p2 {:?}",  p2.load(Ordering::SeqCst));
-
-  assert!(p1.load(Ordering::SeqCst) != nil.load(Ordering::SeqCst));
-  assert!(p2.load(Ordering::SeqCst) == nil.load(Ordering::SeqCst));
-
   //time_baseline();
   //send_data();
   //indirect_send_data();
@@ -283,6 +297,7 @@ fn main() {
   //source_send_data();
   //collector_time();
   add_task_time();
-  //sched_loop_time();
+  sched_loop_time();
+  sched_dummy_loop();
   //test_sched();
 }
