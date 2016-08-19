@@ -8,6 +8,7 @@ pub struct Event {
   condvar : Arc<(Mutex<u64>, Condvar)>,
 }
 
+#[allow(dead_code)]
 impl Event {
   pub fn notify(&mut self) {
     let &(ref lock, ref cvar) = &*(self.condvar);
@@ -37,6 +38,7 @@ impl Event {
   }
 }
 
+#[allow(dead_code)]
 pub fn new() -> Event {
   Event {
     condvar: Arc::new((Mutex::new(0u64), Condvar::new())),

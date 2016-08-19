@@ -50,6 +50,7 @@ impl source::Source for SourceState {
   }
 }
 
+/*
 #[allow(dead_code)]
 fn test_sched() {
   //use minions::connectable::{Connectable, ConnectableY};
@@ -74,6 +75,7 @@ fn test_sched() {
   sched.add_task(source_task_9); // 650 1286 615  -- 52 116 53
   sched.stop();
 }
+*/
 
 #[allow(dead_code)]
 fn time_baseline() {
@@ -190,40 +192,6 @@ fn source_send_data() {
 }
 
 #[allow(dead_code)]
-fn collector_time() {
-  use minions::elem::{gather, filter};
-  use minions::connectable::ConnectableN; // for collector
-  use minions::scheduler::{collector, loop_back};
-
-  let (mut collector_task, mut _collector_output) =
-    gather::new(".scheduler.collector", 1000, Box::new(collector::new()), 4);
-
-  let (mut _loopback_task, mut loopback_output_1) =
-    filter::new(".scheduler.loopback", 1000, Box::new(loop_back::new()));
-  let (mut _loopback_task, mut loopback_output_2) =
-    filter::new(".scheduler.loopback", 1000, Box::new(loop_back::new()));
-  let (mut _loopback_task, mut loopback_output_3) =
-    filter::new(".scheduler.loopback", 1000, Box::new(loop_back::new()));
-  let (mut _loopback_task, mut loopback_output_4) =
-    filter::new(".scheduler.loopback", 1000, Box::new(loop_back::new()));
-
-  collector_task.connect(0, &mut loopback_output_1).unwrap();
-  collector_task.connect(1, &mut loopback_output_2).unwrap();
-  collector_task.connect(2, &mut loopback_output_3).unwrap();
-  collector_task.connect(3, &mut loopback_output_4).unwrap();
-
-  let mut reporter = scheduler::CountingReporter{ count: 0 };
-
-  let start = time::precise_time_ns();
-  for _i in 0..100_000_000i32 {
-    collector_task.execute(&mut reporter);
-  }
-  let end = time::precise_time_ns();
-  let diff = end - start;
-  println!("collector execute: {} ns",diff/100_000_000);
-}
-
-#[allow(dead_code)]
 fn add_task_time() {
   let mut sources = vec![];
   for _i in 0..3_000_000i32 {
@@ -257,11 +225,11 @@ fn sched_loop_time() {
 
   let start = time::precise_time_ns();
   for _i in 0..10_000 {
-    sched.start();
+    sched.start_test();
   }
   let end = time::precise_time_ns();
   let diff = end - start;
-  println!("sched loop: {} ns => {} ns",diff/10_000,diff/10_000/5_000);
+  println!("sched loop w/ send: {} ns => {} ns",diff/10_000,diff/10_000/5_000);
 }
 
 #[allow(dead_code)]
@@ -279,11 +247,11 @@ fn sched_dummy_loop() {
 
   let start = time::precise_time_ns();
   for _i in 0..10_000 {
-    sched.start();
+    sched.start_test();
   }
   let end = time::precise_time_ns();
   let diff = end - start;
-  println!("sched loop: {} ns => {} ns",diff/10_000,diff/10_000/35_000);
+  println!("sched overhead: {} ns => {} ns",diff/10_000,diff/10_000/35_000);
 }
 
 fn main() {
@@ -295,7 +263,6 @@ fn main() {
   //mpsc_send_data();
   //receive_data();
   //source_send_data();
-  //collector_time();
   add_task_time();
   sched_loop_time();
   sched_dummy_loop();
