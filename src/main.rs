@@ -2,6 +2,7 @@ extern crate minions;
 extern crate lossyq;
 extern crate parking_lot;
 extern crate time;
+extern crate libc;
 
 //use lossyq::spsc::Receiver;
 use lossyq::spsc::{channel, Sender};
@@ -24,7 +25,6 @@ impl source::Source for DummySource {
   }
 }
 
-
 #[derive(Copy, Clone)]
 struct SourceState {
   count      : u64,
@@ -40,42 +40,19 @@ impl source::Source for SourceState {
         output: &mut Sender<Message<Self::OutputType>>)
       -> common::Schedule {
     output.put(|x| *x = Some(Message::Value(self.count)));
-    self.count += 1;
-    if self.count % 1_000_000 == 0 {
+    if self.count % 10_000_000 == 0 {
       let now = time::precise_time_ns();
-      let diff_t = now-self.start;
-      println!("diff t: {} {} {}/sec", diff_t/self.count,self.count,1_000_000_000/(diff_t/self.count));
+      if self.start == 0 {
+        self.start = now;
+      } else {
+        let diff_t = now-self.start;
+        println!("diff t: {} {} {}/sec", diff_t/self.count,self.count,10_000_000_000/(diff_t/self.count));
+      }
     }
+    self.count += 1;
     common::Schedule::Loop
   }
 }
-
-/*
-#[allow(dead_code)]
-fn test_sched() {
-  //use minions::connectable::{Connectable, ConnectableY};
-  let (source_task_1, mut _source_out) = source::new( "Source 1", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
-  let (source_task_2, mut _source_out) = source::new( "Source 2", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
-  let (source_task_3, mut _source_out) = source::new( "Source 3", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
-  let (source_task_4, mut _source_out) = source::new( "Source 4", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
-  let (source_task_5, mut _source_out) = source::new( "Source 5", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
-  let (source_task_6, mut _source_out) = source::new( "Source 6", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
-  let (source_task_7, mut _source_out) = source::new( "Source 7", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
-  let (source_task_8, mut _source_out) = source::new( "Source 8", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
-  let (source_task_9, mut _source_out) = source::new( "Source 9", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
-  let mut sched = scheduler::new_old();
-  sched.add_task(source_task_1); // 189  243 166  -- -- --- --
-  sched.add_task(source_task_2); // 244  369 221  -- 55 126 55
-  sched.add_task(source_task_3); // 307  508 280  --163 139 59
-  sched.add_task(source_task_4); // 363  645 335  -- 56 137 55
-  sched.add_task(source_task_5); // 422  768 392  -- 59 123 57
-  sched.add_task(source_task_6); // 482  910 451  -- 60 142 59
-  sched.add_task(source_task_7); // 533 1033 504  -- 51 123 53
-  sched.add_task(source_task_8); // 598 1170 562  -- 65 137 111
-  sched.add_task(source_task_9); // 650 1286 615  -- 52 116 53
-  sched.stop();
-}
-*/
 
 #[allow(dead_code)]
 fn time_baseline() {
@@ -179,7 +156,7 @@ fn receive_data() {
 #[allow(dead_code)]
 fn source_send_data() {
   let (mut source_task, mut _source_out) =
-    source::new( "Source", 2, Box::new(SourceState{count:0, start:time::precise_time_ns()}));
+    source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
   let mut reporter = scheduler::CountingReporter{ count: 0 };
 
   let start = time::precise_time_ns();
@@ -189,6 +166,63 @@ fn source_send_data() {
   let end = time::precise_time_ns();
   let diff = end - start;
   println!("source execute: {} ns",diff/10_000_000);
+}
+
+#[allow(dead_code)]
+fn source_send_data_counting_in() {
+  let (mut source_task, mut _source_out) =
+    source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
+
+  let start = time::precise_time_ns();
+  for _i in 0..10_000_000i32 {
+    let mut reporter = scheduler::CountingReporter{ count: 0 };
+    source_task.execute(&mut reporter);
+  }
+  let end = time::precise_time_ns();
+  let diff = end - start;
+  println!("source execute: {} ns (w/ counting)",diff/10_000_000);
+}
+
+#[allow(dead_code)]
+fn source_send_data_with_swap() {
+  use std::sync::atomic::{AtomicPtr, Ordering};
+  use std::ptr;
+
+  let (source_task, mut _source_out) =
+    source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
+  let source_ptr = AtomicPtr::new(Box::into_raw(source_task));
+  let mut reporter = scheduler::CountingReporter{ count: 0 };
+
+  let start = time::precise_time_ns();
+  for _i in 0..10_000_000i32 {
+    let old_ptr = source_ptr.swap(ptr::null_mut(), Ordering::SeqCst);
+    unsafe { (*old_ptr).execute(&mut reporter); }
+    source_ptr.swap(old_ptr,  Ordering::SeqCst);
+  }
+  let end = time::precise_time_ns();
+  let diff = end - start;
+  println!("source execute: {} ns (w/ swap)",diff/10_000_000);
+}
+
+#[allow(dead_code)]
+fn source_send_data_with_swap_and_counting() {
+  use std::sync::atomic::{AtomicPtr, Ordering};
+  use std::ptr;
+
+  let (source_task, mut _source_out) =
+    source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
+  let source_ptr = AtomicPtr::new(Box::into_raw(source_task));
+
+  let start = time::precise_time_ns();
+  for _i in 0..10_000_000i32 {
+    let mut reporter = scheduler::CountingReporter{ count: 0 };
+    let old_ptr = source_ptr.swap(ptr::null_mut(), Ordering::SeqCst);
+    unsafe { (*old_ptr).execute(&mut reporter); }
+    source_ptr.swap(old_ptr,  Ordering::SeqCst);
+  }
+  let end = time::precise_time_ns();
+  let diff = end - start;
+  println!("source execute: {} ns (w/ swap, w/ counting)",diff/10_000_000);
 }
 
 #[allow(dead_code)]
@@ -213,7 +247,7 @@ fn add_task_time() {
 #[allow(dead_code)]
 fn sched_loop_time() {
   let mut sources = vec![];
-  for _i in 0..5_000i32 {
+  for _i in 0..1 {
     let (source_task, mut _source_out) =
       source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
     sources.push(source_task);
@@ -224,18 +258,18 @@ fn sched_loop_time() {
   }
 
   let start = time::precise_time_ns();
-  for _i in 0..10_000 {
+  for _i in 0..15_210_000 {
     sched.start_test();
   }
   let end = time::precise_time_ns();
   let diff = end - start;
-  println!("sched loop w/ send: {} ns => {} ns",diff/10_000,diff/10_000/5_000);
+  println!("sched loop w/ send: {} ns/start_test => {} ns/item",diff/15_210_000,diff/15_210_000/1);
 }
 
 #[allow(dead_code)]
 fn sched_dummy_loop() {
   let mut sources = vec![];
-  for _i in 0..35_000i32 {
+  for _i in 0..1 {
     let (source_task, mut _source_out) =
       source::new( "Source", 2, Box::new(DummySource{}));
     sources.push(source_task);
@@ -246,12 +280,25 @@ fn sched_dummy_loop() {
   }
 
   let start = time::precise_time_ns();
-  for _i in 0..10_000 {
+  for _i in 0..5_210_000 {
     sched.start_test();
   }
   let end = time::precise_time_ns();
   let diff = end - start;
-  println!("sched overhead: {} ns => {} ns",diff/10_000,diff/10_000/35_000);
+  println!("sched overhead: {} ns/start_test => {} ns/item",diff/5_210_000,diff/5_210_000/1);
+}
+
+#[allow(dead_code)]
+fn start_stop() {
+  let mut sched = scheduler::new();
+  for _i in 0..100_000 {
+    let (source_task, mut _source_out) =
+      source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
+    sched.add_task(source_task);
+  }
+  sched.start_with_threads(1);
+  unsafe { libc::sleep(5); }
+  sched.stop();
 }
 
 fn main() {
@@ -263,8 +310,12 @@ fn main() {
   //mpsc_send_data();
   //receive_data();
   //source_send_data();
-  add_task_time();
+  //source_send_data_counting_in();
+  //source_send_data_with_swap();
+  //source_send_data_with_swap_and_counting();
+  //add_task_time();
   sched_loop_time();
   sched_dummy_loop();
+  start_stop();
   //test_sched();
 }

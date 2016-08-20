@@ -14,3 +14,7 @@ homepage = "https://github.com/dbeck/minions_rs"
 lossyq = "0.1.15"
 parking_lot = "0.2"
 time = "0.1"
+libc = "0.2"
+
+[profile.release]
+debug = true

@@ -79,31 +79,102 @@ impl SchedulerData {
     }
   }
 
+  #[no_mangle]
   fn start_test(&mut self) {
-    for l1i in &mut self.l1 {
-      let l1_ptr = l1i.load(Ordering::SeqCst);
-      if l1_ptr.is_null() {
-        break;
-      } else {
-        unsafe {
-          let l2_vec = &mut (*l1_ptr).l2;
-          for l2i in l2_vec {
-            let wrk = l2i.swap(ptr::null_mut::<TaskWrap>(), Ordering::SeqCst);
-            if wrk.is_null() == false {
-              let mut reporter = CountingReporter{ count: 0 };
-              (*wrk).task.execute(&mut reporter);
-              l2i.swap(wrk, Ordering::SeqCst);
-            }
-          }
+    let mut reporter = CountingReporter{ count: 0 };
+    let (l1, l2) = self.position(self.max_id.load(Ordering::SeqCst));
+    let l1_slice = self.l1.as_mut_slice();
+    for l1_idx in 0..(l1+1) {
+      let l1_ptr = l1_slice[l1_idx].load(Ordering::SeqCst);
+      let l2_vec = unsafe { &mut (*l1_ptr).l2 };
+      let l2_slice = l2_vec.as_mut_slice();
+      let mut l2_max_idx = 4095;
+      if l1_idx == l1 {
+        l2_max_idx = l2;
+      }
+      for l2idx in 0..(l2_max_idx+1) {
+        let wrk = l2_slice[l2idx].swap(ptr::null_mut::<TaskWrap>(), Ordering::SeqCst);
+        if wrk.is_null() == false {
+          unsafe { (*wrk).task.execute(&mut reporter); }
+          l2_slice[l2idx].store(wrk, Ordering::SeqCst);
         }
       }
     }
   }
+
+  fn entry(&mut self, id: usize) {
+    let mut exec_count : u64 = 0;
+    let start = time::precise_time_ns();
+    loop {
+      if self.stop.load(Ordering::SeqCst) {
+        break;
+      }
+      let (l1, l2) = self.position(self.max_id.load(Ordering::SeqCst));
+      let l1_slice = self.l1.as_mut_slice();
+      for l1_idx in 0..(l1+1) {
+        let l1_ptr = l1_slice[l1_idx].load(Ordering::SeqCst);
+        let l2_vec = unsafe { &mut (*l1_ptr).l2 };
+        let l2_slice = l2_vec.as_mut_slice();
+        let mut l2_max_idx = 4095;
+        if l1_idx == l1 {
+          l2_max_idx = l2;
+        }
+        let mut skip = id;
+        let mut l2idx = 0;
+        loop {
+          if l2idx > l2_max_idx { break; }
+          let wrk = l2_slice[l2idx].swap(ptr::null_mut::<TaskWrap>(), Ordering::SeqCst);
+          if wrk.is_null() == false {
+            let mut reporter = CountingReporter{ count: 0 };
+            unsafe { (*wrk).task.execute(&mut reporter); }
+            l2_slice[l2idx].store(wrk, Ordering::SeqCst);
+            exec_count += 1;
+            l2idx += 1;
+          } else {
+            l2idx += skip+1;
+            skip += 1;
+          }
+        }
+      }
+    }
+    let end = time::precise_time_ns();
+    let diff = end - start;
+    println!("thread: #{} exiting. #exec: {} exec-time: {} ns", id, exec_count, diff/exec_count);
+  }
+
+  fn stop(&mut self) {
+    self.stop.store(true, Ordering::SeqCst);
+  }
 }
+
+struct SchedulerDataHandle {
+  handle: Arc<UnsafeCell<SchedulerData>>,
+}
+
+impl SchedulerDataHandle {
+  fn clone(&mut self) -> SchedulerDataHandle {
+    SchedulerDataHandle{
+      handle: self.handle.clone(),
+    }
+  }
+
+  fn new() -> SchedulerDataHandle {
+    SchedulerDataHandle{
+      handle: Arc::new(UnsafeCell::new(SchedulerData::new())),
+    }
+  }
+
+  fn get(&mut self) -> &mut SchedulerData {
+    unsafe { &mut (*self.handle.get()) }
+  }
+}
+
+// all data access is atomic
+unsafe impl Send for SchedulerDataHandle { }
 
 #[allow(dead_code)]
 pub struct Scheduler {
-  data:     Arc<UnsafeCell<SchedulerData>>,
+  data:     SchedulerDataHandle,
   threads:  Vec<JoinHandle<()>>,
 }
 
@@ -112,7 +183,7 @@ pub struct Scheduler {
 impl Scheduler {
 
   pub fn add_task(&mut self, task: Box<Task+Send>) {
-    unsafe { (*self.data.get()).add_task(task); }
+    (*self.data.get()).add_task(task);
   }
 
   pub fn start(&mut self) {
@@ -123,22 +194,35 @@ impl Scheduler {
     if n_threads == 0 {
       return;
     }
-    for _i in 0..n_threads {
-      let _t = spawn(|| { });
+    for i in 0..n_threads {
+      let mut handle = self.data.clone();
+      let t = spawn(move || { handle.get().entry(i); });
+      self.threads.push(t);
     }
   }
 
   pub fn stop(&mut self) {
+    (*self.data.get()).stop();
+    loop {
+      match self.threads.pop() {
+        Some(t) => {
+          t.join().unwrap();
+        },
+        None => {
+          break;
+        }
+      }
+    }
   }
 
   pub fn start_test(&mut self) {
-    unsafe { (*self.data.get()).start_test(); }
+    (*self.data.get()).start_test();
   }
 }
 
 pub fn new() -> Scheduler {
   Scheduler{
-    data:     Arc::new(UnsafeCell::new(SchedulerData::new())),
+    data:     SchedulerDataHandle::new(),
     threads:  Vec::new(),
   }
 }
