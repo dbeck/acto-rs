@@ -16,6 +16,7 @@ pub enum Schedule {
   OnMessage(u64),
   EndPlusUSec(u64),
   StartPlusUSec(u64),
+  OnExternalEvent,
   Stop,
 }
 

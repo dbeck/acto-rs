@@ -245,50 +245,6 @@ fn add_task_time() {
 }
 
 #[allow(dead_code)]
-fn sched_loop_time() {
-  let mut sources = vec![];
-  for _i in 0..1 {
-    let (source_task, mut _source_out) =
-      source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
-    sources.push(source_task);
-  }
-  let mut sched = scheduler::new();
-  for i in sources {
-    sched.add_task(i);
-  }
-
-  let start = time::precise_time_ns();
-  for _i in 0..15_210_000 {
-    sched.start_test();
-  }
-  let end = time::precise_time_ns();
-  let diff = end - start;
-  println!("sched loop w/ send: {} ns/start_test => {} ns/item",diff/15_210_000,diff/15_210_000/1);
-}
-
-#[allow(dead_code)]
-fn sched_dummy_loop() {
-  let mut sources = vec![];
-  for _i in 0..1 {
-    let (source_task, mut _source_out) =
-      source::new( "Source", 2, Box::new(DummySource{}));
-    sources.push(source_task);
-  }
-  let mut sched = scheduler::new();
-  for i in sources {
-    sched.add_task(i);
-  }
-
-  let start = time::precise_time_ns();
-  for _i in 0..5_210_000 {
-    sched.start_test();
-  }
-  let end = time::precise_time_ns();
-  let diff = end - start;
-  println!("sched overhead: {} ns/start_test => {} ns/item",diff/5_210_000,diff/5_210_000/1);
-}
-
-#[allow(dead_code)]
 fn start_stop() {
   let mut sched = scheduler::new();
   for _i in 0..100_000 {
@@ -296,7 +252,20 @@ fn start_stop() {
       source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
     sched.add_task(source_task);
   }
-  sched.start_with_threads(5);
+  sched.start_with_threads(1);
+  unsafe { libc::sleep(5); }
+  sched.stop();
+}
+
+#[allow(dead_code)]
+fn dummy_start_stop() {
+  let mut sched = scheduler::new();
+  for _i in 0..100_000 {
+    let (source_task, mut _source_out) =
+      source::new( "Source", 2, Box::new(DummySource{}));
+    sched.add_task(source_task);
+  }
+  sched.start_with_threads(1);
   unsafe { libc::sleep(5); }
   sched.stop();
 }
@@ -314,8 +283,7 @@ fn main() {
   //source_send_data_with_swap();
   //source_send_data_with_swap_and_counting();
   //add_task_time();
-  sched_loop_time();
-  sched_dummy_loop();
   start_stop();
+  dummy_start_stop();
   //test_sched();
 }
