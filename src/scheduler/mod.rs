@@ -129,11 +129,11 @@ impl SchedulerData {
             unsafe { (*wrk).task.execute(&mut reporter); }
             l2_slice[l2idx].store(wrk, Ordering::SeqCst);
             exec_count += 1;
-            l2idx += 1;
           } else {
-            l2idx += skip+1;
-            skip += 1;
+            l2idx += skip;
+            skip += id;
           }
+          l2idx += 1;
         }
       }
     }

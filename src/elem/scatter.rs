@@ -1,5 +1,5 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, Direction, new_id};
+use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id};
 use super::super::connectable::{Connectable};
 
 pub trait Scatter {
@@ -46,6 +46,8 @@ impl<Input: Send, Output: Send> Task for ScatterWrap<Input,Output> {
     retval
   }
   fn name(&self) -> &String { &self.name }
+  fn input_count(&self) -> usize { 1 }
+  fn output_count(&self) -> usize { self.output_tx_vec.len() }
 }
 
 pub fn new<Input: Send, Output: Send>(
@@ -65,7 +67,7 @@ pub fn new<Input: Send, Output: Send>(
       Box::new(
         Some(
           IdentifiedReceiver{
-            id:     new_id(String::from(name), Direction::Out, i),
+            id:     new_id(String::from(name), i),
             input:  output_rx,
           }
         )

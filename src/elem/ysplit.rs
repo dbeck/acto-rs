@@ -1,5 +1,5 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, Direction, new_id};
+use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id};
 use super::super::connectable::{Connectable};
 
 pub trait YSplit {
@@ -49,6 +49,8 @@ impl<Input: Send, OutputA: Send, OutputB: Send> Task for YSplitWrap<Input, Outpu
     retval
   }
   fn name(&self) -> &String { &self.name }
+  fn input_count(&self) -> usize { 1 }
+  fn output_count(&self) -> usize { 2 }
 }
 
 pub fn new<Input: Send, OutputA: Send, OutputB: Send>(
@@ -76,7 +78,7 @@ pub fn new<Input: Send, OutputA: Send, OutputB: Send>(
     Box::new(
       Some(
         IdentifiedReceiver{
-          id:     new_id(String::from(name), Direction::Out, 0),
+          id:     new_id(String::from(name), 0),
           input:  output_a_rx,
         }
       )
@@ -84,7 +86,7 @@ pub fn new<Input: Send, OutputA: Send, OutputB: Send>(
     Box::new(
       Some(
         IdentifiedReceiver{
-          id:     new_id(String::from(name), Direction::Out, 1),
+          id:     new_id(String::from(name), 1),
           input:  output_b_rx,
         }
       )

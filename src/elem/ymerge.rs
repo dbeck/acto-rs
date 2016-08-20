@@ -1,5 +1,5 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, Direction, new_id};
+use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id};
 use super::super::connectable::{ConnectableY};
 
 pub trait YMerge {
@@ -49,6 +49,8 @@ impl<InputA: Send, InputB: Send, Output: Send> Task for YMergeWrap<InputA, Input
     retval
   }
   fn name(&self) -> &String { &self.name }
+  fn input_count(&self) -> usize { 2 }
+  fn output_count(&self) -> usize { 1 }
 }
 
 pub fn new<InputA: Send, InputB: Send, Output: Send>(
@@ -72,7 +74,7 @@ pub fn new<InputA: Send, InputB: Send, Output: Send>(
     Box::new(
       Some(
         IdentifiedReceiver{
-          id:     new_id(String::from(name), Direction::Out, 0),
+          id:     new_id(String::from(name), 0),
           input:  output_rx,
         }
       )

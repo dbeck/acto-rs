@@ -26,18 +26,13 @@ pub trait Reporter {
 pub trait Task {
   fn execute(&mut self, reporter: &mut Reporter) -> Schedule;
   fn name(&self)  -> &String;
-}
-
-#[derive(Copy,Clone,Debug)]
-pub enum Direction {
-  In,
-  Out
+  fn input_count(&self) -> usize;
+  fn output_count(&self) -> usize;
 }
 
 #[derive(Clone,Debug)]
 pub struct Id {
   task_name  : String,
-  dir        : Direction,
   id         : usize,
 }
 
@@ -48,14 +43,13 @@ pub struct IdentifiedReceiver<Input: Send> {
 
 impl fmt::Display for Id {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Id:({} {:?} {})", self.task_name, self.dir, self.id)
+        write!(f, "Id:({} {})", self.task_name, self.id)
     }
 }
 
-pub fn new_id(name: String, dir: Direction, id: usize) -> Id {
+pub fn new_id(name: String, id: usize) -> Id {
   Id {
     task_name  : name,
-    dir        : dir,
     id         : id,
   }
 }
