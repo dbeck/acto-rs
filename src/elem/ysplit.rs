@@ -1,6 +1,6 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id};
-use super::super::connectable::{Connectable};
+use super::super::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id};
+use super::connectable::{Connectable};
 
 pub trait YSplit {
   type InputType    : Send;

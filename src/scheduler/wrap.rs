@@ -1,4 +1,4 @@
-use super::super::common::{Task, Reporter, Schedule};
+use super::super::{Task, Reporter, Schedule};
 use super::event;
 
 pub struct TaskWrap {

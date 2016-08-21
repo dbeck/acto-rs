@@ -1,5 +1,5 @@
-use super::super::common::{Task, Reporter, Schedule, IdentifiedReceiver};
-use super::super::connectable::{Connectable};
+use super::super::{Task, Reporter, Schedule, IdentifiedReceiver};
+use super::connectable::{Connectable};
 
 pub trait Sink {
   type InputType : Send;

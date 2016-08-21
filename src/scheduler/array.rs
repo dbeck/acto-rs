@@ -1,6 +1,6 @@
 
 use std::sync::atomic::{AtomicPtr, Ordering};
-use super::super::common::{Task};
+use super::super::{Task};
 use super::{wrap, CountingReporter};
 use std::ptr;
 

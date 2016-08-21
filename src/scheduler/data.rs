@@ -1,6 +1,6 @@
 
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
-use super::super::common::{Task};
+use super::super::{Task};
 use super::{array, task_id};
 use time;
 

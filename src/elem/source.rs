@@ -1,5 +1,5 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::common::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id};
+use super::super::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id};
 
 pub trait Source {
   type OutputType : Send;

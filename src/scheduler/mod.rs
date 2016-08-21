@@ -5,7 +5,7 @@ mod task_id;
 mod data;
 mod handle;
 
-use super::common::{Task, Reporter};
+use super::{Task, Reporter};
 use std::thread::{spawn, JoinHandle};
 
 #[allow(dead_code)]

@@ -8,8 +8,7 @@ extern crate libc;
 use lossyq::spsc::{channel, Sender};
 use minions::scheduler;
 use minions::elem::{source, /*, filter, sink, ymerge, ysplit*/ };
-use minions::common;
-use minions::common::{Message, Task};
+use minions::{Message, Task, Schedule};
 
 struct DummySource {
 }
@@ -20,8 +19,8 @@ impl source::Source for DummySource {
   fn process(
         &mut self,
         _output: &mut Sender<Message<Self::OutputType>>)
-      -> common::Schedule {
-    common::Schedule::Loop
+      -> Schedule {
+    Schedule::Loop
   }
 }
 
@@ -38,7 +37,7 @@ impl source::Source for SourceState {
   fn process(
         &mut self,
         output: &mut Sender<Message<Self::OutputType>>)
-      -> common::Schedule {
+      -> Schedule {
     output.put(|x| *x = Some(Message::Value(self.count)));
     if self.count % 10_000_000 == 0 {
       let now = time::precise_time_ns();
@@ -50,7 +49,7 @@ impl source::Source for SourceState {
       }
     }
     self.count += 1;
-    common::Schedule::Loop
+    Schedule::Loop
   }
 }
 
