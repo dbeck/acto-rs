@@ -1,6 +1,7 @@
 extern crate lossyq;
 extern crate parking_lot;
 extern crate time;
+extern crate libc;
 
 pub mod scheduler;
 pub mod elem;
@@ -25,6 +26,12 @@ pub enum Schedule {
   StartPlusUSec(u64),
   OnExternalEvent,
   Stop,
+}
+
+pub enum Error {
+  Busy,
+  NonExistent,
+  Stopping,
 }
 
 pub trait Reporter {

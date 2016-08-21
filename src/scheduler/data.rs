@@ -1,13 +1,16 @@
 
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
-use super::super::{Task};
+use super::super::{Task, Error};
 use super::{array, task_id};
+use std::ptr;
 use time;
+use libc;
 
 pub struct SchedulerData {
   max_id:   AtomicUsize,
   l1:       Vec<AtomicPtr<array::TaskArray>>,
   stop:     AtomicBool,
+  time_us:  AtomicUsize,
 }
 
 impl SchedulerData {
@@ -17,19 +20,17 @@ impl SchedulerData {
     l1_slice[idx].store(Box::into_raw(array), Ordering::SeqCst);
   }
 
-  fn position(&self, idx: usize) -> (usize, usize) {
-    (idx>>12, idx&0xfff)
-  }
-
   fn new() -> SchedulerData {
+    let l1_size = initial_capacity();
     let mut data = SchedulerData{
       max_id:   AtomicUsize::new(0),
-      l1:       Vec::with_capacity(65536),
+      l1:       Vec::with_capacity(l1_size),
       stop:     AtomicBool::new(false),
+      time_us:  AtomicUsize::new((time::precise_time_ns()/1000) as usize),
     };
 
     // fill the l1 bucket
-    for _i in 0..65536 {
+    for _i in 0..l1_size {
       data.l1.push(AtomicPtr::default());
     }
 
@@ -40,14 +41,11 @@ impl SchedulerData {
 
   pub fn add_task(&mut self, task: Box<Task+Send>) -> task_id::TaskId {
     let ret = task_id::new(self.max_id.fetch_add(1, Ordering::SeqCst));
-    let (l1, l2) = self.position(ret.id());
+    let (l1, l2) = array::position(ret.id());
     if l2 == 0 {
       // make sure the next bucket exists when needed
       self.add_l2_bucket(l1+1);
     }
-    //if l1 == 65534 {
-      // TODO:
-    //}
     unsafe {
       let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::SeqCst);
       if l1_ptr.is_null() == false {
@@ -57,6 +55,16 @@ impl SchedulerData {
     ret
   }
 
+  pub fn ticker(&mut self) {
+    loop {
+      if self.stop.load(Ordering::SeqCst) {
+        break;
+      }
+      unsafe { libc::usleep(10); }
+      self.time_us.store((time::precise_time_ns()/1000) as usize, Ordering::Release);
+    }
+  }
+
   pub fn entry(&mut self, id: usize) {
     let mut exec_count : u64 = 0;
     let start = time::precise_time_ns();
@@ -64,7 +72,7 @@ impl SchedulerData {
       if self.stop.load(Ordering::SeqCst) {
         break;
       }
-      let (l1, l2) = self.position(self.max_id.load(Ordering::SeqCst));
+      let (l1, l2) = array::position(self.max_id.load(Ordering::SeqCst));
       let l1_slice = self.l1.as_mut_slice();
       for l1_idx in 0..(l1+1) {
         let l1_ptr = l1_slice[l1_idx].load(Ordering::SeqCst);
@@ -72,12 +80,29 @@ impl SchedulerData {
         if l1_idx == l1 {
           l2_max_idx = l2;
         }
-        unsafe { exec_count += (*l1_ptr).execute(l2_max_idx, id); }
+        unsafe { exec_count += (*l1_ptr).execute(l2_max_idx, id, &self.time_us); }
       }
     }
     let end = time::precise_time_ns();
     let diff = end - start;
     println!("thread: #{} exiting. #exec: {} exec-time: {} ns", id, exec_count, diff/exec_count);
+  }
+
+  pub fn notify(&mut self, id: &task_id::TaskId) -> Result<usize, Error> {
+    if self.stop.load(Ordering::SeqCst) {
+      return Result::Err(Error::Stopping);
+    }
+    let max = self.max_id.load(Ordering::SeqCst);
+    if id.id() >= max {
+      return Result::Err(Error::NonExistent);
+    }
+    let (l1, l2) = array::position(id.id());
+    let l1_slice = self.l1.as_mut_slice();
+    let l1_ptr = l1_slice[l1].load(Ordering::SeqCst);
+    if l1_ptr.is_null() {
+      return Result::Err(Error::NonExistent);
+    }
+    unsafe { (*l1_ptr).notify(l2) }
   }
 
   pub fn stop(&mut self) {
@@ -87,4 +112,25 @@ impl SchedulerData {
 
 pub fn new() -> SchedulerData {
   SchedulerData::new()
+}
+
+pub fn initial_capacity() -> usize {
+  65536
+}
+
+impl Drop for SchedulerData {
+  fn drop(&mut self) {
+    let len = self.l1.len();
+    let l1_slice = self.l1.as_mut_slice();
+    for i in 0..len {
+      let l1_atomic_ptr = &mut l1_slice[i];
+      let ptr = l1_atomic_ptr.swap(ptr::null_mut::<array::TaskArray>(), Ordering::SeqCst);
+      if ptr.is_null() == false {
+        // make sure we drop the pointers
+        let _b = unsafe { Box::from_raw(ptr) };
+      } else {
+        break;
+      }
+    }
+  }
 }

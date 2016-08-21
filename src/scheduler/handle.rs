@@ -1,5 +1,6 @@
 
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
 use std::cell::UnsafeCell;
 use super::data;
 

@@ -251,7 +251,7 @@ fn start_stop() {
       source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
     sched.add_task(source_task);
   }
-  sched.start_with_threads(1);
+  sched.start_with_threads(2);
   unsafe { libc::sleep(5); }
   sched.stop();
 }
@@ -264,7 +264,7 @@ fn dummy_start_stop() {
       source::new( "Source", 2, Box::new(DummySource{}));
     sched.add_task(source_task);
   }
-  sched.start_with_threads(1);
+  sched.start_with_threads(2);
   unsafe { libc::sleep(5); }
   sched.stop();
 }
