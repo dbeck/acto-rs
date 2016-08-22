@@ -22,8 +22,7 @@ pub enum Message<T: Send>
 pub enum Schedule {
   Loop,
   OnMessage(u64),
-  EndPlusUSec(u64),
-  StartPlusUSec(u64),
+  DelayUSec(u64),
   OnExternalEvent,
   Stop,
 }

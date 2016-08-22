@@ -7,8 +7,6 @@ mod handle;
 
 use super::{Task, Reporter, Error};
 use std::thread::{spawn, JoinHandle};
-use std::sync::atomic::{AtomicUsize};
-use time;
 
 #[allow(dead_code)]
 pub struct Scheduler {
