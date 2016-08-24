@@ -1,7 +1,8 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id, ChannelId};
+use super::super::{Task, Message, Schedule, IdentifiedReceiver, new_id, ChannelId};
 use super::connectable::{ConnectableY};
 use super::identified_input::{IdentifiedInput};
+use super::output_counter::{OutputCounter};
 
 pub trait YMerge {
   type InputTypeA   : Send;
@@ -41,6 +42,16 @@ impl<InputA: Send, InputB: Send, Output: Send> IdentifiedInput for YMergeWrap<In
   }
 }
 
+impl<InputA: Send, InputB: Send, Output: Send> OutputCounter for YMergeWrap<InputA, InputB, Output> {
+  fn get_tx_count(&self, ch_id: usize) -> usize {
+    if ch_id == 0 {
+      self.output_tx.seqno()
+    } else {
+      0
+    }
+  }
+}
+
 impl<InputA: Send, InputB: Send, Output: Send> ConnectableY for YMergeWrap<InputA, InputB, Output> {
   type InputA = InputA;
   type InputB = InputB;
@@ -55,23 +66,10 @@ impl<InputA: Send, InputB: Send, Output: Send> ConnectableY for YMergeWrap<Input
 }
 
 impl<InputA: Send, InputB: Send, Output: Send> Task for YMergeWrap<InputA, InputB, Output> {
-  fn execute(&mut self, reporter: &mut Reporter, task_id: usize) -> Schedule {
-    // TODO : make this nicer. repetitive for all elems!
-    let msg_id = self.output_tx.seqno();
-    let retval = self.state.process(&mut self.input_a_rx,
-                                    &mut self.input_b_rx,
-                                    &mut self.output_tx);
-    let new_msg_id = self.output_tx.seqno();
-    if msg_id != new_msg_id {
-      reporter.message_sent(0, new_msg_id, task_id);
-    }
-    match retval {
-      Schedule::OnMessage(ch_id, msg_id) => {
-        reporter.wait_channel(ch_id, msg_id, task_id);
-      },
-      _ => {},
-    }
-    retval
+  fn execute(&mut self) -> Schedule {
+    self.state.process(&mut self.input_a_rx,
+                       &mut self.input_b_rx,
+                       &mut self.output_tx)
   }
   fn name(&self) -> &String { &self.name }
   fn input_count(&self) -> usize { 2 }
@@ -79,6 +77,9 @@ impl<InputA: Send, InputB: Send, Output: Send> Task for YMergeWrap<InputA, Input
 
   fn input_id(&self, ch_id: usize) -> Option<ChannelId> {
     self.get_input_id(ch_id)
+  }
+  fn tx_count(&self, ch_id: usize) -> usize {
+    self.get_tx_count(ch_id)
   }
 }
 

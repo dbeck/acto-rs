@@ -1,4 +1,4 @@
-use super::super::{Task, Reporter, Schedule, IdentifiedReceiver, ChannelId};
+use super::super::{Task, Schedule, IdentifiedReceiver, ChannelId};
 use super::connectable::{Connectable};
 use super::identified_input::{IdentifiedInput};
 
@@ -38,15 +38,8 @@ impl<Input: Send> Connectable for SinkWrap<Input> {
 }
 
 impl<Input: Send> Task for SinkWrap<Input> {
-  fn execute(&mut self, reporter: &mut Reporter, task_id: usize) -> Schedule {
-    let retval = self.state.process(&mut self.input_rx);
-    match retval {
-      Schedule::OnMessage(ch_id, msg_id) => {
-        reporter.wait_channel(ch_id, msg_id, task_id);
-      },
-      _ => {},
-    }
-    retval
+  fn execute(&mut self) -> Schedule {
+    self.state.process(&mut self.input_rx)
   }
   fn name(&self) -> &String { &self.name }
   fn input_count(&self) -> usize { 1 }
@@ -55,6 +48,7 @@ impl<Input: Send> Task for SinkWrap<Input> {
   fn input_id(&self, ch_id: usize) -> Option<ChannelId> {
     self.get_input_id(ch_id)
   }
+  fn tx_count(&self, _ch_id: usize) -> usize { 0 }
 }
 
 pub fn new<Input: Send>(

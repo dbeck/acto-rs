@@ -1,7 +1,8 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id, ChannelId};
+use super::super::{Task, Message, Schedule, IdentifiedReceiver, new_id, ChannelId};
 use super::connectable::{Connectable};
 use super::identified_input::{IdentifiedInput};
+use super::output_counter::{OutputCounter};
 
 pub trait YSplit {
   type InputType    : Send;
@@ -36,6 +37,18 @@ impl<Input: Send, OutputA: Send, OutputB: Send> IdentifiedInput for YSplitWrap<I
   }
 }
 
+impl<Input: Send, OutputA: Send, OutputB: Send> OutputCounter for  YSplitWrap<Input, OutputA, OutputB> {
+  fn get_tx_count(&self, ch_id: usize) -> usize {
+    if ch_id == 0 {
+      self.output_a_tx.seqno()
+    } else if ch_id == 1 {
+      self.output_b_tx.seqno()
+    } else {
+      0
+    }
+  }
+}
+
 impl<Input: Send, OutputA: Send, OutputB: Send> Connectable for YSplitWrap<Input, OutputA, OutputB> {
   type Input = Input;
 
@@ -45,36 +58,19 @@ impl<Input: Send, OutputA: Send, OutputB: Send> Connectable for YSplitWrap<Input
 }
 
 impl<Input: Send, OutputA: Send, OutputB: Send> Task for YSplitWrap<Input, OutputA, OutputB> {
-  fn execute(&mut self, reporter: &mut Reporter, task_id: usize) -> Schedule {
-    // TODO : make this nicer. repetitive for all elems!
-    let msg_a_id = self.output_a_tx.seqno();
-    let msg_b_id = self.output_b_tx.seqno();
-    let retval = self.state.process(&mut self.input_rx,
-                                    &mut self.output_a_tx,
-                                    &mut self.output_b_tx);
-    let new_msg_a_id = self.output_a_tx.seqno();
-    if msg_a_id != new_msg_a_id {
-      reporter.message_sent(0, new_msg_a_id, task_id);
-    }
-    let new_msg_b_id = self.output_b_tx.seqno();
-    if msg_b_id != new_msg_b_id {
-      reporter.message_sent(1, new_msg_b_id, task_id);
-    }
-    match retval {
-      Schedule::OnMessage(ch_id, msg_id) => {
-        reporter.wait_channel(ch_id, msg_id, task_id);
-      },
-      _ => {},
-    }
-    retval
+  fn execute(&mut self) -> Schedule {
+    self.state.process(&mut self.input_rx,
+                       &mut self.output_a_tx,
+                       &mut self.output_b_tx)
   }
-
   fn name(&self) -> &String { &self.name }
   fn input_count(&self) -> usize { 1 }
   fn output_count(&self) -> usize { 2 }
-
   fn input_id(&self, ch_id: usize) -> Option<ChannelId> {
     self.get_input_id(ch_id)
+  }
+  fn tx_count(&self, ch_id: usize) -> usize {
+    self.get_tx_count(ch_id)
   }
 }
 

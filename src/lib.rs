@@ -41,11 +41,11 @@ pub struct ChannelId {
 
 pub trait Reporter {
   fn message_sent(&mut self, channel_id: usize, last_msg_id: usize, task_id: usize);
-  fn wait_channel(&mut self, channel_id: usize, last_msg_id: usize, task_id: usize);
+  fn wait_channel(&mut self, channel_id: &ChannelId, last_msg_id: usize, task_id: usize);
 }
 
 pub trait Task {
-  fn execute(&mut self, reporter: &mut Reporter, id: usize) -> Schedule;
+  fn execute(&mut self) -> Schedule;
   fn name(&self)  -> &String;
   fn input_count(&self) -> usize;
   fn output_count(&self) -> usize;
@@ -58,6 +58,7 @@ pub trait Task {
       Some( new_id(self.name().clone(), ch_id))
     }
   }
+  fn tx_count(&self, ch_id: usize) -> usize;
 }
 
 pub struct IdentifiedReceiver<Input: Send> {

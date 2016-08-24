@@ -5,7 +5,7 @@ mod data;
 mod handle;
 //mod event;
 
-use super::{Task, Reporter, Error};
+use super::{Task, Reporter, Error, ChannelId};
 use std::thread::{spawn, JoinHandle};
 
 #[allow(dead_code)]
@@ -82,7 +82,7 @@ impl Reporter for CountingReporter {
   fn message_sent(&mut self, _channel_id: usize, _last_msg_id: usize, _task_id: usize) {
     self.count += 1;
   }
-  fn wait_channel(&mut self, _channel_id: usize, _last_msg_id: usize, _task_id: usize) {
+  fn wait_channel(&mut self, _channel_id: &ChannelId, _last_msg_id: usize, _task_id: usize) {
   }
 }
 

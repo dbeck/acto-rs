@@ -1,7 +1,8 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id, ChannelId};
+use super::super::{Task, Message, Schedule, IdentifiedReceiver, new_id, ChannelId};
 use super::connectable::{Connectable};
 use super::identified_input::{IdentifiedInput};
+use super::output_counter::{OutputCounter};
 
 pub trait Scatter {
   type InputType   : Send;
@@ -18,7 +19,6 @@ pub struct ScatterWrap<Input: Send, Output: Send> {
   state          : Box<Scatter<InputType=Input,OutputType=Output>+Send>,
   input_rx       : Option<IdentifiedReceiver<Input>>,
   output_tx_vec  : Vec<Sender<Message<Output>>>,
-  msg_ids        : Vec<usize>,
 }
 
 impl<Input: Send, Output: Send> IdentifiedInput for ScatterWrap<Input,Output> {
@@ -34,6 +34,17 @@ impl<Input: Send, Output: Send> IdentifiedInput for ScatterWrap<Input,Output> {
   }
 }
 
+impl<Input: Send, Output: Send> OutputCounter for ScatterWrap<Input,Output> {
+  fn get_tx_count(&self, ch_id: usize) -> usize {
+    if ch_id < self.output_tx_vec.len() {
+      let otx_slice = self.output_tx_vec.as_slice();
+      otx_slice[ch_id].seqno()
+    } else {
+      0
+    }
+  }
+}
+
 impl<Input: Send, Output: Send> Connectable for ScatterWrap<Input,Output> {
   type Input = Input;
 
@@ -43,27 +54,9 @@ impl<Input: Send, Output: Send> Connectable for ScatterWrap<Input,Output> {
 }
 
 impl<Input: Send, Output: Send> Task for ScatterWrap<Input,Output> {
-  fn execute(&mut self, reporter: &mut Reporter, task_id: usize) -> Schedule {
-    // TODO : make this nicer. repetitive for all elems!
-    let retval = self.state.process(&mut self.input_rx,
-                                    &mut self.output_tx_vec);
-    let otx_slice = self.output_tx_vec.as_slice();
-    let ln = self.msg_ids.len();
-    let ids_slice = self.msg_ids.as_mut_slice();
-    for i in 0..ln {
-      let new_msg_id = otx_slice[i].seqno();
-      if ids_slice[i] != new_msg_id {
-        reporter.message_sent(i, new_msg_id, task_id);
-      }
-      ids_slice[i] = new_msg_id;
-    }
-    match retval {
-      Schedule::OnMessage(ch_id, msg_id) => {
-        reporter.wait_channel(ch_id, msg_id, task_id);
-      },
-      _ => {},
-    }
-    retval
+  fn execute(&mut self) -> Schedule {
+    self.state.process(&mut self.input_rx,
+                       &mut self.output_tx_vec)
   }
   fn name(&self) -> &String { &self.name }
   fn input_count(&self) -> usize { 1 }
@@ -71,6 +64,9 @@ impl<Input: Send, Output: Send> Task for ScatterWrap<Input,Output> {
 
   fn input_id(&self, ch_id: usize) -> Option<ChannelId> {
     self.get_input_id(ch_id)
+  }
+  fn tx_count(&self, ch_id: usize) -> usize {
+    self.get_tx_count(ch_id)
   }
 }
 
@@ -106,7 +102,6 @@ pub fn new<Input: Send, Output: Send>(
         state          : scatter,
         input_rx       : None,
         output_tx_vec  : tx_vec,
-        msg_ids        : vec![n_channels;0],
       }
     ),
     rx_vec

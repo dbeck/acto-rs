@@ -156,11 +156,10 @@ fn receive_data() {
 fn source_send_data() {
   let (mut source_task, mut _source_out) =
     source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
-  let mut reporter = scheduler::CountingReporter{ count: 0 };
 
   let start = time::precise_time_ns();
-  for i in 0..10_000_000 {
-    source_task.execute(&mut reporter, i);
+  for _i in 0..10_000_000 {
+    source_task.execute();
   }
   let end = time::precise_time_ns();
   let diff = end - start;
@@ -173,9 +172,8 @@ fn source_send_data_counting_in() {
     source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
 
   let start = time::precise_time_ns();
-  for i in 0..10_000_000 {
-    let mut reporter = scheduler::CountingReporter{ count: 0 };
-    source_task.execute(&mut reporter, i);
+  for _i in 0..10_000_000 {
+    source_task.execute();
   }
   let end = time::precise_time_ns();
   let diff = end - start;
@@ -190,12 +188,11 @@ fn source_send_data_with_swap() {
   let (source_task, mut _source_out) =
     source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
   let source_ptr = AtomicPtr::new(Box::into_raw(source_task));
-  let mut reporter = scheduler::CountingReporter{ count: 0 };
 
   let start = time::precise_time_ns();
-  for i in 0..10_000_000 {
+  for _i in 0..10_000_000 {
     let old_ptr = source_ptr.swap(ptr::null_mut(), Ordering::SeqCst);
-    unsafe { (*old_ptr).execute(&mut reporter, i); }
+    unsafe { (*old_ptr).execute(); }
     source_ptr.swap(old_ptr,  Ordering::SeqCst);
   }
   let end = time::precise_time_ns();
@@ -213,10 +210,9 @@ fn source_send_data_with_swap_and_counting() {
   let source_ptr = AtomicPtr::new(Box::into_raw(source_task));
 
   let start = time::precise_time_ns();
-  for i in 0..10_000_000 {
-    let mut reporter = scheduler::CountingReporter{ count: 0 };
+  for _i in 0..10_000_000 {
     let old_ptr = source_ptr.swap(ptr::null_mut(), Ordering::SeqCst);
-    unsafe { (*old_ptr).execute(&mut reporter, i); }
+    unsafe { (*old_ptr).execute(); }
     source_ptr.swap(old_ptr,  Ordering::SeqCst);
   }
   let end = time::precise_time_ns();

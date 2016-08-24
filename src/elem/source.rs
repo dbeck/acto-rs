@@ -1,5 +1,6 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id, ChannelId};
+use super::super::{Task, Message, Schedule, IdentifiedReceiver, new_id, ChannelId};
+use super::output_counter::{OutputCounter};
 
 pub trait Source {
   type OutputType : Send;
@@ -15,16 +16,19 @@ pub struct SourceWrap<Output: Send> {
   output_tx  : Sender<Message<Output>>,
 }
 
-impl<Output: 'static+Send> Task for SourceWrap<Output> {
-  fn execute(&mut self, reporter: &mut Reporter, id: usize) -> Schedule {
-    // TODO : make this nicer. repetitive for all elems!
-    let msg_id = self.output_tx.seqno();
-    let retval = self.state.process(&mut self.output_tx);
-    let new_msg_id = self.output_tx.seqno();
-    if msg_id != new_msg_id {
-      reporter.message_sent(0, new_msg_id, id);
+impl<Output: 'static+Send> OutputCounter for SourceWrap<Output> {
+  fn get_tx_count(&self, ch_id: usize) -> usize {
+    if ch_id == 0 {
+      self.output_tx.seqno()
+    } else {
+      0
     }
-    retval
+  }
+}
+
+impl<Output: 'static+Send> Task for SourceWrap<Output> {
+  fn execute(&mut self) -> Schedule {
+    self.state.process(&mut self.output_tx)
   }
   fn name(&self) -> &String { &self.name }
   fn input_count(&self) -> usize { 0 }
@@ -32,6 +36,9 @@ impl<Output: 'static+Send> Task for SourceWrap<Output> {
 
   fn input_id(&self, _ch_id: usize) -> Option<ChannelId> {
     None
+  }
+  fn tx_count(&self, ch_id: usize) -> usize {
+    self.get_tx_count(ch_id)
   }
 }
 
