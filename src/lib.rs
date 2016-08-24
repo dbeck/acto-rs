@@ -21,7 +21,7 @@ pub enum Message<T: Send>
 #[derive(Debug)]
 pub enum Schedule {
   Loop,
-  OnMessage(u64),
+  OnMessage(usize, usize), // channel id, msg id
   DelayUSec(u64),
   OnExternalEvent,
   Stop,
@@ -33,36 +33,46 @@ pub enum Error {
   Stopping,
 }
 
-pub trait Reporter {
-  fn message_sent(&mut self, channel_id: usize, last_msg_id: usize);
-}
-
-pub trait Task {
-  fn execute(&mut self, reporter: &mut Reporter) -> Schedule;
-  fn name(&self)  -> &String;
-  fn input_count(&self) -> usize;
-  fn output_count(&self) -> usize;
-}
-
 #[derive(Clone,Debug)]
-pub struct Id {
+pub struct ChannelId {
   task_name  : String,
   id         : usize,
 }
 
+pub trait Reporter {
+  fn message_sent(&mut self, channel_id: usize, last_msg_id: usize, task_id: usize);
+  fn wait_channel(&mut self, channel_id: usize, last_msg_id: usize, task_id: usize);
+}
+
+pub trait Task {
+  fn execute(&mut self, reporter: &mut Reporter, id: usize) -> Schedule;
+  fn name(&self)  -> &String;
+  fn input_count(&self) -> usize;
+  fn output_count(&self) -> usize;
+  fn input_id(&self, ch_id: usize) -> Option<ChannelId>;
+
+  fn output_id(&self, ch_id: usize) -> Option<ChannelId> {
+    if ch_id >= self.output_count() {
+      None
+    } else {
+      Some( new_id(self.name().clone(), ch_id))
+    }
+  }
+}
+
 pub struct IdentifiedReceiver<Input: Send> {
-  pub id    : Id,
+  pub id    : ChannelId,
   pub input : Receiver<Message<Input>>,
 }
 
-impl fmt::Display for Id {
+impl fmt::Display for ChannelId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Id:({} {})", self.task_name, self.id)
     }
 }
 
-pub fn new_id(name: String, id: usize) -> Id {
-  Id {
+pub fn new_id(name: String, id: usize) -> ChannelId {
+  ChannelId {
     task_name  : name,
     id         : id,
   }

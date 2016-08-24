@@ -1,4 +1,4 @@
-use super::super::IdentifiedReceiver;
+use super::super::{IdentifiedReceiver};
 
 pub fn connect_to<Input: Send>(me : &mut Option<IdentifiedReceiver<Input>>,
                                to : &mut Option<IdentifiedReceiver<Input>>)

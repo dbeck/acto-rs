@@ -1,5 +1,5 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id};
+use super::super::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id, ChannelId};
 
 pub trait Source {
   type OutputType : Send;
@@ -16,19 +16,23 @@ pub struct SourceWrap<Output: Send> {
 }
 
 impl<Output: 'static+Send> Task for SourceWrap<Output> {
-  fn execute(&mut self, reporter: &mut Reporter) -> Schedule {
+  fn execute(&mut self, reporter: &mut Reporter, id: usize) -> Schedule {
     // TODO : make this nicer. repetitive for all elems!
     let msg_id = self.output_tx.seqno();
     let retval = self.state.process(&mut self.output_tx);
     let new_msg_id = self.output_tx.seqno();
     if msg_id != new_msg_id {
-      reporter.message_sent(0, new_msg_id);
+      reporter.message_sent(0, new_msg_id, id);
     }
     retval
   }
   fn name(&self) -> &String { &self.name }
   fn input_count(&self) -> usize { 0 }
   fn output_count(&self) -> usize { 1 }
+
+  fn input_id(&self, _ch_id: usize) -> Option<ChannelId> {
+    None
+  }
 }
 
 pub fn new<Output: Send>(

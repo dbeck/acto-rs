@@ -1,7 +1,7 @@
 
 use std::sync::atomic::{AtomicPtr, Ordering, AtomicUsize};
-use super::super::{Task, Error};
-use super::{wrap, CountingReporter};
+use super::super::{Task, Error, Reporter};
+use super::{wrap};
 use std::ptr;
 
 pub struct TaskArray {
@@ -9,8 +9,8 @@ pub struct TaskArray {
 }
 
 impl TaskArray {
-  pub fn store(&mut self, idx: usize, task: Box<Task+Send>) {
-    let wrap = Box::new(wrap::new(task));
+  pub fn store(&mut self, idx: usize, task: Box<Task+Send>, id: usize) {
+    let wrap = Box::new(wrap::new(task, id));
     // TODO : check idx
     unsafe {
       let l2_atomic_ptr = self.l2.get_unchecked_mut(idx);
@@ -18,7 +18,11 @@ impl TaskArray {
     }
   }
 
-  pub fn execute(&mut self, l2_max_idx: usize, id: usize, time_us: &AtomicUsize) -> u64 {
+  pub fn execute(&mut self,
+                 l2_max_idx: usize,
+                 id: usize,
+                 reporter: &mut Reporter,
+                 time_us: &AtomicUsize) -> u64 {
     let l2_slice = self.l2.as_mut_slice();
     let mut skip = id;
     let mut l2idx = 0;
@@ -27,8 +31,7 @@ impl TaskArray {
       if l2idx > l2_max_idx { break; }
       let wrk = l2_slice[l2idx].swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::SeqCst);
       if wrk.is_null() == false {
-        let mut reporter = CountingReporter{ count: 0 };
-        unsafe { (*wrk).execute(&mut reporter, &time_us); }
+        unsafe { (*wrk).execute(reporter, &time_us); }
         l2_slice[l2idx].store(wrk, Ordering::SeqCst);
         exec_count += 1;
       } else {

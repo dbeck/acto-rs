@@ -79,8 +79,10 @@ pub struct CountingReporter {
 }
 
 impl Reporter for CountingReporter {
-  fn message_sent(&mut self, _channel_id: usize, _last_msg_id: usize) {
+  fn message_sent(&mut self, _channel_id: usize, _last_msg_id: usize, _task_id: usize) {
     self.count += 1;
+  }
+  fn wait_channel(&mut self, _channel_id: usize, _last_msg_id: usize, _task_id: usize) {
   }
 }
 

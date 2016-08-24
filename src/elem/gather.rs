@@ -1,6 +1,7 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id};
+use super::super::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id, ChannelId};
 use super::connectable::{ConnectableN};
+use super::identified_input::{IdentifiedInput};
 
 pub trait Gather {
   type InputType   : Send;
@@ -19,6 +20,20 @@ pub struct GatherWrap<Input: Send, Output: Send> {
   output_tx      : Sender<Message<Output>>,
 }
 
+impl<Input: Send, Output: Send> IdentifiedInput for GatherWrap<Input,Output> {
+  fn get_input_id(&self, ch_id: usize) -> Option<ChannelId> {
+    if ch_id >= self.input_rx_vec.len() {
+      None
+    } else {
+      let slice = self.input_rx_vec.as_slice();
+      match &slice[ch_id] {
+        &Some(ref ch) => Some(ch.id.clone()),
+        _             => None,
+      }
+    }
+  }
+}
+
 impl<Input: Send, Output: Send> ConnectableN for GatherWrap<Input,Output> {
   type Input = Input;
 
@@ -29,20 +44,30 @@ impl<Input: Send, Output: Send> ConnectableN for GatherWrap<Input,Output> {
 }
 
 impl<Input: Send, Output: Send> Task for GatherWrap<Input,Output> {
-  fn execute(&mut self, reporter: &mut Reporter) -> Schedule {
+  fn execute(&mut self, reporter: &mut Reporter, task_id: usize) -> Schedule {
     // TODO : make this nicer. repetitive for all elems!
     let msg_id = self.output_tx.seqno();
     let retval = self.state.process(&mut self.input_rx_vec,
                                     &mut self.output_tx);
     let new_msg_id = self.output_tx.seqno();
     if msg_id != new_msg_id {
-      reporter.message_sent(0, new_msg_id);
+      reporter.message_sent(0, new_msg_id, task_id);
+    }
+    match retval {
+      Schedule::OnMessage(ch_id, msg_id) => {
+        reporter.wait_channel(ch_id, msg_id, task_id);
+      },
+      _ => {},
     }
     retval
   }
   fn name(&self) -> &String { &self.name }
   fn input_count(&self) -> usize { self.input_rx_vec.len() }
   fn output_count(&self) -> usize { 1 }
+
+  fn input_id(&self, ch_id: usize) -> Option<ChannelId> {
+    self.get_input_id(ch_id)
+  }
 }
 
 pub fn new<Input: Send, Output: Send>(

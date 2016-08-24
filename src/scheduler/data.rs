@@ -1,7 +1,7 @@
 
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
 use super::super::{Task, Error};
-use super::{array, task_id};
+use super::{array, task_id, CountingReporter};
 use std::ptr;
 use time;
 use libc;
@@ -49,7 +49,7 @@ impl SchedulerData {
     unsafe {
       let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::SeqCst);
       if l1_ptr.is_null() == false {
-        (*l1_ptr).store(l2, task);
+        (*l1_ptr).store(l2, task, ret.id());
       }
     }
     ret
@@ -72,6 +72,7 @@ impl SchedulerData {
       if self.stop.load(Ordering::SeqCst) {
         break;
       }
+      let mut reporter = CountingReporter{ count: 0 };
       let (l1, l2) = array::position(self.max_id.load(Ordering::SeqCst));
       let l1_slice = self.l1.as_mut_slice();
       for l1_idx in 0..(l1+1) {
@@ -80,12 +81,15 @@ impl SchedulerData {
         if l1_idx == l1 {
           l2_max_idx = l2;
         }
-        unsafe { exec_count += (*l1_ptr).execute(l2_max_idx, id, &self.time_us); }
+        unsafe {
+          exec_count += (*l1_ptr).execute(l2_max_idx, id, &mut reporter, &self.time_us);
+        }
       }
     }
     let end = time::precise_time_ns();
     let diff = end - start;
-    println!("thread: #{} exiting. #exec: {} exec-time: {} ns", id, exec_count, diff/exec_count);
+    println!("thread: #{} exiting. #exec: {} exec-time: {} ns {}/s",
+      id, exec_count, diff/exec_count, 1_000_000_000/diff);
   }
 
   pub fn notify(&mut self, id: &task_id::TaskId) -> Result<usize, Error> {

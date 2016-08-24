@@ -1,6 +1,7 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id};
+use super::super::{Task, Reporter, Message, Schedule, IdentifiedReceiver, new_id, ChannelId};
 use super::connectable::{Connectable};
+use super::identified_input::{IdentifiedInput};
 
 pub trait YSplit {
   type InputType    : Send;
@@ -22,6 +23,19 @@ pub struct YSplitWrap<Input: Send, OutputA: Send, OutputB: Send> {
   output_b_tx   : Sender<Message<OutputB>>,
 }
 
+impl<Input: Send, OutputA: Send, OutputB: Send> IdentifiedInput for YSplitWrap<Input, OutputA, OutputB> {
+  fn get_input_id(&self, ch_id: usize) -> Option<ChannelId> {
+    if ch_id != 0 {
+      None
+    } else {
+      match &self.input_rx {
+        &Some(ref ch) => Some(ch.id.clone()),
+        _             => None,
+      }
+    }
+  }
+}
+
 impl<Input: Send, OutputA: Send, OutputB: Send> Connectable for YSplitWrap<Input, OutputA, OutputB> {
   type Input = Input;
 
@@ -31,7 +45,7 @@ impl<Input: Send, OutputA: Send, OutputB: Send> Connectable for YSplitWrap<Input
 }
 
 impl<Input: Send, OutputA: Send, OutputB: Send> Task for YSplitWrap<Input, OutputA, OutputB> {
-  fn execute(&mut self, reporter: &mut Reporter) -> Schedule {
+  fn execute(&mut self, reporter: &mut Reporter, task_id: usize) -> Schedule {
     // TODO : make this nicer. repetitive for all elems!
     let msg_a_id = self.output_a_tx.seqno();
     let msg_b_id = self.output_b_tx.seqno();
@@ -40,17 +54,28 @@ impl<Input: Send, OutputA: Send, OutputB: Send> Task for YSplitWrap<Input, Outpu
                                     &mut self.output_b_tx);
     let new_msg_a_id = self.output_a_tx.seqno();
     if msg_a_id != new_msg_a_id {
-      reporter.message_sent(0, new_msg_a_id);
+      reporter.message_sent(0, new_msg_a_id, task_id);
     }
     let new_msg_b_id = self.output_b_tx.seqno();
     if msg_b_id != new_msg_b_id {
-      reporter.message_sent(1, new_msg_b_id);
+      reporter.message_sent(1, new_msg_b_id, task_id);
+    }
+    match retval {
+      Schedule::OnMessage(ch_id, msg_id) => {
+        reporter.wait_channel(ch_id, msg_id, task_id);
+      },
+      _ => {},
     }
     retval
   }
+
   fn name(&self) -> &String { &self.name }
   fn input_count(&self) -> usize { 1 }
   fn output_count(&self) -> usize { 2 }
+
+  fn input_id(&self, ch_id: usize) -> Option<ChannelId> {
+    self.get_input_id(ch_id)
+  }
 }
 
 pub fn new<Input: Send, OutputA: Send, OutputB: Send>(
