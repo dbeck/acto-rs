@@ -1,6 +1,6 @@
 
 use std::sync::atomic::{AtomicPtr, Ordering, AtomicUsize};
-use super::super::{Task, Error, Reporter};
+use super::super::{Task, Error, Observer};
 use super::{wrap};
 use std::ptr;
 
@@ -21,7 +21,7 @@ impl TaskArray {
   pub fn execute(&mut self,
                  l2_max_idx: usize,
                  id: usize,
-                 reporter: &mut Reporter,
+                 observer: &mut Observer,
                  time_us: &AtomicUsize) -> u64 {
     let l2_slice = self.l2.as_mut_slice();
     let mut skip = id;
@@ -31,7 +31,7 @@ impl TaskArray {
       if l2idx > l2_max_idx { break; }
       let wrk = l2_slice[l2idx].swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::SeqCst);
       if wrk.is_null() == false {
-        unsafe { (*wrk).execute(reporter, &time_us); }
+        unsafe { (*wrk).execute(observer, &time_us); }
         l2_slice[l2idx].store(wrk, Ordering::SeqCst);
         exec_count += 1;
       } else {

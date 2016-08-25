@@ -72,7 +72,7 @@ impl SchedulerData {
       if self.stop.load(Ordering::SeqCst) {
         break;
       }
-      let mut reporter = CountingReporter{ count: 0 };
+      let mut reporter = CountingReporter::new();
       let (l1, l2) = array::position(self.max_id.load(Ordering::SeqCst));
       let l1_slice = self.l1.as_mut_slice();
       for l1_idx in 0..(l1+1) {

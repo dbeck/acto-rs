@@ -18,12 +18,21 @@ pub enum Message<T: Send>
   Error(usize,&'static str),  // error at
 }
 
-#[derive(Debug)]
+#[derive(Copy,Clone,Debug)]
 pub enum Schedule {
   Loop,
   OnMessage(usize, usize), // channel id, msg id
   DelayUSec(u64),
   OnExternalEvent,
+  Stop,
+}
+
+#[derive(Copy,Clone,Debug,PartialEq)]
+pub enum TaskState {
+  Execute,
+  TimeWait(usize),
+  MessageWait(usize, usize), // ch_id, msg_id
+  ExtEventWait(usize),
   Stop,
 }
 
@@ -39,7 +48,10 @@ pub struct ChannelId {
   id         : usize,
 }
 
-pub trait Reporter {
+pub trait Observer {
+  fn executed(&mut self, task_id: usize);
+  fn stopped(&mut self, task_id: usize);
+  fn delayed(&mut self, task_id: usize, reason: &TaskState);
   fn message_sent(&mut self, channel_id: usize, last_msg_id: usize, task_id: usize);
   fn wait_channel(&mut self, channel_id: &ChannelId, last_msg_id: usize, task_id: usize);
 }

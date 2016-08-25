@@ -167,20 +167,6 @@ fn source_send_data() {
 }
 
 #[allow(dead_code)]
-fn source_send_data_counting_in() {
-  let (mut source_task, mut _source_out) =
-    source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
-
-  let start = time::precise_time_ns();
-  for _i in 0..10_000_000 {
-    source_task.execute();
-  }
-  let end = time::precise_time_ns();
-  let diff = end - start;
-  println!("source execute: {} ns (w/ counting)",diff/10_000_000);
-}
-
-#[allow(dead_code)]
 fn source_send_data_with_swap() {
   use std::sync::atomic::{AtomicPtr, Ordering};
   use std::ptr;
@@ -198,26 +184,6 @@ fn source_send_data_with_swap() {
   let end = time::precise_time_ns();
   let diff = end - start;
   println!("source execute: {} ns (w/ swap)",diff/10_000_000);
-}
-
-#[allow(dead_code)]
-fn source_send_data_with_swap_and_counting() {
-  use std::sync::atomic::{AtomicPtr, Ordering};
-  use std::ptr;
-
-  let (source_task, mut _source_out) =
-    source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
-  let source_ptr = AtomicPtr::new(Box::into_raw(source_task));
-
-  let start = time::precise_time_ns();
-  for _i in 0..10_000_000 {
-    let old_ptr = source_ptr.swap(ptr::null_mut(), Ordering::SeqCst);
-    unsafe { (*old_ptr).execute(); }
-    source_ptr.swap(old_ptr,  Ordering::SeqCst);
-  }
-  let end = time::precise_time_ns();
-  let diff = end - start;
-  println!("source execute: {} ns (w/ swap, w/ counting)",diff/10_000_000);
 }
 
 #[allow(dead_code)]
@@ -274,9 +240,7 @@ fn main() {
   mpsc_send_data();
   receive_data();
   source_send_data();
-  source_send_data_counting_in();
   source_send_data_with_swap();
-  source_send_data_with_swap_and_counting();
   add_task_time();
   start_stop();
   dummy_start_stop();
