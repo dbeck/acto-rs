@@ -14,13 +14,15 @@ impl TaskWrap {
                  observer: &mut Observer,
                  time_us: &AtomicUsize) -> TaskState {
 
+    let mut now = time_us.load(Ordering::Acquire);
     let mut delayed = false;
     let mut stopped = false;
     // check if we can move to Execute state
     self.state = match self.state {
       TaskState::TimeWait(exec_at) => {
-        let now = time_us.load(Ordering::Acquire);
         if exec_at <= now {
+          //fn transition(&mut self, from: &TaskState, event: &Schedule, to: &TaskState, task_id: usize, at_usec: usize);
+          observer.transition(&self.state, &Schedule::DelayUSec(0), &TaskState::Execute, self.id, now);
           TaskState::Execute
         } else {
           delayed = true;
@@ -29,6 +31,7 @@ impl TaskWrap {
       },
       TaskState::ExtEventWait(threshold) => {
         if self.ext_evt_count.load(Ordering::Acquire) > threshold {
+          observer.transition(&self.state, &Schedule::OnExternalEvent, &TaskState::Execute, self.id, now);
           TaskState::Execute
         } else {
           delayed = true;
@@ -49,35 +52,39 @@ impl TaskWrap {
     };
 
     if delayed {
-      observer.delayed(self.id, &self.state);
+      observer.delayed(self.id, &self.state, now);
       return self.state
     } else if stopped {
-      observer.stopped(self.id);
+      observer.stopped(self.id, now);
       return self.state;
     }
 
-    // execute the task
-    self.state = match self.task.execute() {
-      Schedule::Loop              => { TaskState::Execute }
-      Schedule::Stop              => { TaskState::Stop }
-      Schedule::OnMessage(ch,msg) => {
+    // execute the task and match event
+    let evt = self.task.execute();
+    now = time_us.load(Ordering::Acquire);
+    let new_state = match &evt {
+      &Schedule::Loop => { TaskState::Execute },
+      &Schedule::Stop => { TaskState::Stop },
+      &Schedule::OnMessage(ch,msg) => {
         match &self.task.input_id(ch) {
           &Some(ref channel_id) => {
-            observer.wait_channel(channel_id, msg, self.id);
+            observer.wait_channel(channel_id, msg, self.id, now);
             TaskState::MessageWait(ch,msg)
           },
           _ => {
             // if channel id is not available, then delay by 10 usec
-            TaskState::TimeWait(time_us.load(Ordering::Acquire)+10)
+            TaskState::TimeWait(now+10)
           }
         }
       }
-      Schedule::OnExternalEvent => { TaskState::ExtEventWait(self.ext_evt_count.load(Ordering::Acquire)+1) }
-      Schedule::DelayUSec(us)   => { TaskState::TimeWait(time_us.load(Ordering::Acquire)+(us as usize)) }
+      &Schedule::OnExternalEvent => { TaskState::ExtEventWait(self.ext_evt_count.load(Ordering::Acquire)+1) }
+      &Schedule::DelayUSec(us)   => { TaskState::TimeWait(now+(us as usize)) }
     };
 
     // report task exec
-    observer.executed(self.id);
+    observer.executed(self.id, now);
+    observer.transition(&self.state, &evt, &new_state, self.id, now);
+    self.state = new_state;
 
     // check and report output channel changes if any
     let ln = self.tx_counts.len();
@@ -85,7 +92,7 @@ impl TaskWrap {
     for i in 0..ln {
       let new_msg_id = self.task.tx_count(i);
       if otx_slice[i] != new_msg_id {
-        observer.message_sent(i, new_msg_id, self.id);
+        observer.message_sent(i, new_msg_id, self.id, now);
         otx_slice[i] = new_msg_id;
       }
     }
@@ -97,7 +104,7 @@ impl TaskWrap {
   }
 }
 
-// TODO: attach , detach 
+// TODO: attach , detach
 
 pub fn new(task: Box<Task+Send>, id: usize) -> TaskWrap {
   let n_outputs = task.output_count();

@@ -51,12 +51,18 @@ pub struct ChannelId {
 }
 
 pub trait Observer {
-  fn scheduled(&mut self, task_id: usize);
-  fn executed(&mut self, task_id: usize);
-  fn stopped(&mut self, task_id: usize);
-  fn delayed(&mut self, task_id: usize, reason: &TaskState);
-  fn message_sent(&mut self, channel_id: usize, last_msg_id: usize, task_id: usize);
-  fn wait_channel(&mut self, channel_id: &ChannelId, last_msg_id: usize, task_id: usize);
+  fn scheduled(&mut self, task_id: usize, at_usec: usize);
+  fn executed(&mut self, task_id: usize, at_usec: usize);
+  fn stopped(&mut self, task_id: usize, at_usec: usize);
+  fn delayed(&mut self, task_id: usize, reason: &TaskState, at_usec: usize);
+  fn message_sent(&mut self, channel_id: usize, last_msg_id: usize, task_id: usize, at_usec: usize);
+  fn wait_channel(&mut self, channel_id: &ChannelId, last_msg_id: usize, task_id: usize, at_usec: usize);
+  fn transition(&mut self,
+    from: &TaskState,
+    event: &Schedule,
+    to: &TaskState,
+    task_id: usize,
+    at_usec: usize);
 }
 
 pub trait Task {

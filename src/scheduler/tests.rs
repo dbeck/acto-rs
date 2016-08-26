@@ -1,6 +1,7 @@
 use lossyq::spsc::*;
 use scheduler;
-use super::{wrap, CountingReporter};
+use super::{wrap};
+use super::observer::{CountingReporter, TaskTracer};
 use super::super::{Message, Schedule, TaskState, Error};
 use super::super::elem::{source};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -112,4 +113,21 @@ fn wrap_execute_time_delayed() {
   assert_eq!(obs.executed, 2);
   assert_eq!(obs.delayed, 2);
   assert_eq!(obs.time_wait, 2);
+}
+
+#[test]
+fn wrap_execute_traced() {
+  let (source_task, mut _source_out) =
+    source::new( "Source", 2, Box::new(TestSource{ret:Schedule::DelayUSec(2_000), exec_count:0}));
+  let mut wrp = wrap::new(source_task, 99);
+  let mut obs = TaskTracer::new();
+  let tim = AtomicUsize::new(0);
+  wrp.execute(&mut obs, &tim);
+  wrp.execute(&mut obs, &tim);
+  wrp.execute(&mut obs, &tim);
+  tim.fetch_add(2_001, Ordering::SeqCst);
+  wrp.execute(&mut obs, &tim);
+  wrp.execute(&mut obs, &tim);
+  wrp.execute(&mut obs, &tim);
+  assert_eq!(true, false);
 }

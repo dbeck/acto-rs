@@ -2,7 +2,8 @@
 use std::collections::{HashMap};
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
 use super::super::{Task, Error};
-use super::{array, task_id, CountingReporter};
+use super::{array, task_id};
+use super::observer::{CountingReporter};
 use parking_lot::{Mutex};
 use std::ptr;
 use time;
@@ -103,7 +104,7 @@ impl SchedulerData {
     let end = time::precise_time_ns();
     let diff = end - start;
     println!("thread: #{} exiting. #exec: {} exec-time: {} ns {}k/s",
-      id, exec_count, diff/exec_count, exec_count*1_000/diff*1_000);
+      id, exec_count, diff/exec_count, exec_count*1_000*1_000/diff);
   }
 
   pub fn notify(&mut self, id: &task_id::TaskId) -> Result<usize, Error> {
