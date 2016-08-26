@@ -36,10 +36,12 @@ pub enum TaskState {
   Stop,
 }
 
+#[derive(Copy,Clone,Debug)]
 pub enum Error {
   Busy,
   NonExistent,
   Stopping,
+  AlreadyExists,
 }
 
 #[derive(Clone,Debug)]
@@ -49,6 +51,7 @@ pub struct ChannelId {
 }
 
 pub trait Observer {
+  fn scheduled(&mut self, task_id: usize);
   fn executed(&mut self, task_id: usize);
   fn stopped(&mut self, task_id: usize);
   fn delayed(&mut self, task_id: usize, reason: &TaskState);

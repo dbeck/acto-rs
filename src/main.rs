@@ -189,16 +189,20 @@ fn source_send_data_with_swap() {
 #[allow(dead_code)]
 fn add_task_time() {
   let mut sources = vec![];
-  for _i in 0..3_000_000i32 {
+  for i in 0..3_000_000i32 {
+    let name = format!("Source {}",i);
     let (source_task, mut _source_out) =
-      source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
+      source::new( name.as_str(), 2, Box::new(SourceState{count:0, start:0}));
     sources.push(source_task);
   }
   let mut sched = scheduler::new();
 
   let start = time::precise_time_ns();
   for i in sources {
-    sched.add_task(i);
+    match sched.add_task(i) {
+      Ok(_) => {}
+      Err(e) => { println!("cannot add because of: {:?}", e); }
+    }
   }
   let end = time::precise_time_ns();
   let diff = end - start;
@@ -208,10 +212,14 @@ fn add_task_time() {
 #[allow(dead_code)]
 fn start_stop() {
   let mut sched = scheduler::new();
-  for _i in 0..100_000 {
+  for i in 0..10_000 {
+    let name = format!("Source {}",i);
     let (source_task, mut _source_out) =
-      source::new( "Source", 2, Box::new(SourceState{count:0, start:0}));
-    sched.add_task(source_task);
+      source::new( name.as_str(), 2, Box::new(SourceState{count:0, start:0}));
+    match sched.add_task(source_task) {
+      Ok(_) => {}
+      Err(e) => { println!("cannot add: {} because of: {:?} idx: {}", name, e, i); }
+    }
   }
   sched.start_with_threads(1);
   unsafe { libc::sleep(5); }
@@ -221,12 +229,16 @@ fn start_stop() {
 #[allow(dead_code)]
 fn dummy_start_stop() {
   let mut sched = scheduler::new();
-  for _i in 0..100_000 {
+  for i in 0..10_000 {
+    let name = format!("Source {}",i);
     let (source_task, mut _source_out) =
-      source::new( "Source", 2, Box::new(DummySource{}));
-    sched.add_task(source_task);
+      source::new( name.as_str(), 2, Box::new(DummySource{}));
+    match sched.add_task(source_task) {
+      Ok(_) => {}
+      Err(e) => { println!("cannot add: {} because of: {:?} idx: {}", name, e, i); }
+    }
   }
-  sched.start_with_threads(1);
+  sched.start_with_threads(2);
   unsafe { libc::sleep(5); }
   sched.stop();
 }

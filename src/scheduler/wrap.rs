@@ -97,6 +97,8 @@ impl TaskWrap {
   }
 }
 
+// TODO: attach , detach 
+
 pub fn new(task: Box<Task+Send>, id: usize) -> TaskWrap {
   let n_outputs = task.output_count();
   TaskWrap{

@@ -18,7 +18,7 @@ pub struct Scheduler {
 // L2: 4k entries on-demand
 impl Scheduler {
 
-  pub fn add_task(&mut self, task: Box<Task+Send>) -> task_id::TaskId {
+  pub fn add_task(&mut self, task: Box<Task+Send>) -> Result<task_id::TaskId, Error> {
     (*self.data.get()).add_task(task)
   }
 
@@ -75,19 +75,21 @@ pub fn new() -> Scheduler {
 //////////////////////////////////////////////////////
 
 pub struct CountingReporter {
-  pub executed: usize,
-  pub stopped: usize,
-  pub delayed: usize,
-  pub time_wait: usize,
-  pub msg_wait: usize,
-  pub ext_wait: usize,
-  pub sent : usize,
-  pub channel : usize,
+  pub scheduled:  usize,
+  pub executed:   usize,
+  pub stopped:    usize,
+  pub delayed:    usize,
+  pub time_wait:  usize,
+  pub msg_wait:   usize,
+  pub ext_wait:   usize,
+  pub sent :      usize,
+  pub channel :   usize,
 }
 
 impl CountingReporter {
   pub fn new() -> CountingReporter {
     CountingReporter{
+      scheduled:   0,
       executed:    0,
       stopped:     0,
       delayed:     0,
@@ -101,6 +103,9 @@ impl CountingReporter {
 }
 
 impl Observer for CountingReporter {
+  fn scheduled(&mut self, _task_id: usize) {
+    self.scheduled += 1;
+  }
   fn executed(&mut self, _task_id: usize) {
     self.executed += 1;
   }

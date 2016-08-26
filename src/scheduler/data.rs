@@ -1,7 +1,9 @@
 
+use std::collections::{HashMap};
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
 use super::super::{Task, Error};
 use super::{array, task_id, CountingReporter};
+use parking_lot::{Mutex};
 use std::ptr;
 use time;
 use libc;
@@ -11,6 +13,7 @@ pub struct SchedulerData {
   l1:       Vec<AtomicPtr<array::TaskArray>>,
   stop:     AtomicBool,
   time_us:  AtomicUsize,
+  ids:      Mutex<HashMap<String, usize>>,
 }
 
 impl SchedulerData {
@@ -27,6 +30,7 @@ impl SchedulerData {
       l1:       Vec::with_capacity(l1_size),
       stop:     AtomicBool::new(false),
       time_us:  AtomicUsize::new((time::precise_time_ns()/1000) as usize),
+      ids:      Mutex::new(HashMap::new()),
     };
 
     // fill the l1 bucket
@@ -39,9 +43,19 @@ impl SchedulerData {
     data
   }
 
-  pub fn add_task(&mut self, task: Box<Task+Send>) -> task_id::TaskId {
-    let ret = task_id::new(self.max_id.fetch_add(1, Ordering::SeqCst));
-    let (l1, l2) = array::position(ret.id());
+  pub fn add_task(&mut self, task: Box<Task+Send>) -> Result<task_id::TaskId, Error> {
+    let ret_id : usize;
+    // check if name exists, and register if not
+    {
+      let mut guard = self.ids.lock();
+      if guard.contains_key(task.name()) {
+        return Result::Err(Error::AlreadyExists);
+      } else {
+        ret_id = self.max_id.fetch_add(1, Ordering::SeqCst);
+        guard.insert(task.name().clone(), ret_id);
+      }
+    }
+    let (l1, l2) = array::position(ret_id);
     if l2 == 0 {
       // make sure the next bucket exists when needed
       self.add_l2_bucket(l1+1);
@@ -49,10 +63,10 @@ impl SchedulerData {
     unsafe {
       let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::SeqCst);
       if l1_ptr.is_null() == false {
-        (*l1_ptr).store(l2, task, ret.id());
+        (*l1_ptr).store(l2, task, ret_id);
       }
     }
-    ret
+    Result::Ok(task_id::new(ret_id))
   }
 
   pub fn ticker(&mut self) {
@@ -88,8 +102,8 @@ impl SchedulerData {
     }
     let end = time::precise_time_ns();
     let diff = end - start;
-    println!("thread: #{} exiting. #exec: {} exec-time: {} ns {}/s",
-      id, exec_count, diff/exec_count, 1_000_000_000/diff);
+    println!("thread: #{} exiting. #exec: {} exec-time: {} ns {}k/s",
+      id, exec_count, diff/exec_count, exec_count*1_000/diff*1_000);
   }
 
   pub fn notify(&mut self, id: &task_id::TaskId) -> Result<usize, Error> {
