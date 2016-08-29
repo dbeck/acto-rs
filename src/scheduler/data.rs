@@ -97,7 +97,7 @@ impl SchedulerData {
           l2_max_idx = l2;
         }
         unsafe {
-          exec_count += (*l1_ptr).execute(l2_max_idx, id, &mut reporter, &self.time_us);
+          exec_count += (*l1_ptr).eval(l2_max_idx, id, &mut reporter, &self.time_us);
         }
       }
     }

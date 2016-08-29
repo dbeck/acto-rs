@@ -6,21 +6,43 @@ use super::super::{Message, Schedule, TaskState, Error};
 use super::super::elem::{source};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-struct TestSource {
+struct ExecLogSource {
   ret: Schedule,
   exec_count: usize,
+  with_send: bool,
 }
 
-impl source::Source for TestSource {
-  type OutputType = u64;
+impl source::Source for ExecLogSource {
+  type OutputType = usize;
 
   fn process(
         &mut self,
-        _output: &mut Sender<Message<Self::OutputType>>)
+        output: &mut Sender<Message<Self::OutputType>>)
       -> Schedule {
     self.exec_count += 1;
     println!("exec count: {}",self.exec_count);
+    if self.with_send {
+      output.put(|v| *v = Some(Message::Value(self.exec_count)) );
+    }
     self.ret
+  }
+}
+
+impl ExecLogSource {
+  fn new(sched: Schedule) -> ExecLogSource {
+    ExecLogSource {
+      ret: sched,
+      exec_count: 0,
+      with_send: false,
+    }
+  }
+
+  fn new_with_send(sched: Schedule) -> ExecLogSource {
+    ExecLogSource {
+      ret: sched,
+      exec_count: 0,
+      with_send: true,
+    }
   }
 }
 
@@ -44,7 +66,7 @@ fn sched_add_task() {
   // first add succeeds
   {
     let (source_task, mut _source_out) =
-      source::new( "Source", 2, Box::new(TestSource{ret:Schedule::DelayUSec(2_000), exec_count:0}));
+      source::new( "Source", 2, Box::new(ExecLogSource::new(Schedule::DelayUSec(2_000))));
     let result = sched.add_task(source_task);
     assert!(result.is_ok());
     first_id = match result {
@@ -56,7 +78,7 @@ fn sched_add_task() {
   // second add with the same name fails
   {
     let (source_task, mut _source_out) =
-      source::new( "Source", 2, Box::new(TestSource{ret:Schedule::DelayUSec(2_000), exec_count:0}));
+      source::new( "Source", 2, Box::new(ExecLogSource::new(Schedule::DelayUSec(2_000))));
     let result = sched.add_task(source_task);
     assert!(result.is_err());
     let already_exists =  match result {
@@ -68,7 +90,7 @@ fn sched_add_task() {
   // third add succeeds and returns a different id
   {
     let (source_task, mut _source_out) =
-      source::new( "Source 3", 2, Box::new(TestSource{ret:Schedule::DelayUSec(2_000), exec_count:0}));
+      source::new( "Source 3", 2, Box::new(ExecLogSource::new(Schedule::DelayUSec(2_000))));
     let result = sched.add_task(source_task);
     assert!(result.is_ok());
     let third_id = match result {
@@ -84,50 +106,50 @@ fn sched_add_task() {
 #[test]
 fn wrap_execute_time_delayed() {
   let (source_task, mut _source_out) =
-    source::new( "Source", 2, Box::new(TestSource{ret:Schedule::DelayUSec(2_000), exec_count:0}));
+    source::new( "Source", 2, Box::new(ExecLogSource::new(Schedule::DelayUSec(2_000))));
   let mut wrp = wrap::new(source_task, 99);
   let mut obs = CountingReporter::new();
   let tim = AtomicUsize::new(0);
 
   // check, that first execution happens
-  assert_eq!(wrp.execute(&mut obs, &tim), TaskState::TimeWait(2_000));
+  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::TimeWait(2_000));
   assert_eq!(obs.executed, 1);
   assert_eq!(obs.delayed, 0);
-  assert_eq!(obs.time_wait, 0);
+  assert_eq!(obs.time_wait, 1);
 
   // check, that the second execution gets delayed
-  assert_eq!(wrp.execute(&mut obs, &tim), TaskState::TimeWait(2_000));
+  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::TimeWait(2_000));
   assert_eq!(obs.executed, 1);
   assert_eq!(obs.delayed, 1);
-  assert_eq!(obs.time_wait, 1);
+  assert_eq!(obs.time_wait, 2);
 
   // check, that it gets executed when time comes
   tim.fetch_add(2_001, Ordering::SeqCst);
-  assert_eq!(wrp.execute(&mut obs, &tim), TaskState::TimeWait(4_001));
+  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::TimeWait(4_001));
   assert_eq!(obs.executed, 2);
   assert_eq!(obs.delayed, 1);
-  assert_eq!(obs.time_wait, 1);
+  assert_eq!(obs.time_wait, 3);
 
   // the next execution gets delayed again
-  assert_eq!(wrp.execute(&mut obs, &tim), TaskState::TimeWait(4_001));
+  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::TimeWait(4_001));
   assert_eq!(obs.executed, 2);
   assert_eq!(obs.delayed, 2);
-  assert_eq!(obs.time_wait, 2);
+  assert_eq!(obs.time_wait, 4);
 }
 
 #[test]
 fn wrap_execute_traced() {
   let (source_task, mut _source_out) =
-    source::new( "Source", 2, Box::new(TestSource{ret:Schedule::DelayUSec(2_000), exec_count:0}));
+    source::new( "Source", 2, Box::new(ExecLogSource::new_with_send(Schedule::DelayUSec(2_000))));
   let mut wrp = wrap::new(source_task, 99);
   let mut obs = TaskTracer::new();
   let tim = AtomicUsize::new(0);
-  wrp.execute(&mut obs, &tim);
-  wrp.execute(&mut obs, &tim);
-  wrp.execute(&mut obs, &tim);
+  wrp.eval(&mut obs, &tim);
+  wrp.eval(&mut obs, &tim);
+  wrp.eval(&mut obs, &tim);
   tim.fetch_add(2_001, Ordering::SeqCst);
-  wrp.execute(&mut obs, &tim);
-  wrp.execute(&mut obs, &tim);
-  wrp.execute(&mut obs, &tim);
-  assert_eq!(true, false);
+  wrp.eval(&mut obs, &tim);
+  wrp.eval(&mut obs, &tim);
+  wrp.eval(&mut obs, &tim);
+  //assert_eq!(true, false);
 }

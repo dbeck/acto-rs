@@ -18,7 +18,7 @@ impl TaskArray {
     }
   }
 
-  pub fn execute(&mut self,
+  pub fn eval(&mut self,
                  l2_max_idx: usize,
                  id: usize,
                  observer: &mut Observer,
@@ -31,7 +31,7 @@ impl TaskArray {
       if l2idx > l2_max_idx { break; }
       let wrk = l2_slice[l2idx].swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::SeqCst);
       if wrk.is_null() == false {
-        unsafe { (*wrk).execute(observer, &time_us); }
+        unsafe { (*wrk).eval(observer, &time_us); }
         l2_slice[l2idx].store(wrk, Ordering::SeqCst);
         exec_count += 1;
       } else {
