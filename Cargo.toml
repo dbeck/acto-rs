@@ -1,13 +1,13 @@
 [package]
-name = "minions"
-version = "0.2.7"
+name = "acto-rs"
+version = "0.2.9"
 authors = ["David Beck <david.beck.priv@gmail.com>"]
 license = "MIT/Apache-2.0"
-repository = "https://github.com/dbeck/minions_rs"
-description = "Experimental actor library, under constant development."
+repository = "https://github.com/dbeck/acto-rs"
+description = "Experimental actor library, under constant development. (renamed from minions_rs)"
 keywords = ["actor", "concurrency"]
 readme = "README.md"
-homepage = "https://github.com/dbeck/minions_rs"
+homepage = "https://github.com/dbeck/acto-rs"
 #documentation = "..."
 
 [dependencies]

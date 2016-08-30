@@ -1,4 +1,4 @@
-extern crate minions;
+extern crate acto_rs as actors;
 extern crate lossyq;
 extern crate parking_lot;
 extern crate time;
@@ -6,9 +6,9 @@ extern crate libc;
 
 //use lossyq::spsc::Receiver;
 use lossyq::spsc::{channel, Sender};
-use minions::scheduler;
-use minions::elem::{source, /*, filter, sink, ymerge, ysplit*/ };
-use minions::{Message, Task, Schedule};
+use actors::scheduler;
+use actors::elem::{source, /*, filter, sink, ymerge, ysplit*/ };
+use actors::{Message, Task, Schedule};
 
 struct DummySource {
 }
