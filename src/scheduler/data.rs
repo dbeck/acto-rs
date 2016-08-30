@@ -21,7 +21,7 @@ impl SchedulerData {
   fn add_l2_bucket(&mut self, idx: usize) {
     let array = Box::new(array::new());
     let l1_slice = self.l1.as_mut_slice();
-    l1_slice[idx].store(Box::into_raw(array), Ordering::SeqCst);
+    l1_slice[idx].store(Box::into_raw(array), Ordering::Release);
   }
 
   fn new() -> SchedulerData {
@@ -62,7 +62,7 @@ impl SchedulerData {
       self.add_l2_bucket(l1+1);
     }
     unsafe {
-      let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::SeqCst);
+      let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
       if l1_ptr.is_null() == false {
         (*l1_ptr).store(l2, task, ret_id);
       }
@@ -72,7 +72,7 @@ impl SchedulerData {
 
   pub fn ticker(&mut self) {
     loop {
-      if self.stop.load(Ordering::SeqCst) {
+      if self.stop.load(Ordering::Acquire) {
         break;
       }
       unsafe { libc::usleep(10); }
@@ -84,14 +84,14 @@ impl SchedulerData {
     let mut exec_count : u64 = 0;
     let start = time::precise_time_ns();
     loop {
-      if self.stop.load(Ordering::SeqCst) {
+      if self.stop.load(Ordering::Acquire) {
         break;
       }
       let mut reporter = CountingReporter::new();
-      let (l1, l2) = array::position(self.max_id.load(Ordering::SeqCst));
+      let (l1, l2) = array::position(self.max_id.load(Ordering::Acquire));
       let l1_slice = self.l1.as_mut_slice();
       for l1_idx in 0..(l1+1) {
-        let l1_ptr = l1_slice[l1_idx].load(Ordering::SeqCst);
+        let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);
         let mut l2_max_idx = array::max_idx();
         if l1_idx == l1 {
           l2_max_idx = l2;
@@ -108,16 +108,16 @@ impl SchedulerData {
   }
 
   pub fn notify(&mut self, id: &task_id::TaskId) -> Result<usize, Error> {
-    if self.stop.load(Ordering::SeqCst) {
+    if self.stop.load(Ordering::Acquire) {
       return Result::Err(Error::Stopping);
     }
-    let max = self.max_id.load(Ordering::SeqCst);
+    let max = self.max_id.load(Ordering::Acquire);
     if id.id() >= max {
       return Result::Err(Error::NonExistent);
     }
     let (l1, l2) = array::position(id.id());
     let l1_slice = self.l1.as_mut_slice();
-    let l1_ptr = l1_slice[l1].load(Ordering::SeqCst);
+    let l1_ptr = l1_slice[l1].load(Ordering::Acquire);
     if l1_ptr.is_null() {
       return Result::Err(Error::NonExistent);
     }
@@ -125,7 +125,7 @@ impl SchedulerData {
   }
 
   pub fn stop(&mut self) {
-    self.stop.store(true, Ordering::SeqCst);
+    self.stop.store(true, Ordering::Release);
   }
 }
 

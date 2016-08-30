@@ -14,6 +14,7 @@ pub struct CountingReporter {
   pub transition:  usize,
 }
 
+
 impl CountingReporter {
   pub fn new() -> CountingReporter {
     CountingReporter{
@@ -28,6 +29,11 @@ impl CountingReporter {
       channel:     0,
       transition:  0,
     }
+  }
+
+  #[allow(dead_code)]
+  pub fn print(&self) {
+    println!("{:?}", self);
   }
 }
 

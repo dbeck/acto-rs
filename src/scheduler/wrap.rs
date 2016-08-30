@@ -75,7 +75,7 @@ impl TaskWrap {
       TaskState::TimeWait(exec_at)
         if exec_at <= time_us.load(Ordering::Acquire) => Event::TimerExpired,
       TaskState::ExtEventWait(threshold)
-        if self.ext_evt_count.load(Ordering::Acquire) > threshold => Event::ExtTrigger,
+        if self.ext_evt_count.load(Ordering::Acquire) >= threshold => Event::ExtTrigger,
       _ => Event::Delay,
     };
 
@@ -90,7 +90,7 @@ impl TaskWrap {
   }
 
   pub fn notify(&mut self) -> usize {
-    self.ext_evt_count.fetch_add(1, Ordering::Release)
+    self.ext_evt_count.fetch_add(1, Ordering::Release) + 1
   }
 }
 

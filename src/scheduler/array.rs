@@ -11,10 +11,13 @@ pub struct TaskArray {
 impl TaskArray {
   pub fn store(&mut self, idx: usize, task: Box<Task+Send>, id: usize) {
     let wrap = Box::new(wrap::new(task, id));
-    // TODO : check idx
-    unsafe {
-      let l2_atomic_ptr = self.l2.get_unchecked_mut(idx);
-      l2_atomic_ptr.store(Box::into_raw(wrap), Ordering::SeqCst);
+    let slice = self.l2.as_mut_slice();
+    let old = slice[idx].swap(Box::into_raw(wrap), Ordering::Release);
+    if old.is_null() == false {
+      // make sure we drop old pointers when swapped, although
+      // this shouldn't happen since the SchedulerData must take care
+      // of atomically increasing indices
+      let _b = unsafe { Box::from_raw(old) };
     }
   }
 
@@ -32,7 +35,7 @@ impl TaskArray {
       let wrk = l2_slice[l2idx].swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::SeqCst);
       if wrk.is_null() == false {
         unsafe { (*wrk).eval(observer, &time_us); }
-        l2_slice[l2idx].store(wrk, Ordering::SeqCst);
+        l2_slice[l2idx].store(wrk, Ordering::Release);
         exec_count += 1;
       } else {
         l2idx += skip;
@@ -48,7 +51,7 @@ impl TaskArray {
     let wrk = l2_slice[l2_idx].swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::SeqCst);
     if wrk.is_null() == false {
       let ret = unsafe { (*wrk).notify() };
-      l2_slice[l2_idx].store(wrk, Ordering::SeqCst);
+      l2_slice[l2_idx].store(wrk, Ordering::Release);
       Result::Ok(ret)
     } else {
       Result::Err(Error::Busy)

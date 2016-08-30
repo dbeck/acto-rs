@@ -46,10 +46,21 @@ impl ExecLogSource {
   }
 }
 
-// TaskArray tests
 // SchedulerData tests
+//#[test]
+//fn data_add_task_()
+//fn data_notify_()
+//fn data_stop_()
+
 // Event tests
 // Handle tests
+
+
+// TaskArray tests
+//#[test]
+//fn task_array_store_() {}
+//fn task_array_eval_() {}
+//fn task_array_notify_() {}
 
 // Scheduler tests
 //#[test]
@@ -103,8 +114,48 @@ fn sched_add_task() {
 }
 
 // TaskWrap tests
+//#[test]
+//fn wrap_eval_msg_triggered_()
+
 #[test]
-fn wrap_execute_time_delayed() {
+fn wrap_eval_ext_triggered() {
+  let (source_task, mut _source_out) =
+    source::new( "Source", 2, Box::new(ExecLogSource::new(Schedule::OnExternalEvent)));
+  let mut wrp = wrap::new(source_task, 99);
+  let mut obs = CountingReporter::new();
+  //let mut obs = TaskTracer::new();
+  let tim = AtomicUsize::new(0);
+
+  // first eval will execute
+  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::ExtEventWait(1));
+  assert_eq!(obs.executed, 1);
+  assert_eq!(obs.delayed, 0);
+  assert_eq!(obs.ext_wait, 1);
+
+  // second eval will be delayed
+  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::ExtEventWait(1));
+  assert_eq!(obs.executed, 1);
+  assert_eq!(obs.delayed, 1);
+  assert_eq!(obs.ext_wait, 2);
+
+  // send a notify to stop delays and return the new value
+  assert_eq!(wrp.notify(), 1);
+
+  // third eval will execute and report the new
+  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::ExtEventWait(2));
+  assert_eq!(obs.executed, 2);
+  assert_eq!(obs.delayed, 1);
+  assert_eq!(obs.ext_wait, 3);
+
+  // fourth eval will not
+  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::ExtEventWait(2));
+  assert_eq!(obs.executed, 2);
+  assert_eq!(obs.delayed, 2);
+  assert_eq!(obs.ext_wait, 4);
+}
+
+#[test]
+fn wrap_eval_time_delayed() {
   let (source_task, mut _source_out) =
     source::new( "Source", 2, Box::new(ExecLogSource::new(Schedule::DelayUSec(2_000))));
   let mut wrp = wrap::new(source_task, 99);
@@ -138,7 +189,7 @@ fn wrap_execute_time_delayed() {
 }
 
 #[test]
-fn wrap_execute_traced() {
+fn wrap_eval_traced() {
   let (source_task, mut _source_out) =
     source::new( "Source", 2, Box::new(ExecLogSource::new_with_send(Schedule::DelayUSec(2_000))));
   let mut wrp = wrap::new(source_task, 99);
