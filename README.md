@@ -1,3 +1,3 @@
-# minions_rs
+# acto-rs
 
-Experimental actor implementation.
+Experimental actor implementation in Rust.
