@@ -72,11 +72,12 @@ impl SchedulerData {
 
   pub fn ticker(&mut self) {
     loop {
+      unsafe { libc::usleep(10); }
+      self.time_us.store((time::precise_time_ns()/1000) as usize, Ordering::Release);
+      // check stop state
       if self.stop.load(Ordering::Acquire) {
         break;
       }
-      unsafe { libc::usleep(10); }
-      self.time_us.store((time::precise_time_ns()/1000) as usize, Ordering::Release);
     }
   }
 
@@ -84,9 +85,6 @@ impl SchedulerData {
     let mut exec_count : u64 = 0;
     let start = time::precise_time_ns();
     loop {
-      if self.stop.load(Ordering::Acquire) {
-        break;
-      }
       let mut reporter = CountingReporter::new();
       let (l1, l2) = array::position(self.max_id.load(Ordering::Acquire));
       let l1_slice = self.l1.as_mut_slice();
@@ -99,6 +97,10 @@ impl SchedulerData {
         unsafe {
           exec_count += (*l1_ptr).eval(l2_max_idx, id, &mut reporter, &self.time_us);
         }
+      }
+      // check stop state
+      if self.stop.load(Ordering::Acquire) {
+        break;
       }
     }
     let end = time::precise_time_ns();

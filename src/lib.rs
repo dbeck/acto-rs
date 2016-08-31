@@ -97,7 +97,7 @@ impl <'a> EvalInfo<'a> {
 pub trait Observer {
   fn eval_started(&mut self, info: &EvalInfo);
   fn executed(&mut self, info: &EvalInfo);
-  fn message_sent(&mut self, channel_id: usize, last_msg_id: usize, info: &EvalInfo);
+  // fn message_sent(&mut self, channel_id: usize, last_msg_id: usize, info: &EvalInfo);
   fn transition(&mut self, from: &TaskState, event: &Event, to: &TaskState, info: &EvalInfo);
   fn eval_finished(&mut self, info: &EvalInfo);
 }

@@ -9,7 +9,7 @@ pub struct CountingReporter {
   pub time_wait:   usize,
   pub msg_wait:    usize,
   pub ext_wait:    usize,
-  pub sent:        usize,
+  // pub sent:        usize,
   pub channel:     usize,
   pub transition:  usize,
 }
@@ -25,7 +25,7 @@ impl CountingReporter {
       time_wait:   0,
       msg_wait:    0,
       ext_wait:    0,
-      sent:        0,
+      // sent:        0,
       channel:     0,
       transition:  0,
     }
@@ -41,12 +41,15 @@ impl Observer for CountingReporter {
   fn eval_started(&mut self, _info: &EvalInfo) {
     self.scheduled += 1;
   }
+
   fn executed(&mut self, _info: &EvalInfo) {
     self.executed += 1;
   }
-  fn message_sent(&mut self, _channel_id: usize, _last_msg_id: usize, _info: &EvalInfo) {
-    self.sent += 1;
-  }
+
+  //fn message_sent(&mut self, _channel_id: usize, _last_msg_id: usize, _info: &EvalInfo) {
+  //  self.sent += 1;
+  //}
+
   fn transition(&mut self, _from: &TaskState, event: &Event, to: &TaskState, _info: &EvalInfo) {
     self.transition += 1;
     match to {
@@ -83,9 +86,9 @@ impl Observer for TaskTracer {
     println!("Executed. ({:?})",info);
   }
 
-  fn message_sent(&mut self, channel_id: usize, last_msg_id: usize, info: &EvalInfo) {
-    println!("Message sent. Ch:[{:}] last_msg_id:{} ({:?})",channel_id ,last_msg_id ,info);
-  }
+  //fn message_sent(&mut self, channel_id: usize, last_msg_id: usize, info: &EvalInfo) {
+  //  println!("Message sent. Ch:[{:}] last_msg_id:{} ({:?})",channel_id ,last_msg_id ,info);
+  //}
 
   fn transition(&mut self, from: &TaskState, event: &Event, to: &TaskState, info: &EvalInfo) {
     println!("Transition. ({:?})+[{:?}] => ({:?})  ({:?})", from, event, to, info);

@@ -7,7 +7,9 @@ pub struct TaskWrap {
   state:            TaskState,
   id:               usize,
   eval_id:          usize,
-  tx_counts:        Vec<usize>,
+  //tx_counts:        Vec<usize>,
+  dependents:       Vec<Option<(Box<TaskWrap>, usize)>>,
+  n_dependents:     usize,
 }
 
 impl TaskWrap {
@@ -17,15 +19,16 @@ impl TaskWrap {
     let info = EvalInfo::new(self.id, self.task.name(), time_us, self.eval_id);
     observer.executed(&info);
 
-    let ln = self.tx_counts.len();
-    let otx_slice = self.tx_counts.as_mut_slice();
-    for i in 0..ln {
-      let new_msg_id = self.task.tx_count(i);
-      if otx_slice[i] != new_msg_id {
-        observer.message_sent(i, new_msg_id, &info);
-        otx_slice[i] = new_msg_id;
-      }
-    }
+    //let ln = self.tx_counts.len();
+    //let otx_slice = self.tx_counts.as_mut_slice();
+    //for i in 0..ln {
+    //  let new_msg_id = self.task.tx_count(i);
+    //  if otx_slice[i] != new_msg_id {
+    //    observer.message_sent(i, new_msg_id, &info);
+    //    otx_slice[i] = new_msg_id;
+    //  }
+    //}
+
     evt
   }
 
@@ -92,12 +95,45 @@ impl TaskWrap {
   pub fn notify(&mut self) -> usize {
     self.ext_evt_count.fetch_add(1, Ordering::Release) + 1
   }
-}
 
-//TODO: attach, detach
+  #[allow(dead_code)]
+  pub fn attach(&mut self, idx: usize, dep: Box<TaskWrap>) {
+    use std::mem;
+    let n_outputs = self.dependents.len();
+    if idx < n_outputs {
+      let slice = self.dependents.as_mut_slice();
+      let mut opt = Some((dep, self.task.tx_count(idx)));
+      mem::swap(&mut opt, &mut slice[idx]);
+      match opt {
+        None => { self.n_dependents += 1; },
+        _    => { }
+      }
+    }
+  }
+
+  #[allow(dead_code)]
+  pub fn detach(&mut self, idx: usize) -> Option<(Box<TaskWrap>, usize)> {
+    use std::mem;
+    let mut ret = None;
+    let n_outputs = self.dependents.len();
+    if  idx < n_outputs && self.n_dependents > 0 {
+      let slice = self.dependents.as_mut_slice();
+      mem::swap(&mut ret, &mut slice[idx]);
+      match ret {
+        Some(_) => { self.n_dependents -= 1; },
+        None    => { }
+      }
+    }
+    ret
+  }
+}
 
 pub fn new(task: Box<Task+Send>, id: usize) -> TaskWrap {
   let n_outputs = task.output_count();
+  let mut dependents = Vec::with_capacity(n_outputs);
+  for _i in 0..n_outputs {
+    dependents.push(None);
+  }
 
   TaskWrap{
     task:            task,
@@ -105,6 +141,8 @@ pub fn new(task: Box<Task+Send>, id: usize) -> TaskWrap {
     state:           TaskState::Execute,
     id:              id,
     eval_id:         0,
-    tx_counts:       vec![0; n_outputs],
+    //tx_counts:       vec![0; n_outputs],
+    dependents:      dependents,
+    n_dependents:    0,
   }
 }

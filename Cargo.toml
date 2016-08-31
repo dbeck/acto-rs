@@ -1,10 +1,10 @@
 [package]
 name = "acto-rs"
-version = "0.2.9"
+version = "0.2.10"
 authors = ["David Beck <david.beck.priv@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/dbeck/acto-rs"
-description = "Experimental actor library, under constant development. (renamed from minions_rs)"
+description = "Experimental actor library, under development. (renamed from minions_rs)."
 keywords = ["actor", "concurrency"]
 readme = "README.md"
 homepage = "https://github.com/dbeck/acto-rs"
@@ -16,5 +16,5 @@ parking_lot = "0.2"
 time = "0.1"
 libc = "0.2"
 
-[profile.release]
-debug = true
+# [profile.release]
+# debug = true
