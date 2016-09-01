@@ -1,9 +1,8 @@
 
 use std::collections::{HashMap};
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
-use super::super::{Task, Error};
+use super::super::{Task, Error, EvalInfo, TaskState, Event, Observer};
 use super::{array, task_id};
-use super::observer::{CountingReporter};
 use parking_lot::{Mutex};
 use std::ptr;
 use time;
@@ -15,6 +14,25 @@ pub struct SchedulerData {
   stop:     AtomicBool,
   time_us:  AtomicUsize,
   ids:      Mutex<HashMap<String, usize>>,
+}
+
+struct TaskObserver {
+  exec_count: u64,
+}
+
+impl TaskObserver {
+  fn new() -> TaskObserver {
+    TaskObserver{ exec_count: 0 }
+  }
+}
+
+impl Observer for TaskObserver {
+  fn eval_started(&mut self, _info: &EvalInfo) {}
+  fn executed(&mut self, _info: &EvalInfo) {
+    self.exec_count += 1;
+  }
+  fn transition(&mut self, _from: &TaskState, _event: &Event, _to: &TaskState, _info: &EvalInfo) {}
+  fn eval_finished(&mut self, _info: &EvalInfo) {}
 }
 
 impl SchedulerData {
@@ -52,7 +70,7 @@ impl SchedulerData {
       if guard.contains_key(task.name()) {
         return Result::Err(Error::AlreadyExists);
       } else {
-        ret_id = self.max_id.fetch_add(1, Ordering::SeqCst);
+        ret_id = self.max_id.fetch_add(1, Ordering::AcqRel);
         guard.insert(task.name().clone(), ret_id);
       }
     }
@@ -85,7 +103,7 @@ impl SchedulerData {
     let mut exec_count : u64 = 0;
     let start = time::precise_time_ns();
     loop {
-      let mut reporter = CountingReporter::new();
+      let mut reporter = TaskObserver::new();
       let (l1, l2) = array::position(self.max_id.load(Ordering::Acquire));
       let l1_slice = self.l1.as_mut_slice();
       for l1_idx in 0..(l1+1) {
@@ -95,8 +113,9 @@ impl SchedulerData {
           l2_max_idx = l2;
         }
         unsafe {
-          exec_count += (*l1_ptr).eval(l2_max_idx, id, &mut reporter, &self.time_us);
+          (*l1_ptr).eval(l2_max_idx, id, &mut reporter, &self.time_us);
         }
+        exec_count += reporter.exec_count;
       }
       // check stop state
       if self.stop.load(Ordering::Acquire) {
@@ -145,7 +164,7 @@ impl Drop for SchedulerData {
     let l1_slice = self.l1.as_mut_slice();
     for i in 0..len {
       let l1_atomic_ptr = &mut l1_slice[i];
-      let ptr = l1_atomic_ptr.swap(ptr::null_mut::<array::TaskArray>(), Ordering::SeqCst);
+      let ptr = l1_atomic_ptr.swap(ptr::null_mut::<array::TaskArray>(), Ordering::AcqRel);
       if ptr.is_null() == false {
         // make sure we drop the pointers
         let _b = unsafe { Box::from_raw(ptr) };

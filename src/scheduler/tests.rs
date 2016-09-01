@@ -21,6 +21,25 @@ fn data_add_task() {
   assert!(result.is_ok());
 }
 
+#[test]
+fn data_entry_chech_msg_wait_state() {
+  let (filter_task, mut _filter_out) =
+    filter::new( "Filter", 2, Box::new(ExecLogFilter::new(Schedule::OnMessage(0,1))));
+
+  let mut dta = data::new();
+  let result = dta.add_task(filter_task);
+  assert!(result.is_ok());
+
+  // stop it first, so only a single execution is expected
+  dta.stop();
+
+  // launch an execution cycle
+  dta.entry(0);
+
+  //assert!(false);
+}
+
+
 // Event tests
 // Handle tests
 
@@ -95,13 +114,13 @@ fn wrap_eval_msg_triggered() {
   let tim = AtomicUsize::new(0);
 
   // first eval executes and changes the state
-  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::MessageWait(0,1));
+  wrp.eval(&mut obs, &tim); //, TaskState::MessageWait(0,1));
   assert_eq!(obs.executed, 1);
   assert_eq!(obs.delayed, 0);
   assert_eq!(obs.msg_wait, 1);
 
   // second eval delays and leaves the state
-  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::MessageWait(0,1));
+  wrp.eval(&mut obs, &tim); //, TaskState::MessageWait(0,1));
   assert_eq!(obs.executed, 1);
   assert_eq!(obs.delayed, 1);
   assert_eq!(obs.msg_wait, 2);
@@ -117,13 +136,13 @@ fn wrap_eval_ext_triggered() {
   let tim = AtomicUsize::new(0);
 
   // first eval will execute
-  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::ExtEventWait(1));
+  wrp.eval(&mut obs, &tim); //, TaskState::ExtEventWait(1));
   assert_eq!(obs.executed, 1);
   assert_eq!(obs.delayed, 0);
   assert_eq!(obs.ext_wait, 1);
 
   // second eval will be delayed
-  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::ExtEventWait(1));
+  wrp.eval(&mut obs, &tim); //, TaskState::ExtEventWait(1));
   assert_eq!(obs.executed, 1);
   assert_eq!(obs.delayed, 1);
   assert_eq!(obs.ext_wait, 2);
@@ -132,13 +151,13 @@ fn wrap_eval_ext_triggered() {
   assert_eq!(wrp.notify(), 1);
 
   // third eval will execute and report the new
-  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::ExtEventWait(2));
+  wrp.eval(&mut obs, &tim); //, TaskState::ExtEventWait(2));
   assert_eq!(obs.executed, 2);
   assert_eq!(obs.delayed, 1);
   assert_eq!(obs.ext_wait, 3);
 
   // fourth eval will not
-  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::ExtEventWait(2));
+  wrp.eval(&mut obs, &tim); //, TaskState::ExtEventWait(2));
   assert_eq!(obs.executed, 2);
   assert_eq!(obs.delayed, 2);
   assert_eq!(obs.ext_wait, 4);
@@ -153,26 +172,26 @@ fn wrap_eval_time_delayed() {
   let tim = AtomicUsize::new(0);
 
   // check, that first execution happens
-  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::TimeWait(2_000));
+  wrp.eval(&mut obs, &tim); //, TaskState::TimeWait(2_000));
   assert_eq!(obs.executed, 1);
   assert_eq!(obs.delayed, 0);
   assert_eq!(obs.time_wait, 1);
 
   // check, that the second execution gets delayed
-  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::TimeWait(2_000));
+  wrp.eval(&mut obs, &tim); // , TaskState::TimeWait(2_000));
   assert_eq!(obs.executed, 1);
   assert_eq!(obs.delayed, 1);
   assert_eq!(obs.time_wait, 2);
 
   // check, that it gets executed when time comes
-  tim.fetch_add(2_001, Ordering::SeqCst);
-  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::TimeWait(4_001));
+  tim.fetch_add(2_001, Ordering::AcqRel);
+  wrp.eval(&mut obs, &tim); //, TaskState::TimeWait(4_001));
   assert_eq!(obs.executed, 2);
   assert_eq!(obs.delayed, 1);
   assert_eq!(obs.time_wait, 3);
 
   // the next execution gets delayed again
-  assert_eq!(wrp.eval(&mut obs, &tim), TaskState::TimeWait(4_001));
+  wrp.eval(&mut obs, &tim); // , TaskState::TimeWait(4_001);
   assert_eq!(obs.executed, 2);
   assert_eq!(obs.delayed, 2);
   assert_eq!(obs.time_wait, 4);
@@ -188,7 +207,7 @@ fn wrap_eval_traced() {
   wrp.eval(&mut obs, &tim);
   wrp.eval(&mut obs, &tim);
   wrp.eval(&mut obs, &tim);
-  tim.fetch_add(2_001, Ordering::SeqCst);
+  tim.fetch_add(2_001, Ordering::AcqRel);
   wrp.eval(&mut obs, &tim);
   wrp.eval(&mut obs, &tim);
   wrp.eval(&mut obs, &tim);

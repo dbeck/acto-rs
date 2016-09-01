@@ -64,7 +64,7 @@ impl TaskWrap {
 
   pub fn eval(&mut self,
               observer: &mut Observer,
-              time_us: &AtomicUsize) -> TaskState {
+              time_us: &AtomicUsize) {
 
     self.eval_id += 1;
     {
@@ -88,12 +88,10 @@ impl TaskWrap {
       let info = EvalInfo::new(self.id, self.task.name(), time_us, self.eval_id);
       observer.eval_finished(&info);
     }
-
-    self.state
   }
 
   pub fn notify(&mut self) -> usize {
-    self.ext_evt_count.fetch_add(1, Ordering::Release) + 1
+    self.ext_evt_count.fetch_add(1, Ordering::AcqRel) + 1
   }
 
   #[allow(dead_code)]

@@ -14,7 +14,7 @@ pub struct CountingReporter {
   pub transition:  usize,
 }
 
-
+#[allow(dead_code)]
 impl CountingReporter {
   pub fn new() -> CountingReporter {
     CountingReporter{

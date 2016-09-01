@@ -1,6 +1,6 @@
 [package]
 name = "acto-rs"
-version = "0.2.10"
+version = "0.2.11"
 authors = ["David Beck <david.beck.priv@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/dbeck/acto-rs"
@@ -11,7 +11,7 @@ homepage = "https://github.com/dbeck/acto-rs"
 #documentation = "..."
 
 [dependencies]
-lossyq = "0.1.16"
+lossyq = "0.1.17"
 parking_lot = "0.2"
 time = "0.1"
 libc = "0.2"

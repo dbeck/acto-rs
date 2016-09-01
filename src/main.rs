@@ -177,9 +177,9 @@ fn source_send_data_with_swap() {
 
   let start = time::precise_time_ns();
   for _i in 0..10_000_000 {
-    let old_ptr = source_ptr.swap(ptr::null_mut(), Ordering::SeqCst);
+    let old_ptr = source_ptr.swap(ptr::null_mut(), Ordering::AcqRel);
     unsafe { (*old_ptr).execute(); }
-    source_ptr.swap(old_ptr,  Ordering::SeqCst);
+    source_ptr.swap(old_ptr,  Ordering::AcqRel);
   }
   let end = time::precise_time_ns();
   let diff = end - start;
