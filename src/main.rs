@@ -228,19 +228,23 @@ fn start_stop() {
 
 #[allow(dead_code)]
 fn dummy_start_stop() {
-  let mut sched = scheduler::new();
-  for i in 0..10_000 {
-    let name = format!("Source {}",i);
-    let (source_task, mut _source_out) =
-      source::new( name.as_str(), 2, Box::new(DummySource{}));
-    match sched.add_task(source_task) {
-      Ok(_) => {}
-      Err(e) => { println!("cannot add: {} because of: {:?} idx: {}", name, e, i); }
+  let v = vec![1, 2, 5, 10, 100, 1000, 5_000, 10_000, 30_000, 50_000, 100_000, 200_000, 500_000];
+  for x in v {
+    println!("add {} tasks", x);
+    let mut sched = scheduler::new();
+    for i in 0..x {
+      let name = format!("Source {}",i);
+      let (source_task, mut _source_out) =
+        source::new( name.as_str(), 2, Box::new(DummySource{}));
+      match sched.add_task(source_task) {
+        Ok(_) => {}
+        Err(e) => { println!("cannot add: {} because of: {:?} idx: {}", name, e, i); }
+      }
     }
+    sched.start_with_threads(1);
+    unsafe { libc::sleep(5); }
+    sched.stop();
   }
-  sched.start_with_threads(2);
-  unsafe { libc::sleep(5); }
-  sched.stop();
 }
 
 fn main() {

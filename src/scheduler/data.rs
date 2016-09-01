@@ -115,8 +115,8 @@ impl SchedulerData {
         unsafe {
           (*l1_ptr).eval(l2_max_idx, id, &mut reporter, &self.time_us);
         }
-        exec_count += reporter.exec_count;
       }
+      exec_count += reporter.exec_count;
       // check stop state
       if self.stop.load(Ordering::Acquire) {
         break;
