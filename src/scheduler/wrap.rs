@@ -8,12 +8,14 @@ pub struct TaskWrap {
   id:               usize,
   eval_id:          usize,
   //tx_counts:        Vec<usize>,
+  input_ids:        Vec<Option<usize>>,
   dependents:       Vec<Option<(Box<TaskWrap>, usize)>>,
   n_dependents:     usize,
 }
 
 impl TaskWrap {
 
+  /*
   fn execute(&mut self, observer: &mut Observer, time_us: &AtomicUsize) -> Schedule {
     let evt = self.task.execute();
     let info = EvalInfo::new(self.id, self.task.name(), time_us, self.eval_id);
@@ -31,35 +33,46 @@ impl TaskWrap {
 
     evt
   }
+  */
 
-  fn transition(&mut self, event: &Event, observer: &mut Observer, time_us: &AtomicUsize) {
+  fn process(&mut self, event: &Event, observer: &mut Observer, time_us: &AtomicUsize, info: &mut EvalInfo) {
     let old_state = self.state;
-    let mut input_event : Event = *event;
 
     // execute first, if needed
-    match input_event {
-      Event::Execute | Event::ExtTrigger | Event::MessageArrived | Event::TimerExpired =>
-        { input_event = Event::User(self.execute(observer, time_us)); },
+    match event {
+      &Event::Execute | &Event::ExtTrigger | &Event::MessageArrived | &Event::TimerExpired =>
+        {
+          let evt = self.task.execute();
+          let now = time_us.load(Ordering::Acquire);
+          info.update_at(time_us);
+          observer.executed(&info);
+
+          self.state = match evt {
+            Schedule::Loop => TaskState::Execute,
+            Schedule::OnMessage(ch,msg) => {
+              let len = self.input_ids.len();
+              if ch < len {
+                let slice = self.input_ids.as_mut_slice();
+                match slice[ch] {
+                  None => TaskState::MessageWaitNeedId(ch,msg),
+                  Some(task_id) => TaskState::MessageWait(task_id, ch,msg)
+                }
+              } else {
+                TaskState::MessageWaitNeedId(ch,msg)
+              }
+            }
+            Schedule::DelayUSec(us)   => TaskState::TimeWait(now+(us as usize)),
+            Schedule::OnExternalEvent => TaskState::ExtEventWait(self.ext_evt_count.load(Ordering::Acquire)+1),
+            Schedule::Stop            => TaskState::Stop,
+          };
+
+          observer.transition(&old_state, &Event::User(evt), &self.state, &info);
+        },
       _ =>
-        { },
+        {
+          observer.transition(&old_state, event, &self.state, &info);
+        },
     };
-
-    // evaluate user transitions too
-    let now = time_us.load(Ordering::Acquire);
-    let new_state = match input_event {
-      Event::User(Schedule::Loop)              => TaskState::Execute,
-      Event::User(Schedule::Stop)              => TaskState::Stop,
-      Event::User(Schedule::OnMessage(ch,msg)) => TaskState::MessageWait(ch,msg),
-      Event::User(Schedule::OnExternalEvent)   => TaskState::ExtEventWait(self.ext_evt_count.load(Ordering::Acquire)+1),
-      Event::User(Schedule::DelayUSec(us))     => TaskState::TimeWait(now+(us as usize)),
-      _ => old_state,
-    };
-
-    {
-      let info = EvalInfo::new_with_usec(self.id, self.task.name(), now, self.eval_id);
-      observer.transition(&old_state, &input_event, &new_state, &info);
-    }
-    self.state = new_state;
   }
 
   pub fn eval(&mut self,
@@ -67,27 +80,23 @@ impl TaskWrap {
               time_us: &AtomicUsize) {
 
     self.eval_id += 1;
-    {
-      let info = EvalInfo::new(self.id, self.task.name(), time_us, self.eval_id);
-      observer.eval_started(&info);
-    }
+    let now = time_us.load(Ordering::Acquire);
+    let mut info = EvalInfo::new_with_usec(self.id, now, self.eval_id);
+    observer.eval_started(&info);
 
     // check if there is a condition to exit from a wait-state
     let event = match self.state {
       TaskState::Execute => Event::Execute,
       TaskState::TimeWait(exec_at)
-        if exec_at <= time_us.load(Ordering::Acquire) => Event::TimerExpired,
+        if exec_at <= now => Event::TimerExpired,
       TaskState::ExtEventWait(threshold)
         if self.ext_evt_count.load(Ordering::Acquire) >= threshold => Event::ExtTrigger,
       _ => Event::Delay,
     };
 
-    self.transition(&event, observer, time_us);
+    self.process(&event, observer, time_us, &mut info);
 
-    {
-      let info = EvalInfo::new(self.id, self.task.name(), time_us, self.eval_id);
-      observer.eval_finished(&info);
-    }
+    observer.eval_finished(&info);
   }
 
   pub fn notify(&mut self) -> usize {
@@ -124,6 +133,15 @@ impl TaskWrap {
     }
     ret
   }
+
+  #[allow(dead_code)]
+  pub fn resolve_input_task_id(&mut self, idx: usize, task_id: usize) {
+    let len = self.input_ids.len();
+    if idx < len {
+      let slice = self.input_ids.as_mut_slice();
+      slice[idx] = Some(task_id);
+    }
+  }
 }
 
 pub fn new(task: Box<Task+Send>, id: usize) -> TaskWrap {
@@ -133,13 +151,19 @@ pub fn new(task: Box<Task+Send>, id: usize) -> TaskWrap {
     dependents.push(None);
   }
 
+  let n_inputs = task.input_count();
+  let mut input_ids = Vec::with_capacity(n_inputs);
+  for _i in 0..n_inputs {
+    input_ids.push(None);
+  }
+
   TaskWrap{
     task:            task,
     ext_evt_count:   AtomicUsize::new(0),
     state:           TaskState::Execute,
     id:              id,
     eval_id:         0,
-    //tx_counts:       vec![0; n_outputs],
+    input_ids:       input_ids,
     dependents:      dependents,
     n_dependents:    0,
   }

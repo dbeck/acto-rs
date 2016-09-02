@@ -17,21 +17,34 @@ pub struct SchedulerData {
 }
 
 struct TaskObserver {
-  exec_count: u64,
+  exec_count:   u64,
+  msg_waits:    Vec<(usize, TaskState)>, // task_id
 }
 
 impl TaskObserver {
-  fn new() -> TaskObserver {
-    TaskObserver{ exec_count: 0 }
+  fn new(n_tasks: usize) -> TaskObserver {
+    TaskObserver{
+      exec_count: 0,
+      msg_waits:  Vec::with_capacity(n_tasks),
+    }
   }
 }
 
 impl Observer for TaskObserver {
-  fn eval_started(&mut self, _info: &EvalInfo) {}
   fn executed(&mut self, _info: &EvalInfo) {
     self.exec_count += 1;
   }
-  fn transition(&mut self, _from: &TaskState, _event: &Event, _to: &TaskState, _info: &EvalInfo) {}
+
+  fn transition(&mut self, _from: &TaskState, _event: &Event, to: &TaskState, info: &EvalInfo) {
+    match to {
+      &TaskState::MessageWait(_, _, _) | &TaskState::MessageWaitNeedId(_, _) => {
+        self.msg_waits.push((info.task_id, *to));
+      },
+      _ => {}
+    }
+  }
+
+  fn eval_started(&mut self, _info: &EvalInfo) {}
   fn eval_finished(&mut self, _info: &EvalInfo) {}
 }
 
@@ -103,8 +116,9 @@ impl SchedulerData {
     let mut exec_count : u64 = 0;
     let start = time::precise_time_ns();
     loop {
-      let mut reporter = TaskObserver::new();
-      let (l1, l2) = array::position(self.max_id.load(Ordering::Acquire));
+      let max_id = self.max_id.load(Ordering::Acquire);
+      let mut reporter = TaskObserver::new(max_id);
+      let (l1, l2) = array::position(max_id);
       let l1_slice = self.l1.as_mut_slice();
       for l1_idx in 0..(l1+1) {
         let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);

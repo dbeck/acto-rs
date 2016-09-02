@@ -46,7 +46,8 @@ pub enum Schedule {
 pub enum TaskState {
   Execute,
   TimeWait(usize),
-  MessageWait(usize, usize), // ch_id, msg_id
+  MessageWait(usize, usize, usize), // input_task_id, ch_id, msg_id
+  MessageWaitNeedId(usize, usize),  // ch_id, msg_id
   ExtEventWait(usize),
   Stop,
 }
@@ -62,26 +63,23 @@ pub enum Event {
 }
 
 #[derive(Copy,Clone,Debug)]
-pub struct EvalInfo<'a> {
+pub struct EvalInfo {
   task_id: usize,
-  name: &'a String,
   at_usec: usize,
   eval_id: usize,
 }
 
-impl <'a> EvalInfo<'a> {
-  pub fn new(task_id: usize, name: &'a String, at_usec: &'a AtomicUsize, eval_id: usize) -> EvalInfo<'a> {
+impl EvalInfo {
+  pub fn new(task_id: usize, at_usec: &AtomicUsize, eval_id: usize) -> EvalInfo {
     EvalInfo{
       task_id:   task_id,
-      name:      name,
       at_usec:   at_usec.load(Ordering::Acquire),
       eval_id:   eval_id
     }
   }
-  pub fn new_with_usec(task_id: usize, name: &'a String, at_usec: usize, eval_id: usize) -> EvalInfo<'a> {
+  pub fn new_with_usec(task_id: usize, at_usec: usize, eval_id: usize) -> EvalInfo {
     EvalInfo{
       task_id:   task_id,
-      name:      name,
       at_usec:   at_usec,
       eval_id:   eval_id
     }

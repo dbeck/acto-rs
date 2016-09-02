@@ -242,7 +242,7 @@ fn dummy_start_stop() {
       }
     }
     sched.start_with_threads(1);
-    unsafe { libc::sleep(5); }
+    unsafe { libc::sleep(2); }
     sched.stop();
   }
 }
