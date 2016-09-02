@@ -37,7 +37,7 @@ impl Observer for TaskObserver {
 
   fn transition(&mut self, _from: &TaskState, _event: &Event, to: &TaskState, info: &EvalInfo) {
     match to {
-      &TaskState::MessageWait(_, _, _) | &TaskState::MessageWaitNeedId(_, _) => {
+      &TaskState::MessageWait(..) | &TaskState::MessageWaitNeedId(..) => {
         self.msg_waits.push((info.task_id, *to));
       },
       _ => {}
@@ -51,6 +51,13 @@ impl Observer for TaskObserver {
 impl SchedulerData {
   fn add_l2_bucket(&mut self, idx: usize) {
     let array = Box::new(array::new());
+    let len = self.l1.len();
+    if idx >= len-1 {
+      // extend slice
+      for _i in 0..initial_capacity() {
+        self.l1.push(AtomicPtr::default());
+      }
+    }
     let l1_slice = self.l1.as_mut_slice();
     l1_slice[idx].store(Box::into_raw(array), Ordering::Release);
   }
@@ -115,21 +122,31 @@ impl SchedulerData {
   pub fn entry(&mut self, id: usize) {
     let mut exec_count : u64 = 0;
     let start = time::precise_time_ns();
+    let l2_max = array::max_idx();
     loop {
       let max_id = self.max_id.load(Ordering::Acquire);
       let mut reporter = TaskObserver::new(max_id);
       let (l1, l2) = array::position(max_id);
       let l1_slice = self.l1.as_mut_slice();
-      for l1_idx in 0..(l1+1) {
+
+      // go through all fully filled l2 buckets
+      let mut l2_max_idx = l2_max;
+      for l1_idx in 0..l1 {
         let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);
-        let mut l2_max_idx = array::max_idx();
-        if l1_idx == l1 {
-          l2_max_idx = l2;
-        }
         unsafe {
           (*l1_ptr).eval(l2_max_idx, id, &mut reporter, &self.time_us);
         }
       }
+
+      // take care of the last, partially filled bucket
+      l2_max_idx = l2;
+      for l1_idx in l1..(l1+1) {
+        let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);
+        unsafe {
+          (*l1_ptr).eval(l2_max_idx, id, &mut reporter, &self.time_us);
+        }
+      }
+
       exec_count += reporter.exec_count;
       // check stop state
       if self.stop.load(Ordering::Acquire) {

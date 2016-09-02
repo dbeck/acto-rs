@@ -44,7 +44,7 @@ impl TaskWrap {
         {
           let evt = self.task.execute();
           let now = time_us.load(Ordering::Acquire);
-          info.update_at(time_us);
+          info.update_at_with_usec(now);
           observer.executed(&info);
 
           self.state = match evt {

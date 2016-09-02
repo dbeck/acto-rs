@@ -87,6 +87,9 @@ impl EvalInfo {
   pub fn update_at(&mut self, at_usec: &AtomicUsize) {
     self.at_usec = at_usec.load(Ordering::Acquire);
   }
+  pub fn update_at_with_usec(&mut self, at_usec: usize) {
+    self.at_usec = at_usec;
+  }
   pub fn get_usec(&self) -> usize {
     self.at_usec
   }

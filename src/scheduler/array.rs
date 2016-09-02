@@ -26,15 +26,15 @@ impl TaskArray {
                  id: usize,
                  observer: &mut Observer,
                  time_us: &AtomicUsize) {
-    let l2_slice = self.l2.as_mut_slice();
     let mut skip = id;
     let mut l2idx = 0;
     loop {
       if l2idx > l2_max_idx { break; }
-      let wrk = l2_slice[l2idx].swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
+      let wrk_ref = unsafe { self.l2.get_unchecked_mut(l2idx) };
+      let wrk = wrk_ref.swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
       if wrk.is_null() == false {
         unsafe { (*wrk).eval(observer, &time_us); }
-        l2_slice[l2idx].store(wrk, Ordering::Release);
+        wrk_ref.store(wrk, Ordering::Release);
       } else {
         l2idx += skip;
         skip += id;
@@ -57,20 +57,21 @@ impl TaskArray {
 }
 
 pub fn new() -> TaskArray {
-  let mut bucket = Vec::with_capacity(4096);
-  for _i in 0..(4096) {
+  let sz = max_idx()+1;
+  let mut bucket = Vec::with_capacity(sz);
+  for _i in 0..sz {
     bucket.push(AtomicPtr::default());
   }
   TaskArray{ l2: bucket }
 }
 
 pub fn max_idx() -> usize {
-  4095
+  65535
 }
 
 pub fn position(idx: usize) -> (usize, usize) {
   // note: this depends on max_idx !!!
-  (idx>>12, idx&0xfff)
+  (idx>>16, idx&0xffff)
 }
 
 impl Drop for TaskArray {

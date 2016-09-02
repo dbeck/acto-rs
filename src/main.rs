@@ -10,6 +10,7 @@ use actors::scheduler;
 use actors::elem::{source, /*, filter, sink, ymerge, ysplit*/ };
 use actors::{Message, Task, Schedule};
 
+#[allow(dead_code)]
 struct DummySource {
 }
 
@@ -21,6 +22,29 @@ impl source::Source for DummySource {
         _output: &mut Sender<Message<Self::OutputType>>)
       -> Schedule {
     Schedule::Loop
+  }
+}
+
+#[allow(dead_code)]
+struct CountingSource {
+  count: usize,
+}
+
+impl source::Source for CountingSource {
+  type OutputType = u64;
+
+  fn process(
+        &mut self,
+        _output: &mut Sender<Message<Self::OutputType>>)
+      -> Schedule {
+    self.count += 1;
+    Schedule::Loop
+  }
+}
+
+impl Drop for CountingSource {
+  fn drop(&mut self) {
+    println!("CountingSource executed {} times",self.count);
   }
 }
 

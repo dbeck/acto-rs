@@ -53,11 +53,12 @@ impl Observer for CountingReporter {
   fn transition(&mut self, _from: &TaskState, event: &Event, to: &TaskState, _info: &EvalInfo) {
     self.transition += 1;
     match to {
-      &TaskState::ExtEventWait(..) => { self.ext_wait += 1; }
-      &TaskState::MessageWait(..)  => { self.msg_wait += 1; }
-      &TaskState::TimeWait(..)     => { self.time_wait += 1; }
-      &TaskState::Stop         => { self.stopped += 1; }
-      _ => {}
+      &TaskState::ExtEventWait(..)       => { self.ext_wait += 1; }
+      &TaskState::MessageWait(..)        => { self.msg_wait += 1; }
+      &TaskState::MessageWaitNeedId(..)  => { self.msg_wait += 1; }
+      &TaskState::TimeWait(..)           => { self.time_wait += 1; }
+      &TaskState::Stop                   => { self.stopped += 1; }
+      _                                  => {}
     };
     match event {
       &Event::Delay => { self.delayed += 1; }
