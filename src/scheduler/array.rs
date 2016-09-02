@@ -9,8 +9,8 @@ pub struct TaskArray {
 }
 
 impl TaskArray {
-  pub fn store(&mut self, idx: usize, task: Box<Task+Send>, id: usize) {
-    let wrap = Box::new(wrap::new(task, id));
+  pub fn store(&mut self, idx: usize, task: Box<Task+Send>, id: usize, input_task_ids: Vec<Option<usize>>) {
+    let wrap = Box::new(wrap::new(task, id, input_task_ids));
     let slice = self.l2.as_mut_slice();
     let old = slice[idx].swap(Box::into_raw(wrap), Ordering::AcqRel);
     if old.is_null() == false {

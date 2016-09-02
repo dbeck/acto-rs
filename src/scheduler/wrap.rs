@@ -7,9 +7,8 @@ pub struct TaskWrap {
   state:            TaskState,
   id:               usize,
   eval_id:          usize,
-  //tx_counts:        Vec<usize>,
   input_ids:        Vec<Option<usize>>,
-  dependents:       Vec<Option<(Box<TaskWrap>, usize)>>,
+  dependents:       Vec<Option<(usize, usize)>>,
   n_dependents:     usize,
 }
 
@@ -51,11 +50,13 @@ impl TaskWrap {
             Schedule::Loop => TaskState::Execute,
             Schedule::OnMessage(ch,msg) => {
               let len = self.input_ids.len();
-              if ch < len {
+              if len == 0 {
+                TaskState::Execute
+              } else  if ch < len {
                 let slice = self.input_ids.as_mut_slice();
                 match slice[ch] {
-                  None => TaskState::MessageWaitNeedId(ch,msg),
-                  Some(task_id) => TaskState::MessageWait(task_id, ch,msg)
+                  None           => TaskState::MessageWaitNeedId(ch,msg),
+                  Some(task_id)  => TaskState::MessageWait(task_id, ch,msg)
                 }
               } else {
                 TaskState::MessageWaitNeedId(ch,msg)
@@ -65,7 +66,6 @@ impl TaskWrap {
             Schedule::OnExternalEvent => TaskState::ExtEventWait(self.ext_evt_count.load(Ordering::Acquire)+1),
             Schedule::Stop            => TaskState::Stop,
           };
-
           observer.transition(&old_state, &Event::User(evt), &self.state, &info);
         },
       _ =>
@@ -103,8 +103,7 @@ impl TaskWrap {
     self.ext_evt_count.fetch_add(1, Ordering::AcqRel) + 1
   }
 
-  #[allow(dead_code)]
-  pub fn attach(&mut self, idx: usize, dep: Box<TaskWrap>) {
+  pub fn register(&mut self, idx: usize, dep: usize) {
     use std::mem;
     let n_outputs = self.dependents.len();
     if idx < n_outputs {
@@ -118,23 +117,6 @@ impl TaskWrap {
     }
   }
 
-  #[allow(dead_code)]
-  pub fn detach(&mut self, idx: usize) -> Option<(Box<TaskWrap>, usize)> {
-    use std::mem;
-    let mut ret = None;
-    let n_outputs = self.dependents.len();
-    if  idx < n_outputs && self.n_dependents > 0 {
-      let slice = self.dependents.as_mut_slice();
-      mem::swap(&mut ret, &mut slice[idx]);
-      match ret {
-        Some(_) => { self.n_dependents -= 1; },
-        None    => { }
-      }
-    }
-    ret
-  }
-
-  #[allow(dead_code)]
   pub fn resolve_input_task_id(&mut self, idx: usize, task_id: usize) {
     let len = self.input_ids.len();
     if idx < len {
@@ -144,17 +126,11 @@ impl TaskWrap {
   }
 }
 
-pub fn new(task: Box<Task+Send>, id: usize) -> TaskWrap {
+pub fn new(task: Box<Task+Send>, id: usize, input_task_ids: Vec<Option<usize>>) -> TaskWrap {
   let n_outputs = task.output_count();
   let mut dependents = Vec::with_capacity(n_outputs);
   for _i in 0..n_outputs {
     dependents.push(None);
-  }
-
-  let n_inputs = task.input_count();
-  let mut input_ids = Vec::with_capacity(n_inputs);
-  for _i in 0..n_inputs {
-    input_ids.push(None);
   }
 
   TaskWrap{
@@ -163,7 +139,7 @@ pub fn new(task: Box<Task+Send>, id: usize) -> TaskWrap {
     state:           TaskState::Execute,
     id:              id,
     eval_id:         0,
-    input_ids:       input_ids,
+    input_ids:       input_task_ids,
     dependents:      dependents,
     n_dependents:    0,
   }

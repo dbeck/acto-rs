@@ -1,8 +1,9 @@
 
 use std::collections::{HashMap};
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
-use super::super::{Task, Error, EvalInfo, TaskState, Event, Observer};
+use super::super::{Task, Error};
 use super::{array, task_id};
+use super::observer::{TaskObserver};
 use parking_lot::{Mutex};
 use std::ptr;
 use time;
@@ -14,38 +15,6 @@ pub struct SchedulerData {
   stop:     AtomicBool,
   time_us:  AtomicUsize,
   ids:      Mutex<HashMap<String, usize>>,
-}
-
-struct TaskObserver {
-  exec_count:   u64,
-  msg_waits:    Vec<(usize, TaskState)>, // task_id
-}
-
-impl TaskObserver {
-  fn new(n_tasks: usize) -> TaskObserver {
-    TaskObserver{
-      exec_count: 0,
-      msg_waits:  Vec::with_capacity(n_tasks),
-    }
-  }
-}
-
-impl Observer for TaskObserver {
-  fn executed(&mut self, _info: &EvalInfo) {
-    self.exec_count += 1;
-  }
-
-  fn transition(&mut self, _from: &TaskState, _event: &Event, to: &TaskState, info: &EvalInfo) {
-    match to {
-      &TaskState::MessageWait(..) | &TaskState::MessageWaitNeedId(..) => {
-        self.msg_waits.push((info.task_id, *to));
-      },
-      _ => {}
-    }
-  }
-
-  fn eval_started(&mut self, _info: &EvalInfo) {}
-  fn eval_finished(&mut self, _info: &EvalInfo) {}
 }
 
 impl SchedulerData {
@@ -84,14 +53,27 @@ impl SchedulerData {
 
   pub fn add_task(&mut self, task: Box<Task+Send>) -> Result<task_id::TaskId, Error> {
     let ret_id : usize;
+    let input_count = task.input_count();
+    let mut input_task_ids : Vec<Option<usize>> = Vec::with_capacity(input_count);
     // check if name exists, and register if not
     {
-      let mut guard = self.ids.lock();
-      if guard.contains_key(task.name()) {
+      let mut ids = self.ids.lock();
+      if ids.contains_key(task.name()) {
         return Result::Err(Error::AlreadyExists);
       } else {
         ret_id = self.max_id.fetch_add(1, Ordering::AcqRel);
-        guard.insert(task.name().clone(), ret_id);
+        ids.insert(task.name().clone(), ret_id);
+        for i in 0..input_count {
+          match task.input_id(i) {
+            Some(ref ch_id) => {
+              match ids.get(ch_id.task_name()) {
+                Some(&id)  => input_task_ids.push(Some(id)),
+                None       => input_task_ids.push(None)
+              }
+            },
+            _ => input_task_ids.push(None)
+          }
+        }
       }
     }
     let (l1, l2) = array::position(ret_id);
@@ -102,7 +84,7 @@ impl SchedulerData {
     unsafe {
       let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
       if l1_ptr.is_null() == false {
-        (*l1_ptr).store(l2, task, ret_id);
+        (*l1_ptr).store(l2, task, ret_id, input_task_ids);
       }
     }
     Result::Ok(task_id::new(ret_id))
@@ -147,7 +129,12 @@ impl SchedulerData {
         }
       }
 
-      exec_count += reporter.exec_count;
+      exec_count += reporter.exec_count();
+
+      {
+        // process msg wait dependencies
+      }
+      
       // check stop state
       if self.stop.load(Ordering::Acquire) {
         break;
