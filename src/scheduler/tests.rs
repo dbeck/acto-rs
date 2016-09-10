@@ -1,3 +1,4 @@
+/*
 use lossyq::spsc::*;
 use scheduler;
 use super::{wrap, data};
@@ -39,17 +40,18 @@ fn data_entry_check_msg_wait_state() {
   sink_task.connect(&mut filter_out).unwrap();
 
   let mut dta = data::new();
-  assert!(dta.add_task(source_task).is_ok());
-  assert!(dta.add_task(filter_task).is_ok());
   assert!(dta.add_task(sink_task).is_ok());
+  assert!(dta.add_task(filter_task).is_ok());
+  assert!(dta.add_task(source_task).is_ok());
 
   // stop it first, so only a single execution is expected
   dta.stop();
 
   // launch an execution cycle
   dta.entry(0);
+  dta.entry(1);
 
-  //assert!(false);
+  assert!(false);
 }
 
 
@@ -342,3 +344,4 @@ impl ExecLogSink {
     }
   }
 }
+*/

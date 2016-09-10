@@ -1,5 +1,7 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::{Task, Message, Schedule, IdentifiedReceiver, new_id, ChannelId};
+use super::super::{Task, Message, Schedule, ChannelWrapper, ChannelId,
+  SenderName, SenderChannelId, ReceiverChannelId, ReceiverName
+};
 use super::connectable::{Connectable};
 use super::identified_input::{IdentifiedInput};
 use super::output_counter::{OutputCounter};
@@ -10,25 +12,27 @@ pub trait Scatter {
 
   fn process(
     &mut self,
-    input:   &mut Option<IdentifiedReceiver<Self::InputType>>,
+    input:   &mut ChannelWrapper<Self::InputType>,
     output:  &mut Vec<Sender<Message<Self::OutputType>>>) -> Schedule;
 }
 
 pub struct ScatterWrap<Input: Send, Output: Send> {
   name           : String,
   state          : Box<Scatter<InputType=Input,OutputType=Output>+Send>,
-  input_rx       : Option<IdentifiedReceiver<Input>>,
+  input_rx       : ChannelWrapper<Input>,
   output_tx_vec  : Vec<Sender<Message<Output>>>,
 }
 
 impl<Input: Send, Output: Send> IdentifiedInput for ScatterWrap<Input,Output> {
-  fn get_input_id(&self, ch_id: usize) -> Option<ChannelId> {
+  fn get_input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
     if ch_id != 0 {
       None
     } else {
       match &self.input_rx {
-        &Some(ref ch) => Some(ch.id.clone()),
-        _             => None,
+        &ChannelWrapper::ConnectedReceiver(ref channel_id, ref _receiver, ref sender_name) => {
+          Some((*channel_id, sender_name.clone()))
+        },
+        _ => None,
       }
     }
   }
@@ -48,7 +52,7 @@ impl<Input: Send, Output: Send> OutputCounter for ScatterWrap<Input,Output> {
 impl<Input: Send, Output: Send> Connectable for ScatterWrap<Input,Output> {
   type Input = Input;
 
-  fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
+  fn input(&mut self) -> &mut ChannelWrapper<Input> {
     &mut self.input_rx
   }
 }
@@ -62,11 +66,8 @@ impl<Input: Send, Output: Send> Task for ScatterWrap<Input,Output> {
   fn input_count(&self) -> usize { 1 }
   fn output_count(&self) -> usize { self.output_tx_vec.len() }
 
-  fn input_id(&self, ch_id: usize) -> Option<ChannelId> {
+  fn input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
-  }
-  fn tx_count(&self, ch_id: usize) -> usize {
-    self.get_tx_count(ch_id)
   }
 }
 
@@ -75,21 +76,21 @@ pub fn new<Input: Send, Output: Send>(
     output_q_size   : usize,
     scatter         : Box<Scatter<InputType=Input,OutputType=Output>+Send>,
     n_channels      : usize)
-      -> (Box<ScatterWrap<Input,Output>>, Vec<Box<Option<IdentifiedReceiver<Output>>>>)
+      -> (Box<ScatterWrap<Input,Output>>, Vec<Box<ChannelWrapper<Output>>>)
 {
   let mut tx_vec = Vec::with_capacity(n_channels);
   let mut rx_vec = Vec::with_capacity(n_channels);
+  let name = String::from(name);
 
   for i in 0..n_channels {
     let (output_tx, output_rx) = channel(output_q_size);
     tx_vec.push(output_tx);
     rx_vec.push(
       Box::new(
-        Some(
-          IdentifiedReceiver{
-            id:     new_id(String::from(name), i),
-            input:  output_rx,
-          }
+        ChannelWrapper::SenderNotConnected(
+          SenderChannelId(i),
+          output_rx,
+          SenderName(name.clone())
         )
       )
     );
@@ -98,9 +99,12 @@ pub fn new<Input: Send, Output: Send>(
   (
     Box::new(
       ScatterWrap{
-        name           : String::from(name),
+        name           : name.clone(),
         state          : scatter,
-        input_rx       : None,
+        input_rx       : ChannelWrapper::ReceiverNotConnected(
+          ReceiverChannelId(0),
+          ReceiverName (name.clone())
+        ),
         output_tx_vec  : tx_vec,
       }
     ),

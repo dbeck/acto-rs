@@ -1,5 +1,7 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::{Task, Message, Schedule, IdentifiedReceiver, new_id, ChannelId};
+use super::super::{Task, Message, Schedule, ChannelWrapper, ChannelId,
+  SenderName, SenderChannelId, ReceiverChannelId, ReceiverName
+};
 use super::connectable::{ConnectableN};
 use super::identified_input::{IdentifiedInput};
 use super::output_counter::{OutputCounter};
@@ -10,24 +12,26 @@ pub trait Gather {
 
   fn process(
     &mut self,
-    input:   &mut Vec<Option<IdentifiedReceiver<Self::InputType>>>,
+    input:   &mut Vec<ChannelWrapper<Self::InputType>>,
     output:  &mut Sender<Message<Self::OutputType>>) -> Schedule;
 }
 
 pub struct GatherWrap<Input: Send, Output: Send> {
   name           : String,
   state          : Box<Gather<InputType=Input,OutputType=Output>+Send>,
-  input_rx_vec   : Vec<Option<IdentifiedReceiver<Input>>>,
+  input_rx_vec   : Vec<ChannelWrapper<Input>>,
   output_tx      : Sender<Message<Output>>,
 }
 
 impl<Input: Send, Output: Send> IdentifiedInput for GatherWrap<Input,Output> {
-  fn get_input_id(&self, ch_id: usize) -> Option<ChannelId> {
+  fn get_input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
     if ch_id < self.input_rx_vec.len() {
       let slice = self.input_rx_vec.as_slice();
       match &slice[ch_id] {
-        &Some(ref ch) => Some(ch.id.clone()),
-        _             => None,
+        &ChannelWrapper::ConnectedReceiver(ref channel_id, ref _receiver, ref sender_name) => {
+          Some((*channel_id, sender_name.clone()))
+        },
+        _ => None,
       }
     } else {
       None
@@ -48,7 +52,7 @@ impl<Input: Send, Output: Send> OutputCounter for GatherWrap<Input,Output> {
 impl<Input: Send, Output: Send> ConnectableN for GatherWrap<Input,Output> {
   type Input = Input;
 
-  fn input(&mut self, n: usize) -> &mut Option<IdentifiedReceiver<Input>> {
+  fn input(&mut self, n: usize) -> &mut ChannelWrapper<Self::Input> {
     let ret_slice = self.input_rx_vec.as_mut_slice();
     &mut ret_slice[n]
   }
@@ -62,11 +66,8 @@ impl<Input: Send, Output: Send> Task for GatherWrap<Input,Output> {
   fn input_count(&self) -> usize { self.input_rx_vec.len() }
   fn output_count(&self) -> usize { 1 }
 
-  fn input_id(&self, ch_id: usize) -> Option<ChannelId> {
+  fn input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
-  }
-  fn tx_count(&self, ch_id: usize) -> usize {
-    self.get_tx_count(ch_id)
   }
 }
 
@@ -75,27 +76,32 @@ pub fn new<Input: Send, Output: Send>(
     output_q_size   : usize,
     gather          : Box<Gather<InputType=Input,OutputType=Output>+Send>,
     n_channels      : usize)
-      -> (Box<GatherWrap<Input,Output>>, Box<Option<IdentifiedReceiver<Output>>>)
+      -> (Box<GatherWrap<Input,Output>>, Box<ChannelWrapper<Output>>)
 {
   let (output_tx, output_rx) = channel(output_q_size);
+  let name = String::from(name);
   let mut inputs = vec![];
-  for _i in 0..n_channels { inputs.push(None); }
+  for i in 0..n_channels {
+    inputs.push(ChannelWrapper::ReceiverNotConnected(
+      ReceiverChannelId(i),
+      ReceiverName (name.clone())
+    ));
+  }
 
   (
     Box::new(
       GatherWrap{
-        name                   : String::from(name),
+        name                   : name.clone(),
         state                  : gather,
         input_rx_vec           : inputs,
         output_tx              : output_tx,
       }
     ),
     Box::new(
-      Some(
-        IdentifiedReceiver{
-          id:     new_id(String::from(name), 0),
-          input:  output_rx,
-        }
+      ChannelWrapper::SenderNotConnected(
+        SenderChannelId(0),
+        output_rx,
+        SenderName(name)
       )
     )
   )

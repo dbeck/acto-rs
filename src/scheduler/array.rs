@@ -1,6 +1,7 @@
 
 use std::sync::atomic::{AtomicPtr, Ordering, AtomicUsize};
-use super::super::{Task, Error, Observer};
+use super::super::{Task, Error, TaskId};
+use super::observer::{Observer};
 use super::{wrap};
 use std::ptr;
 
@@ -9,7 +10,7 @@ pub struct TaskArray {
 }
 
 impl TaskArray {
-  pub fn store(&mut self, idx: usize, task: Box<Task+Send>, id: usize, input_task_ids: Vec<Option<usize>>) {
+  pub fn store(&mut self, idx: usize, task: Box<Task+Send>, id: TaskId, input_task_ids: Vec<Option<usize>>) {
     let wrap = Box::new(wrap::new(task, id, input_task_ids));
     let slice = self.l2.as_mut_slice();
     let old = slice[idx].swap(Box::into_raw(wrap), Ordering::AcqRel);
@@ -18,6 +19,19 @@ impl TaskArray {
       // this shouldn't happen since the SchedulerData must take care
       // of atomically increasing indices
       let _b = unsafe { Box::from_raw(old) };
+    }
+  }
+
+  pub fn apply<F>(&self, l2_idx: usize, f: F) where F : FnMut(*mut wrap::TaskWrap) {
+    let slice = self.l2.as_slice();
+    loop {
+      let wrk = slice[l2_idx].swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
+      if wrk.is_null() == false {
+        let mut f = f;
+        f(wrk);
+        slice[l2_idx].store(wrk, Ordering::Release);
+        break;
+      }
     }
   }
 

@@ -1,5 +1,7 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::{Task, Message, Schedule, IdentifiedReceiver, new_id, ChannelId};
+use super::super::{Task, Message, Schedule, ChannelWrapper, ChannelId,
+  SenderChannelId, ReceiverChannelId, ReceiverName, SenderName
+};
 use super::connectable::{Connectable};
 use super::identified_input::{IdentifiedInput};
 use super::output_counter::{OutputCounter};
@@ -10,23 +12,25 @@ pub trait Filter {
 
   fn process(
     &mut self,
-    input:   &mut Option<IdentifiedReceiver<Self::InputType>>,
+    input:   &mut ChannelWrapper<Self::InputType>,
     output:  &mut Sender<Message<Self::OutputType>>) -> Schedule;
 }
 
 pub struct FilterWrap<Input: Send, Output: Send> {
   name         : String,
   state        : Box<Filter<InputType=Input,OutputType=Output>+Send>,
-  input_rx     : Option<IdentifiedReceiver<Input>>,
+  input_rx     : ChannelWrapper<Input>,
   output_tx    : Sender<Message<Output>>,
 }
 
 impl<Input: Send, Output: Send> IdentifiedInput for FilterWrap<Input,Output> {
-  fn get_input_id(&self, ch_id: usize) -> Option<ChannelId> {
+  fn get_input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
     if ch_id == 0 {
       match &self.input_rx {
-        &Some(ref ch)  => Some(ch.id.clone()),
-        _  => None,
+        &ChannelWrapper::ConnectedReceiver(ref channel_id, ref _receiver, ref sender_name) => {
+          Some((*channel_id, sender_name.clone()))
+        },
+        _ => None,
       }
     } else {
       None
@@ -47,7 +51,7 @@ impl<Input: Send, Output: Send> OutputCounter for FilterWrap<Input,Output> {
 impl<Input: Send, Output: Send> Connectable for FilterWrap<Input,Output> {
   type Input = Input;
 
-  fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
+  fn input(&mut self) -> &mut ChannelWrapper<Input> {
     &mut self.input_rx
   }
 }
@@ -60,11 +64,8 @@ impl<Input: Send, Output: Send> Task for FilterWrap<Input,Output> {
   fn input_count(&self) -> usize { 1 }
   fn output_count(&self) -> usize { 1 }
 
-  fn input_id(&self, ch_id: usize) -> Option<ChannelId> {
+  fn input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
-  }
-  fn tx_count(&self, ch_id: usize) -> usize {
-    self.get_tx_count(ch_id)
   }
 }
 
@@ -72,25 +73,28 @@ pub fn new<Input: Send, Output: Send>(
     name            : &str,
     output_q_size   : usize,
     filter          : Box<Filter<InputType=Input,OutputType=Output>+Send>)
-      -> (Box<FilterWrap<Input,Output>>, Box<Option<IdentifiedReceiver<Output>>>)
+      -> (Box<FilterWrap<Input,Output>>, Box<ChannelWrapper<Output>>)
 {
   let (output_tx, output_rx) = channel(output_q_size);
+  let name = String::from(name);
 
   (
     Box::new(
       FilterWrap{
-        name        : String::from(name),
+        name        : name.clone(),
         state       : filter,
-        input_rx    : None,
+        input_rx    : ChannelWrapper::ReceiverNotConnected(
+          ReceiverChannelId(0),
+          ReceiverName (name.clone())
+        ),
         output_tx   : output_tx,
       }
     ),
     Box::new(
-      Some(
-        IdentifiedReceiver{
-          id:     new_id(String::from(name), 0),
-          input:  output_rx,
-        }
+      ChannelWrapper::SenderNotConnected(
+        SenderChannelId(0),
+        output_rx,
+        SenderName(name)
       )
     )
   )

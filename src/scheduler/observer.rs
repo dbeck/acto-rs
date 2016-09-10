@@ -1,4 +1,46 @@
-use super::super::{Observer, TaskState, EvalInfo, Event};
+use super::super::{TaskState, Event, TaskId, AbsSchedulerTimeInUsec};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+#[derive(Copy,Clone,Debug)]
+pub struct EvalInfo {
+  task_id: TaskId,
+  at_usec: AbsSchedulerTimeInUsec,
+  eval_id: usize,
+}
+
+impl EvalInfo {
+  pub fn new(task_id: TaskId, at_usec: &AtomicUsize, eval_id: usize) -> EvalInfo {
+    EvalInfo{
+      task_id:   task_id,
+      at_usec:   AbsSchedulerTimeInUsec (at_usec.load(Ordering::Acquire)),
+      eval_id:   eval_id
+    }
+  }
+  pub fn new_with_usec(task_id: TaskId, at_usec: usize, eval_id: usize) -> EvalInfo {
+    EvalInfo{
+      task_id:   task_id,
+      at_usec:   AbsSchedulerTimeInUsec (at_usec),
+      eval_id:   eval_id
+    }
+  }
+  pub fn update_at(&mut self, at_usec: &AtomicUsize) {
+    self.at_usec = AbsSchedulerTimeInUsec (at_usec.load(Ordering::Acquire));
+  }
+  pub fn update_at_with_usec(&mut self, at_usec: usize) {
+    self.at_usec = AbsSchedulerTimeInUsec (at_usec);
+  }
+  pub fn get_usec(&self) -> AbsSchedulerTimeInUsec {
+    self.at_usec
+  }
+}
+
+pub trait Observer {
+  fn eval_started(&mut self, info: &EvalInfo);
+  fn executed(&mut self, info: &EvalInfo);
+  fn msg_trigger(&mut self, target_task: usize, last_msg_id: usize, info: &EvalInfo);
+  fn transition(&mut self, from: &TaskState, event: &Event, to: &TaskState, info: &EvalInfo);
+  fn eval_finished(&mut self, info: &EvalInfo);
+}
 
 #[derive(Copy,Clone,Debug)]
 pub struct CountingReporter {
@@ -52,12 +94,12 @@ impl Observer for CountingReporter {
   fn transition(&mut self, from: &TaskState, event: &Event, to: &TaskState, info: &EvalInfo) {
     self.transition += 1;
     match to {
-      &TaskState::ExtEventWait(..)       => { self.ext_wait += 1; }
-      &TaskState::MessageWait(..)        => { self.msg_wait += 1; }
-      &TaskState::MessageWaitNeedId(..)  => { self.msg_wait += 1; }
-      &TaskState::TimeWait(..)           => { self.time_wait += 1; }
-      &TaskState::Stop                   => { self.stopped += 1; }
-      _                                  => {}
+      &TaskState::ExtEventWait(..)             => { self.ext_wait  += 1; },
+      &TaskState::MessageWait(..)              => { self.msg_wait  += 1; },
+      &TaskState::MessageWaitNeedSenderId(..)  => { self.msg_wait  += 1; },
+      &TaskState::TimeWait(..)                 => { self.time_wait += 1; },
+      &TaskState::Stop                         => { self.stopped   += 1; },
+      _                                        => { },
     };
     match event {
       &Event::Delay => { self.delayed += 1; }
@@ -107,7 +149,7 @@ impl Observer for TaskTracer {
 #[derive(Clone,Debug)]
 pub struct TaskObserver {
   exec_count:   u64,
-  msg_waits:    Vec<(usize, TaskState)>, // task_id, state
+  msg_waits:    Vec<(TaskId, TaskState)>,
 }
 
 impl TaskObserver {
@@ -122,7 +164,7 @@ impl TaskObserver {
     self.exec_count
   }
 
-  pub fn msg_waits(&self) -> &Vec<(usize, TaskState)> {
+  pub fn msg_waits(&self) -> &Vec<(TaskId, TaskState)> {
     &self.msg_waits
   }
 }
@@ -136,7 +178,7 @@ impl Observer for TaskObserver {
 
   fn transition(&mut self, _from: &TaskState, _event: &Event, to: &TaskState, info: &EvalInfo) {
     match to {
-      &TaskState::MessageWait(..) | &TaskState::MessageWaitNeedId(..) => {
+      &TaskState::MessageWait(..) | &TaskState::MessageWaitNeedSenderId(..) => {
         self.msg_waits.push((info.task_id, *to));
       },
       _ => {}
@@ -147,8 +189,8 @@ impl Observer for TaskObserver {
   fn eval_finished(&mut self, _info: &EvalInfo) {}
 }
 
-impl Drop for TaskObserver {
-  fn drop(&mut self) {
-    //println!("Drop {:?}",*self);
-  }
-}
+//impl Drop for TaskObserver {
+//  fn drop(&mut self) {
+//    //println!("Drop {:?}",*self);
+//  }
+//}

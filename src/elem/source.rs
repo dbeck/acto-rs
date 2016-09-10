@@ -1,5 +1,6 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::{Task, Message, Schedule, IdentifiedReceiver, new_id, ChannelId};
+use super::super::{Task, Message, Schedule, ChannelId, SenderName,
+  ChannelWrapper, SenderChannelId};
 use super::output_counter::{OutputCounter};
 
 pub trait Source {
@@ -34,11 +35,8 @@ impl<Output: 'static+Send> Task for SourceWrap<Output> {
   fn input_count(&self) -> usize { 0 }
   fn output_count(&self) -> usize { 1 }
 
-  fn input_id(&self, _ch_id: usize) -> Option<ChannelId> {
+  fn input_id(&self, _ch_id: usize) -> Option<(ChannelId, SenderName)> {
     None
-  }
-  fn tx_count(&self, ch_id: usize) -> usize {
-    self.get_tx_count(ch_id)
   }
 }
 
@@ -46,25 +44,25 @@ pub fn new<Output: Send>(
     name            : &str,
     output_q_size   : usize,
     source          : Box<Source<OutputType=Output>+Send>)
-      -> (Box<SourceWrap<Output>>, Box<Option<IdentifiedReceiver<Output>>>)
+      -> (Box<SourceWrap<Output>>, Box<ChannelWrapper<Output>>)
 {
   let (output_tx, output_rx) = channel(output_q_size);
+  let name = String::from(name);
 
   (
     Box::new(
       SourceWrap{
-        name        : String::from(name),
+        name        : name.clone(),
         state       : source,
         output_tx   : output_tx,
       }
     ),
     Box::new(
-      Some(
-          IdentifiedReceiver{
-            id:     new_id(String::from(name), 0),
-            input:  output_rx,
-          }
-        )
+      ChannelWrapper::SenderNotConnected(
+        SenderChannelId(0),
+        output_rx,
+        SenderName(name)
+      )
     )
   )
 }

@@ -1,4 +1,6 @@
-use super::super::{Task, Schedule, IdentifiedReceiver, ChannelId};
+use super::super::{Task, Schedule, ChannelWrapper, ChannelId, SenderName,
+  ReceiverChannelId, ReceiverName
+};
 use super::connectable::{Connectable};
 use super::identified_input::{IdentifiedInput};
 
@@ -7,23 +9,25 @@ pub trait Sink {
 
   fn process(
     &mut self,
-    input: &mut Option<IdentifiedReceiver<Self::InputType>>) -> Schedule;
+    input: &mut ChannelWrapper<Self::InputType>) -> Schedule;
 }
 
 pub struct SinkWrap<Input: Send> {
   name      : String,
   state     : Box<Sink<InputType=Input>+Send>,
-  input_rx  : Option<IdentifiedReceiver<Input>>,
+  input_rx  : ChannelWrapper<Input>,
 }
 
 impl<Input: Send> IdentifiedInput for SinkWrap<Input> {
-  fn get_input_id(&self, ch_id: usize) -> Option<ChannelId> {
+  fn get_input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
     if ch_id != 0 {
       None
     } else {
       match &self.input_rx {
-        &Some(ref ch) => Some(ch.id.clone()),
-        _             => None,
+        &ChannelWrapper::ConnectedReceiver(ref channel_id, ref _receiver, ref sender_name) => {
+          Some((*channel_id, sender_name.clone()))
+        },
+        _ => None,
       }
     }
   }
@@ -32,7 +36,7 @@ impl<Input: Send> IdentifiedInput for SinkWrap<Input> {
 impl<Input: Send> Connectable for SinkWrap<Input> {
   type Input = Input;
 
-  fn input(&mut self) -> &mut Option<IdentifiedReceiver<Input>> {
+  fn input(&mut self) -> &mut ChannelWrapper<Input> {
     &mut self.input_rx
   }
 }
@@ -45,10 +49,9 @@ impl<Input: Send> Task for SinkWrap<Input> {
   fn input_count(&self) -> usize { 1 }
   fn output_count(&self) -> usize { 0 }
 
-  fn input_id(&self, ch_id: usize) -> Option<ChannelId> {
+  fn input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
   }
-  fn tx_count(&self, _ch_id: usize) -> usize { 0 }
 }
 
 pub fn new<Input: Send>(
@@ -56,11 +59,15 @@ pub fn new<Input: Send>(
     sink   : Box<Sink<InputType=Input>+Send>)
       -> Box<SinkWrap<Input>>
 {
+  let name = String::from(name);
   Box::new(
     SinkWrap{
-      name          : String::from(name),
+      name          : String::from(name.clone()),
       state         : sink,
-      input_rx      : None,
-      }
-    )
+      input_rx      : ChannelWrapper::ReceiverNotConnected(
+        ReceiverChannelId(0),
+        ReceiverName (name)
+      ),
+    }
+  )
 }

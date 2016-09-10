@@ -1,8 +1,8 @@
 
 use std::collections::{HashMap};
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
-use super::super::{Task, Error};
-use super::{array, task_id};
+use super::super::{Task, Error, TaskState, TaskId, SenderChannelId};
+use super::{array, task_id, wrap};
 use super::observer::{TaskObserver};
 use parking_lot::{Mutex};
 use std::ptr;
@@ -51,6 +51,14 @@ impl SchedulerData {
     data
   }
 
+  fn resolve_task_id(&self, name: &String) -> Option<TaskId> {
+    let ids = self.ids.lock();
+    match ids.get(name) {
+      Some(&id)  => Some(TaskId (id) ),
+      None       => None
+    }
+  }
+
   pub fn add_task(&mut self, task: Box<Task+Send>) -> Result<task_id::TaskId, Error> {
     let ret_id : usize;
     let input_count = task.input_count();
@@ -63,10 +71,12 @@ impl SchedulerData {
       } else {
         ret_id = self.max_id.fetch_add(1, Ordering::AcqRel);
         ids.insert(task.name().clone(), ret_id);
+        // resolve input task ids
         for i in 0..input_count {
           match task.input_id(i) {
-            Some(ref ch_id) => {
-              match ids.get(ch_id.task_name()) {
+            Some(ref ch_id_sender_name) => {
+              let ref ch_id_name = ch_id_sender_name.1;
+              match ids.get(&ch_id_name.0) {
                 Some(&id)  => input_task_ids.push(Some(id)),
                 None       => input_task_ids.push(None)
               }
@@ -84,7 +94,7 @@ impl SchedulerData {
     unsafe {
       let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
       if l1_ptr.is_null() == false {
-        (*l1_ptr).store(l2, task, ret_id, input_task_ids);
+        (*l1_ptr).store(l2, task, TaskId(ret_id), input_task_ids);
       }
     }
     Result::Ok(task_id::new(ret_id))
@@ -101,6 +111,67 @@ impl SchedulerData {
     }
   }
 
+  fn post_process_tasks(&mut self, observer: TaskObserver) {
+
+    // process msg wait dependencies
+    for w in observer.msg_waits() {
+      match w {
+        &(task_id, state) => {
+          // TODO
+          match state {
+            /*
+            */
+            // Note: ch_id here has to be the sender's ch id
+            TaskState::MessageWait(sender_id, channel_id, channel_position) => {
+              println!("register dependency. {:?} depends on {:?}", task_id, sender_id);
+              self.apply( TaskId (sender_id.0), |sender_task_wrapper| {
+                unsafe { (*sender_task_wrapper).register_dependent(channel_id, task_id, channel_position); };
+              });
+            },
+
+            // Note: ch_id is the receiver channel id
+            TaskState::MessageWaitNeedSenderId(channel_id, channel_position) => {
+              //
+              println!("unresolved dependency. for: {:?} depends on ch:{:?}/{:?}", task_id, channel_id, channel_position);
+
+              let mut sender_ch_id    = SenderChannelId(0);
+              let mut sender_task_id  = TaskId(0);
+              let mut resolved        = false;
+
+              self.apply( task_id, |receiver_task_wrapper| {
+                match unsafe { (*receiver_task_wrapper).input_id(channel_id.receiver_id.0) } {
+                  Some(ref channel_id_name) => {
+                    let ref channel_name  = channel_id_name.1;
+                    match self.resolve_task_id(&channel_name.0) {
+                      Some(sender_id) => {
+                        unsafe { (*receiver_task_wrapper).resolve_input_task_id(channel_id, sender_id); };
+                        sender_task_id   = sender_id;
+                        sender_ch_id     = channel_id.sender_id;
+                        resolved         = true;
+                        println!("resolved: {:?} for task_id:{:?} sender_id:{:?}", channel_id, task_id, sender_id);
+                      },
+                      None => {},
+                    }
+                  },
+                  None => {},
+                }
+              });
+
+              if resolved {
+                self.apply( sender_task_id, |sender_task_wrapper| {
+                  // ???????? TODO
+                  unsafe { (*sender_task_wrapper).register_dependent(channel_id, task_id, channel_position); };
+                });
+              }
+            },
+
+            _ => {},
+          }
+        }
+      }
+    }
+  }
+
   pub fn entry(&mut self, id: usize) {
     let mut exec_count : u64 = 0;
     let start = time::precise_time_ns();
@@ -109,32 +180,32 @@ impl SchedulerData {
       let max_id = self.max_id.load(Ordering::Acquire);
       let mut reporter = TaskObserver::new(max_id);
       let (l1, l2) = array::position(max_id);
-      let l1_slice = self.l1.as_mut_slice();
+      {
+        let l1_slice = self.l1.as_mut_slice();
 
-      // go through all fully filled l2 buckets
-      let mut l2_max_idx = l2_max;
-      for l1_idx in 0..l1 {
-        let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);
-        unsafe {
-          (*l1_ptr).eval(l2_max_idx, id, &mut reporter, &self.time_us);
+        // go through all fully filled l2 buckets
+        let mut l2_max_idx = l2_max;
+        for l1_idx in 0..l1 {
+          let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);
+          unsafe {
+            (*l1_ptr).eval(l2_max_idx, id, &mut reporter, &self.time_us);
+          }
         }
-      }
 
-      // take care of the last, partially filled bucket
-      l2_max_idx = l2;
-      for l1_idx in l1..(l1+1) {
-        let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);
-        unsafe {
-          (*l1_ptr).eval(l2_max_idx, id, &mut reporter, &self.time_us);
+        // take care of the last, partially filled bucket
+        l2_max_idx = l2;
+        for l1_idx in l1..(l1+1) {
+          let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);
+          unsafe {
+            (*l1_ptr).eval(l2_max_idx, id, &mut reporter, &self.time_us);
+          }
         }
       }
 
       exec_count += reporter.exec_count();
 
-      {
-        // process msg wait dependencies
-      }
-      
+      self.post_process_tasks(reporter);
+
       // check stop state
       if self.stop.load(Ordering::Acquire) {
         break;
@@ -143,7 +214,19 @@ impl SchedulerData {
     let end = time::precise_time_ns();
     let diff = end - start;
     println!("thread: #{} exiting. #exec: {} exec-time: {} ns {}k/s",
-      id, exec_count, diff/exec_count, exec_count*1_000*1_000/diff);
+      id, exec_count, (diff+1)/(exec_count+1), exec_count*1_000*1_000/diff);
+  }
+
+  pub fn apply<F>(&self, task_id: TaskId, f: F) where F : FnMut(*mut wrap::TaskWrap) {
+    if task_id.0 < self.max_id.load(Ordering::Acquire) {
+      let (l1, l2) = array::position(task_id.0);
+      unsafe {
+        let l1_ptr = self.l1.get_unchecked(l1).load(Ordering::Acquire);
+        if l1_ptr.is_null() == false {
+          (*l1_ptr).apply(l2, f);
+        }
+      }
+    }
   }
 
   pub fn notify(&mut self, id: &task_id::TaskId) -> Result<usize, Error> {
