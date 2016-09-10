@@ -24,8 +24,8 @@ pub struct FilterWrap<Input: Send, Output: Send> {
 }
 
 impl<Input: Send, Output: Send> IdentifiedInput for FilterWrap<Input,Output> {
-  fn get_input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
-    if ch_id == 0 {
+  fn get_input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
+    if ch_id.0 == 0 {
       match &self.input_rx {
         &ChannelWrapper::ConnectedReceiver(ref channel_id, ref _receiver, ref sender_name) => {
           Some((*channel_id, sender_name.clone()))
@@ -64,7 +64,7 @@ impl<Input: Send, Output: Send> Task for FilterWrap<Input,Output> {
   fn input_count(&self) -> usize { 1 }
   fn output_count(&self) -> usize { 1 }
 
-  fn input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
+  fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
   }
 }

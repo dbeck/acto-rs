@@ -1,6 +1,6 @@
 use lossyq::spsc::{Sender, channel};
 use super::super::{Task, Message, Schedule, ChannelId, SenderName,
-  ChannelWrapper, SenderChannelId};
+  ChannelWrapper, SenderChannelId, ReceiverChannelId};
 use super::output_counter::{OutputCounter};
 
 pub trait Source {
@@ -35,7 +35,7 @@ impl<Output: 'static+Send> Task for SourceWrap<Output> {
   fn input_count(&self) -> usize { 0 }
   fn output_count(&self) -> usize { 1 }
 
-  fn input_id(&self, _ch_id: usize) -> Option<(ChannelId, SenderName)> {
+  fn input_id(&self, _ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     None
   }
 }

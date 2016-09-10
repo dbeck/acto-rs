@@ -27,10 +27,10 @@ pub struct YMergeWrap<InputA: Send, InputB: Send, Output: Send> {
 }
 
 impl<InputA: Send, InputB: Send, Output: Send> IdentifiedInput for YMergeWrap<InputA, InputB, Output> {
-  fn get_input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
-    if ch_id > 1 {
+  fn get_input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
+    if ch_id.0 > 1 {
       None
-    } else if ch_id == 0 {
+    } else if ch_id.0 == 0 {
       match &self.input_a_rx {
         &ChannelWrapper::ConnectedReceiver(ref channel_id, ref _receiver, ref sender_name) => {
           Some((*channel_id, sender_name.clone()))
@@ -81,7 +81,7 @@ impl<InputA: Send, InputB: Send, Output: Send> Task for YMergeWrap<InputA, Input
   fn input_count(&self) -> usize { 2 }
   fn output_count(&self) -> usize { 1 }
 
-  fn input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
+  fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
   }
 }

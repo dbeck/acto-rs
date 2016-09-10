@@ -1,10 +1,11 @@
 use super::super::{Task, Schedule, TaskState, Event, AbsSchedulerTimeInUsec,
-  ExtEventSeqno, DelayFromNowInUsec, ChannelId, SenderName, SenderId,
-  TaskId, ChannelPosition
+  ExtEventSeqno, ChannelId, SenderName, SenderId,
+  TaskId, ChannelPosition, ReceiverChannelId
 };
 use super::observer::{Observer, EvalInfo};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+#[allow(dead_code)]
 struct Dependent {
   task_id:           TaskId,
   channel_position:  ChannelPosition,
@@ -23,7 +24,7 @@ pub struct TaskWrap {
 
 impl TaskWrap {
 
-  pub fn input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
+  pub fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     self.task.input_id(ch_id)
   }
 
@@ -83,7 +84,7 @@ impl TaskWrap {
               }
             }
             Schedule::DelayUsec(us)
-              => TaskState::TimeWait(AbsSchedulerTimeInUsec (now+(us.n_usec as usize)) ),
+              => TaskState::TimeWait(AbsSchedulerTimeInUsec (now+(us.0 as usize)) ),
             Schedule::OnExternalEvent
               => TaskState::ExtEventWait(ExtEventSeqno (self.ext_evt_count.load(Ordering::Acquire)+1)),
             Schedule::Stop
@@ -93,9 +94,6 @@ impl TaskWrap {
         },
       _ =>
         {
-          //MessageWait(SenderId, ChannelId, ChannelPosition),
-          //MessageWaitNeedSenderId(ChannelId, ChannelPosition),
-
           match self.state {
             // check if the dependecy ID has been resolved since
             TaskState::MessageWaitNeedSenderId(channel_id, channel_position) => {

@@ -7,8 +7,6 @@ pub mod scheduler;
 pub mod elem;
 
 use lossyq::spsc::Receiver;
-use std::fmt;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Copy,Clone,Debug)]
 pub enum Error {
@@ -49,9 +47,7 @@ pub struct ChannelId {
 }
 
 #[derive(Copy,Clone,Debug,PartialEq)]
-pub struct DelayFromNowInUsec {
-  pub n_usec: usize,
-}
+pub struct DelayFromNowInUsec (usize);
 
 #[derive(Copy,Clone,Debug)]
 pub enum Schedule {
@@ -105,7 +101,7 @@ pub trait Task {
   fn name(&self)  -> &String;
   fn input_count(&self) -> usize;
   fn output_count(&self) -> usize;
-  fn input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)>;
+  fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)>;
 }
 
 pub enum ChannelWrapper<Input: Send> {

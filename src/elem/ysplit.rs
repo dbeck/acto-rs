@@ -27,8 +27,8 @@ pub struct YSplitWrap<Input: Send, OutputA: Send, OutputB: Send> {
 }
 
 impl<Input: Send, OutputA: Send, OutputB: Send> IdentifiedInput for YSplitWrap<Input, OutputA, OutputB> {
-  fn get_input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
-    if ch_id != 0 {
+  fn get_input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
+    if ch_id.0 != 0 {
       None
     } else {
       match &self.input_rx {
@@ -70,7 +70,7 @@ impl<Input: Send, OutputA: Send, OutputB: Send> Task for YSplitWrap<Input, Outpu
   fn name(&self) -> &String { &self.name }
   fn input_count(&self) -> usize { 1 }
   fn output_count(&self) -> usize { 2 }
-  fn input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
+  fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
   }
 }

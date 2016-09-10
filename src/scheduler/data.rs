@@ -1,7 +1,9 @@
 
 use std::collections::{HashMap};
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
-use super::super::{Task, Error, TaskState, TaskId, SenderChannelId};
+use super::super::{Task, Error, TaskState, TaskId, SenderChannelId,
+  ReceiverChannelId
+};
 use super::{array, task_id, wrap};
 use super::observer::{TaskObserver};
 use parking_lot::{Mutex};
@@ -73,7 +75,7 @@ impl SchedulerData {
         ids.insert(task.name().clone(), ret_id);
         // resolve input task ids
         for i in 0..input_count {
-          match task.input_id(i) {
+          match task.input_id(ReceiverChannelId(i)) {
             Some(ref ch_id_sender_name) => {
               let ref ch_id_name = ch_id_sender_name.1;
               match ids.get(&ch_id_name.0) {
@@ -139,7 +141,7 @@ impl SchedulerData {
               let mut resolved        = false;
 
               self.apply( task_id, |receiver_task_wrapper| {
-                match unsafe { (*receiver_task_wrapper).input_id(channel_id.receiver_id.0) } {
+                match unsafe { (*receiver_task_wrapper).input_id(channel_id.receiver_id) } {
                   Some(ref channel_id_name) => {
                     let ref channel_name  = channel_id_name.1;
                     match self.resolve_task_id(&channel_name.0) {

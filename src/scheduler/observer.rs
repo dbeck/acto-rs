@@ -9,6 +9,7 @@ pub struct EvalInfo {
 }
 
 impl EvalInfo {
+  #[allow(dead_code)]
   pub fn new(task_id: TaskId, at_usec: &AtomicUsize, eval_id: usize) -> EvalInfo {
     EvalInfo{
       task_id:   task_id,
@@ -23,12 +24,14 @@ impl EvalInfo {
       eval_id:   eval_id
     }
   }
+  #[allow(dead_code)]
   pub fn update_at(&mut self, at_usec: &AtomicUsize) {
     self.at_usec = AbsSchedulerTimeInUsec (at_usec.load(Ordering::Acquire));
   }
   pub fn update_at_with_usec(&mut self, at_usec: usize) {
     self.at_usec = AbsSchedulerTimeInUsec (at_usec);
   }
+  #[allow(dead_code)]
   pub fn get_usec(&self) -> AbsSchedulerTimeInUsec {
     self.at_usec
   }

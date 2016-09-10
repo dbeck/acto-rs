@@ -24,10 +24,10 @@ pub struct GatherWrap<Input: Send, Output: Send> {
 }
 
 impl<Input: Send, Output: Send> IdentifiedInput for GatherWrap<Input,Output> {
-  fn get_input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
-    if ch_id < self.input_rx_vec.len() {
+  fn get_input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
+    if ch_id.0 < self.input_rx_vec.len() {
       let slice = self.input_rx_vec.as_slice();
-      match &slice[ch_id] {
+      match &slice[ch_id.0] {
         &ChannelWrapper::ConnectedReceiver(ref channel_id, ref _receiver, ref sender_name) => {
           Some((*channel_id, sender_name.clone()))
         },
@@ -52,9 +52,9 @@ impl<Input: Send, Output: Send> OutputCounter for GatherWrap<Input,Output> {
 impl<Input: Send, Output: Send> ConnectableN for GatherWrap<Input,Output> {
   type Input = Input;
 
-  fn input(&mut self, n: usize) -> &mut ChannelWrapper<Self::Input> {
+  fn input(&mut self, n: ReceiverChannelId) -> &mut ChannelWrapper<Self::Input> {
     let ret_slice = self.input_rx_vec.as_mut_slice();
-    &mut ret_slice[n]
+    &mut ret_slice[n.0]
   }
 }
 
@@ -66,7 +66,7 @@ impl<Input: Send, Output: Send> Task for GatherWrap<Input,Output> {
   fn input_count(&self) -> usize { self.input_rx_vec.len() }
   fn output_count(&self) -> usize { 1 }
 
-  fn input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
+  fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
   }
 }

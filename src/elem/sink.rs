@@ -19,8 +19,8 @@ pub struct SinkWrap<Input: Send> {
 }
 
 impl<Input: Send> IdentifiedInput for SinkWrap<Input> {
-  fn get_input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
-    if ch_id != 0 {
+  fn get_input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
+    if ch_id.0 != 0 {
       None
     } else {
       match &self.input_rx {
@@ -49,7 +49,7 @@ impl<Input: Send> Task for SinkWrap<Input> {
   fn input_count(&self) -> usize { 1 }
   fn output_count(&self) -> usize { 0 }
 
-  fn input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
+  fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
   }
 }

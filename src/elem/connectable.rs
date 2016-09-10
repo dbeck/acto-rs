@@ -1,4 +1,4 @@
-use super::super::{ChannelWrapper, ChannelId};
+use super::super::{ChannelWrapper, ChannelId, ReceiverChannelId};
 
 pub fn connect_receiver_to_sender<Input: Send>(rcv : &mut ChannelWrapper<Input>,
                                                snd : &mut ChannelWrapper<Input>)
@@ -216,14 +216,14 @@ pub trait ConnectableY {
 pub trait ConnectableN {
   type Input: Send;
 
-  fn input(&mut self, n: usize) -> &mut ChannelWrapper<Self::Input>;
+  fn input(&mut self, n: ReceiverChannelId) -> &mut ChannelWrapper<Self::Input>;
 
-  fn connect(&mut self, n: usize, other: &mut ChannelWrapper<Self::Input>)
+  fn connect(&mut self, n: ReceiverChannelId, other: &mut ChannelWrapper<Self::Input>)
       -> Result<(),String> {
     connect_to(self.input(n), other)
   }
 
-  fn disconnect(&mut self, n: usize, other: &mut ChannelWrapper<Self::Input>)
+  fn disconnect(&mut self, n: ReceiverChannelId, other: &mut ChannelWrapper<Self::Input>)
       -> Result<(),String> {
     disconnect_from(self.input(n), other)
   }
@@ -233,25 +233,25 @@ pub trait ConnectableYN {
   type InputA: Send;
   type InputB: Send;
 
-  fn input_a(&mut self, n: usize) -> &mut ChannelWrapper<Self::InputA>;
-  fn input_b(&mut self, n: usize) -> &mut ChannelWrapper<Self::InputB>;
+  fn input_a(&mut self, n: ReceiverChannelId) -> &mut ChannelWrapper<Self::InputA>;
+  fn input_b(&mut self, n: ReceiverChannelId) -> &mut ChannelWrapper<Self::InputB>;
 
-  fn connect_a(&mut self, n: usize, other: &mut ChannelWrapper<Self::InputA>)
+  fn connect_a(&mut self, n: ReceiverChannelId, other: &mut ChannelWrapper<Self::InputA>)
       -> Result<(),String> {
     connect_to(self.input_a(n), other)
   }
 
-  fn connect_b(&mut self, n: usize, other: &mut ChannelWrapper<Self::InputB>)
+  fn connect_b(&mut self, n: ReceiverChannelId, other: &mut ChannelWrapper<Self::InputB>)
       -> Result<(),String> {
     connect_to(self.input_b(n), other)
   }
 
-  fn disconnect_a(&mut self, n: usize, other: &mut ChannelWrapper<Self::InputA>)
+  fn disconnect_a(&mut self, n: ReceiverChannelId, other: &mut ChannelWrapper<Self::InputA>)
       -> Result<(),String> {
     disconnect_from(self.input_a(n), other)
   }
 
-  fn disconnect_b(&mut self, n: usize, other: &mut ChannelWrapper<Self::InputB>)
+  fn disconnect_b(&mut self, n: ReceiverChannelId, other: &mut ChannelWrapper<Self::InputB>)
       -> Result<(),String> {
     disconnect_from(self.input_b(n), other)
   }

@@ -24,8 +24,8 @@ pub struct ScatterWrap<Input: Send, Output: Send> {
 }
 
 impl<Input: Send, Output: Send> IdentifiedInput for ScatterWrap<Input,Output> {
-  fn get_input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
-    if ch_id != 0 {
+  fn get_input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
+    if ch_id.0 != 0 {
       None
     } else {
       match &self.input_rx {
@@ -66,7 +66,7 @@ impl<Input: Send, Output: Send> Task for ScatterWrap<Input,Output> {
   fn input_count(&self) -> usize { 1 }
   fn output_count(&self) -> usize { self.output_tx_vec.len() }
 
-  fn input_id(&self, ch_id: usize) -> Option<(ChannelId, SenderName)> {
+  fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
   }
 }
