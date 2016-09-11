@@ -119,10 +119,7 @@ impl SchedulerData {
     for w in observer.msg_waits() {
       match w {
         &(task_id, state) => {
-          // TODO
           match state {
-            /*
-            */
             // Note: ch_id here has to be the sender's ch id
             TaskState::MessageWait(sender_id, channel_id, channel_position) => {
               println!("register dependency. {:?} depends on {:?}", task_id, sender_id);
@@ -131,9 +128,7 @@ impl SchedulerData {
               });
             },
 
-            // Note: ch_id is the receiver channel id
             TaskState::MessageWaitNeedSenderId(channel_id, channel_position) => {
-              //
               println!("unresolved dependency. for: {:?} depends on ch:{:?}/{:?}", task_id, channel_id, channel_position);
 
               let mut sender_ch_id    = SenderChannelId(0);
@@ -161,7 +156,6 @@ impl SchedulerData {
 
               if resolved {
                 self.apply( sender_task_id, |sender_task_wrapper| {
-                  // ???????? TODO
                   unsafe { (*sender_task_wrapper).register_dependent(channel_id, task_id, channel_position); };
                 });
               }
