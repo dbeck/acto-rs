@@ -168,6 +168,10 @@ impl TaskObserver {
   pub fn msg_waits(&self) -> &Vec<(TaskId, TaskState)> {
     &self.msg_waits
   }
+
+  pub fn msg_triggers(&self) -> &Vec<TaskId> {
+    &self.msg_triggers
+  }
 }
 
 impl Observer for TaskObserver {

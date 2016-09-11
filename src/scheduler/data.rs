@@ -121,51 +121,61 @@ impl SchedulerData {
 
     // process msg wait dependencies
     for w in observer.msg_waits() {
-      match w {
-        &(task_id, state) => {
-          match state {
-            TaskState::MessageWait(sender_id, channel_id, channel_position) => {
-              println!("register dependency. {:?} depends on {:?}", task_id, sender_id);
-              self.apply( TaskId (sender_id.0), |sender_task_wrapper| {
-                unsafe { (*sender_task_wrapper).register_dependent(channel_id, task_id, channel_position); };
-              });
-            },
+      let &(task_id, state) = w;
+      match state {
+        TaskState::MessageWait(sender_id, channel_id, channel_position) => {
+          println!("register dependency. {:?} depends on {:?}", task_id, sender_id);
+          self.apply( TaskId (sender_id.0), |sender_task_wrapper| {
+            unsafe { (*sender_task_wrapper).register_dependent(channel_id, task_id, channel_position); };
+          });
+        },
 
-            TaskState::MessageWaitNeedSenderId(channel_id, channel_position) => {
-              println!("unresolved dependency. for: {:?} depends on ch:{:?}/{:?}", task_id, channel_id, channel_position);
+        TaskState::MessageWaitNeedSenderId(channel_id, channel_position) => {
+          println!("unresolved dependency. for: {:?} depends on ch:{:?}/{:?}", task_id, channel_id, channel_position);
 
-              let mut sender_ch_id    = SenderChannelId(0);
-              let mut sender_task_id  = TaskId(0);
-              let mut resolved        = false;
+          let mut sender_ch_id    = SenderChannelId(0);
+          let mut sender_task_id  = TaskId(0);
+          let mut resolved        = false;
 
-              self.apply( task_id, |receiver_task_wrapper| {
-                match unsafe { (*receiver_task_wrapper).input_id(channel_id.receiver_id) } {
-                  Some(ref channel_id_name) => {
-                    let ref channel_name  = channel_id_name.1;
-                    match self.resolve_task_id(&channel_name.0) {
-                      Some(sender_id) => {
-                        unsafe { (*receiver_task_wrapper).resolve_input_task_id(channel_id, sender_id); };
-                        sender_task_id   = sender_id;
-                        sender_ch_id     = channel_id.sender_id;
-                        resolved         = true;
-                        println!("resolved: {:?} for task_id:{:?} sender_id:{:?}", channel_id, task_id, sender_id);
-                      },
-                      None => {},
-                    }
+          self.apply( task_id, |receiver_task_wrapper| {
+            match unsafe { (*receiver_task_wrapper).input_id(channel_id.receiver_id) } {
+              Some(ref channel_id_name) => {
+                let ref channel_name  = channel_id_name.1;
+                match self.resolve_task_id(&channel_name.0) {
+                  Some(sender_id) => {
+                    unsafe { (*receiver_task_wrapper).resolve_input_task_id(channel_id, sender_id); };
+                    sender_task_id   = sender_id;
+                    sender_ch_id     = channel_id.sender_id;
+                    resolved         = true;
+                    println!("resolved: {:?} for task_id:{:?} sender_id:{:?}", channel_id, task_id, sender_id);
                   },
                   None => {},
                 }
-              });
+              },
+              None => {},
+            }
+          });
 
-              if resolved {
-                self.apply( sender_task_id, |sender_task_wrapper| {
-                  unsafe { (*sender_task_wrapper).register_dependent(channel_id, task_id, channel_position); };
-                });
-              }
-            },
-
-            _ => {},
+          if resolved {
+            self.apply( sender_task_id, |sender_task_wrapper| {
+              unsafe { (*sender_task_wrapper).register_dependent(channel_id, task_id, channel_position); };
+            });
           }
+        },
+
+        _ => {},
+      }
+    }
+
+    {
+      let to_trigger : &Vec<TaskId> = observer.msg_triggers();
+      if to_trigger.len() > 0 {
+        let mut reporter = TaskObserver::new(to_trigger.capacity());
+
+        for t in observer.msg_triggers() {
+          self.apply( *t, |task_wrapper| {
+            unsafe { (*task_wrapper).trigger_message(&mut reporter, &self.time_us); };
+          });
         }
       }
     }
