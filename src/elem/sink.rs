@@ -3,6 +3,7 @@ use super::super::{Task, Schedule, ChannelWrapper, ChannelId, SenderName,
 };
 use super::connectable::{Connectable};
 use super::identified_input::{IdentifiedInput};
+use super::counter::{InputCounter};
 
 pub trait Sink {
   type InputType : Send;
@@ -33,6 +34,20 @@ impl<Input: Send> IdentifiedInput for SinkWrap<Input> {
   }
 }
 
+impl<Input: Send> InputCounter for SinkWrap<Input> {
+  fn get_rx_count(&self, ch_id: ReceiverChannelId) -> usize {
+    if ch_id.0 == 0 {
+      if let &ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) = &self.input_rx {
+        receiver.seqno()
+      } else {
+        0
+      }
+    } else {
+      0
+    }
+  }
+}
+
 impl<Input: Send> Connectable for SinkWrap<Input> {
   type Input = Input;
 
@@ -52,6 +67,10 @@ impl<Input: Send> Task for SinkWrap<Input> {
 
   fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
+  }
+
+  fn input_channel_pos(&self, ch_id: ReceiverChannelId) -> ChannelPosition {
+    ChannelPosition( self.get_rx_count(ch_id) )
   }
 
   fn output_channel_pos(&self, _ch_id: SenderChannelId) -> ChannelPosition { ChannelPosition(0) }

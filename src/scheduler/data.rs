@@ -2,7 +2,7 @@
 use std::collections::{HashMap};
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
 use super::super::{Task, Error, TaskState, TaskId, SenderChannelId,
-  ReceiverChannelId
+  ReceiverChannelId, ChannelPosition
 };
 use super::{array, task_id, wrap};
 use super::observer::{TaskObserver};
@@ -124,14 +124,27 @@ impl SchedulerData {
       let &(task_id, state) = w;
       match state {
         TaskState::MessageWait(sender_id, channel_id, channel_position) => {
-          println!("register dependency. {:?} depends on {:?}", task_id, sender_id);
+          //println!("register dependency. {:?} depends on {:?}", task_id, sender_id);
+          let mut immediate_release = false;
           self.apply( TaskId (sender_id.0), |sender_task_wrapper| {
-            unsafe { (*sender_task_wrapper).register_dependent(channel_id, task_id, channel_position); };
+            let res = unsafe { (*sender_task_wrapper).register_dependent(channel_id, task_id, channel_position) };
+            if res.is_err() {
+              //println!("failed to register dependent. {:?}",res.err());
+              immediate_release = true;
+            }
           });
+          if immediate_release {
+            let mut reporter = TaskObserver::new(observer.msg_triggers().capacity());
+            self.apply( task_id, |sender_task_wrapper| {
+              unsafe { (*sender_task_wrapper).trigger_message_immediate(
+                &mut reporter,
+                &self.time_us); };
+            });
+          }
         },
 
         TaskState::MessageWaitNeedSenderId(channel_id, channel_position) => {
-          println!("unresolved dependency. for: {:?} depends on ch:{:?}/{:?}", task_id, channel_id, channel_position);
+          //println!("unresolved dependency. for: {:?} depends on ch:{:?}/{:?}", task_id, channel_id, channel_position);
 
           let mut sender_ch_id    = SenderChannelId(0);
           let mut sender_task_id  = TaskId(0);
@@ -147,7 +160,7 @@ impl SchedulerData {
                     sender_task_id   = sender_id;
                     sender_ch_id     = channel_id.sender_id;
                     resolved         = true;
-                    println!("resolved: {:?} for task_id:{:?} sender_id:{:?}", channel_id, task_id, sender_id);
+                    //println!("resolved: {:?} for task_id:{:?} sender_id:{:?}", channel_id, task_id, sender_id);
                   },
                   None => {},
                 }
@@ -157,9 +170,22 @@ impl SchedulerData {
           });
 
           if resolved {
+            let mut immediate_release = false;
             self.apply( sender_task_id, |sender_task_wrapper| {
-              unsafe { (*sender_task_wrapper).register_dependent(channel_id, task_id, channel_position); };
+              let res = unsafe { (*sender_task_wrapper).register_dependent(channel_id, task_id, channel_position) };
+              if res.is_err() {
+                //println!("failed to register dependent. {:?}",res.err());
+                immediate_release = true;
+              }
             });
+            if immediate_release {
+              let mut reporter = TaskObserver::new(observer.msg_triggers().capacity());
+              self.apply( task_id, |sender_task_wrapper| {
+                unsafe { (*sender_task_wrapper).trigger_message_immediate(
+                  &mut reporter,
+                  &self.time_us); };
+              });
+            }
           }
         },
 
@@ -168,13 +194,16 @@ impl SchedulerData {
     }
 
     {
-      let to_trigger : &Vec<TaskId> = observer.msg_triggers();
+      let to_trigger : &Vec<(TaskId, ChannelPosition)> = observer.msg_triggers();
       if to_trigger.len() > 0 {
         let mut reporter = TaskObserver::new(to_trigger.capacity());
 
-        for t in observer.msg_triggers() {
-          self.apply( *t, |task_wrapper| {
-            unsafe { (*task_wrapper).trigger_message(&mut reporter, &self.time_us); };
+        for &(t_task_id, t_channel_pos) in observer.msg_triggers() {
+          self.apply( t_task_id, |task_wrapper| {
+            unsafe { (*task_wrapper).trigger_message(
+              t_channel_pos,
+              &mut reporter,
+              &self.time_us); };
           });
         }
       }

@@ -4,7 +4,7 @@ use super::super::{Task, Message, Schedule, ChannelWrapper, ChannelId, SenderNam
 };
 use super::connectable::{ConnectableY};
 use super::identified_input::{IdentifiedInput};
-use super::output_counter::{OutputCounter};
+use super::counter::{OutputCounter, InputCounter};
 
 pub trait YMerge {
   type InputTypeA   : Send;
@@ -48,6 +48,28 @@ impl<InputA: Send, InputB: Send, Output: Send> IdentifiedInput for YMergeWrap<In
   }
 }
 
+impl<InputA: Send, InputB: Send, Output: Send> InputCounter for YMergeWrap<InputA, InputB, Output> {
+  fn get_rx_count(&self, ch_id: ReceiverChannelId) -> usize {
+    if ch_id.0 > 1 {
+      0
+    } else if ch_id.0 == 0 {
+      match &self.input_a_rx {
+        &ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) => {
+          receiver.seqno()
+        },
+        _ => 0
+      }
+    } else {
+      match &self.input_b_rx {
+        &ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) => {
+          receiver.seqno()
+        },
+        _ => 0
+      }
+    }
+  }
+}
+
 impl<InputA: Send, InputB: Send, Output: Send> OutputCounter for YMergeWrap<InputA, InputB, Output> {
   fn get_tx_count(&self, ch_id: SenderChannelId) -> usize {
     if ch_id.0 == 0 {
@@ -84,6 +106,11 @@ impl<InputA: Send, InputB: Send, Output: Send> Task for YMergeWrap<InputA, Input
   fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
   }
+
+  fn input_channel_pos(&self, ch_id: ReceiverChannelId) -> ChannelPosition {
+    ChannelPosition( self.get_rx_count(ch_id) )
+  }
+
   fn output_channel_pos(&self, ch_id: SenderChannelId) -> ChannelPosition {
     ChannelPosition( self.get_tx_count(ch_id) )
   }

@@ -4,7 +4,7 @@ use super::super::{Task, Message, Schedule, ChannelWrapper, ChannelId,
 };
 use super::connectable::{ConnectableN};
 use super::identified_input::{IdentifiedInput};
-use super::output_counter::{OutputCounter};
+use super::counter::{OutputCounter, InputCounter};
 
 pub trait Gather {
   type InputType   : Send;
@@ -39,6 +39,22 @@ impl<Input: Send, Output: Send> IdentifiedInput for GatherWrap<Input,Output> {
   }
 }
 
+impl<Input: Send, Output: Send> InputCounter for GatherWrap<Input,Output> {
+  fn get_rx_count(&self, ch_id: ReceiverChannelId) -> usize {
+    if ch_id.0 < self.input_rx_vec.len() {
+      let slice = self.input_rx_vec.as_slice();
+      match &slice[ch_id.0] {
+        &ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) => {
+          receiver.seqno()
+        },
+        _ => 0,
+      }
+    } else {
+      0
+    }
+  }
+}
+
 impl<Input: Send, Output: Send> OutputCounter for GatherWrap<Input,Output> {
   fn get_tx_count(&self, ch_id: SenderChannelId) -> usize {
     if ch_id.0 == 0 {
@@ -68,6 +84,10 @@ impl<Input: Send, Output: Send> Task for GatherWrap<Input,Output> {
 
   fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
+  }
+
+  fn input_channel_pos(&self, ch_id: ReceiverChannelId) -> ChannelPosition {
+    ChannelPosition( self.get_rx_count(ch_id) )
   }
 
   fn output_channel_pos(&self, ch_id: SenderChannelId) -> ChannelPosition {

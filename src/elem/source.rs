@@ -2,7 +2,7 @@ use lossyq::spsc::{Sender, channel};
 use super::super::{Task, Message, Schedule, ChannelId, SenderName,
   ChannelWrapper, SenderChannelId, ReceiverChannelId, ChannelPosition
 };
-use super::output_counter::{OutputCounter};
+use super::counter::{OutputCounter};
 
 pub trait Source {
   type OutputType : Send;
@@ -38,6 +38,10 @@ impl<Output: 'static+Send> Task for SourceWrap<Output> {
 
   fn input_id(&self, _ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     None
+  }
+
+  fn input_channel_pos(&self, _ch_id: ReceiverChannelId) -> ChannelPosition {
+    ChannelPosition( 0 )
   }
 
   fn output_channel_pos(&self, ch_id: SenderChannelId) -> ChannelPosition {

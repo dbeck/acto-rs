@@ -36,6 +36,13 @@ impl TaskWrap {
     match event {
       &Event::Execute | &Event::ExtTrigger | &Event::MessageArrived | &Event::TimerExpired =>
         {
+          if let &Event::Execute = event {
+            //
+          } else {
+            // record original transition
+            observer.transition(&old_state, event, &self.state, &info);
+          }
+
           // execute the task, save the schedule request
           let evt = self.task.execute();
 
@@ -48,22 +55,28 @@ impl TaskWrap {
           self.state = match evt {
             Schedule::Loop => TaskState::Execute,
             Schedule::OnMessage(channel_id, channel_position) => {
-              let receiver_channel_id = channel_id.receiver_id.0;
-              // who is the sender task?
-              // check the input_ids vector for cached task ids
-              let len = self.input_ids.len();
-              if receiver_channel_id < len {
-                let slice = self.input_ids.as_mut_slice();
-                match slice[receiver_channel_id] {
-                  None => {
-                    TaskState::MessageWaitNeedSenderId(channel_id, channel_position)
-                  },
-                  Some(sender_task_id) => {
-                    TaskState::MessageWait(SenderId(sender_task_id), channel_id, channel_position)
-                  }
-                }
+              let act_channel_pos = self.task.input_channel_pos(channel_id.receiver_id);
+              if act_channel_pos.0 >= channel_position.0 {
+                // the channel already at the requested position
+                TaskState::Execute
               } else {
-                TaskState::MessageWaitNeedSenderId(channel_id, channel_position)
+                let receiver_channel_id = channel_id.receiver_id.0;
+                // who is the sender task?
+                // check the input_ids vector for cached task ids
+                let len = self.input_ids.len();
+                if receiver_channel_id < len {
+                  let slice = self.input_ids.as_mut_slice();
+                  match slice[receiver_channel_id] {
+                    None => {
+                      TaskState::MessageWaitNeedSenderId(channel_id, channel_position)
+                    },
+                    Some(sender_task_id) => {
+                      TaskState::MessageWait(SenderId(sender_task_id), channel_id, channel_position)
+                    }
+                  }
+                } else {
+                  TaskState::MessageWaitNeedSenderId(channel_id, channel_position)
+                }
               }
             }
             Schedule::DelayUsec(us)
@@ -84,6 +97,7 @@ impl TaskWrap {
             let slice    = self.dependents.as_mut_slice();
 
             loop {
+              //println!(" -- trigger? pos:{}, dep_len:{}, n_dep:{}",pos, dep_len, self.n_dependents);
               if self.n_dependents == 0 { break; }
               if pos >= dep_len { break; }
               let mut act_dep : Option<Dependent> = None;
@@ -150,6 +164,22 @@ impl TaskWrap {
         => Event::TimerExpired,
       TaskState::ExtEventWait(threshold)
         if self.ext_evt_count.load(Ordering::Acquire) >= threshold.0 => Event::ExtTrigger,
+      TaskState::MessageWait(_sender_id, channel_id, channel_position) => {
+        let act_channel_pos = self.task.input_channel_pos(channel_id.receiver_id);
+        if act_channel_pos.0 >= channel_position.0 {
+          Event::MessageArrived
+        } else {
+          Event::Delay
+        }
+      },
+      TaskState::MessageWaitNeedSenderId(channel_id, channel_position) => {
+        let act_channel_pos = self.task.input_channel_pos(channel_id.receiver_id);
+        if act_channel_pos.0 >= channel_position.0 {
+          Event::MessageArrived
+        } else {
+          Event::Delay
+        }
+      }
       _ => Event::Delay,
     };
 
@@ -163,8 +193,28 @@ impl TaskWrap {
   }
 
   pub fn trigger_message(&mut self,
+                         channel_position: ChannelPosition,
                          observer: &mut Observer,
                          time_us: &AtomicUsize)
+  {
+    let old_state = self.state;
+    if let TaskState::MessageWait(_sender_id, _channel_id, requested_channel_position) = old_state {
+      self.eval_id += 1;
+      let mut event = Event::Delay;
+      if channel_position.0 >= requested_channel_position.0 {
+        event = Event::MessageArrived;
+        self.state = TaskState::Execute;
+      }
+      let info = EvalInfo::new(self.id, time_us, self.eval_id);
+      observer.transition(&old_state, &event, &self.state, &info);
+    } else {
+      //println!("unexpected state: state:{:?} id:{:?}", old_state, self.id);
+    }
+  }
+
+  pub fn trigger_message_immediate(&mut self,
+                                   observer: &mut Observer,
+                                   time_us: &AtomicUsize)
   {
     let old_state = self.state;
     if let TaskState::MessageWait(_sender_id, _channel_id, _channel_position) = old_state {
@@ -172,22 +222,34 @@ impl TaskWrap {
       let info = EvalInfo::new(self.id, time_us, self.eval_id);
       self.state = TaskState::Execute;
       observer.transition(&old_state, &Event::MessageArrived, &self.state, &info);
+    } else {
+      //println!("unexpected state: state:{:?} id:{:?}", old_state, self.id);
     }
   }
 
-  pub fn register_dependent(&mut self, ch: ChannelId, dep_task_id: TaskId, channel_pos: ChannelPosition) {
+  pub fn register_dependent(&mut self, ch: ChannelId, dep_task_id: TaskId, channel_pos: ChannelPosition)
+      -> Result<(),&str>
+  {
     use std::mem;
     let n_outputs = self.dependents.len();
     if ch.sender_id.0 < n_outputs {
-      let slice = self.dependents.as_mut_slice();
-      let mut opt = Some(Dependent{task_id:dep_task_id, channel_position:channel_pos});
-      mem::swap(&mut opt, &mut slice[ch.sender_id.0]);
-      println!("register_dependent of({:?}:{}) dep:{:?} ch:{:?} pos:{:?}",
-        self.id, self.task.name(), dep_task_id, ch, channel_pos);
-      match opt {
-        None => { self.n_dependents += 1; },
-        _    => { }
+      let act_channel_pos = self.task.output_channel_pos(ch.sender_id);
+      if act_channel_pos.0 >= channel_pos.0 {
+        Err("channel already passes the required channel_pos")
+      } else {
+        let slice = self.dependents.as_mut_slice();
+        let mut opt = Some(Dependent{task_id:dep_task_id, channel_position:channel_pos});
+        mem::swap(&mut opt, &mut slice[ch.sender_id.0]);
+        //println!("register_dependent of({:?}:{}) dep:{:?} ch:{:?} pos:{:?}",
+          //self.id, self.task.name(), dep_task_id, ch, channel_pos);
+        match opt {
+          None => { self.n_dependents += 1; },
+          _    => { }
+        }
+        Ok(())
       }
+    } else {
+      Err("sender id is greater than n_outputs. internal error.")
     }
   }
 

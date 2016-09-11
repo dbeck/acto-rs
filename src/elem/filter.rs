@@ -4,7 +4,7 @@ use super::super::{Task, Message, Schedule, ChannelWrapper, ChannelId,
 };
 use super::connectable::{Connectable};
 use super::identified_input::{IdentifiedInput};
-use super::output_counter::{OutputCounter};
+use super::counter::{OutputCounter, InputCounter};
 
 pub trait Filter {
   type InputType   : Send;
@@ -38,6 +38,20 @@ impl<Input: Send, Output: Send> IdentifiedInput for FilterWrap<Input,Output> {
   }
 }
 
+impl<Input: Send, Output: Send> InputCounter for FilterWrap<Input,Output> {
+  fn get_rx_count(&self, ch_id: ReceiverChannelId) -> usize {
+    if ch_id.0 == 0 {
+      if let &ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) = &self.input_rx {
+        receiver.seqno()
+      } else {
+        0
+      }
+    } else {
+      0
+    }
+  }
+}
+
 impl<Input: Send, Output: Send> OutputCounter for FilterWrap<Input,Output> {
   fn get_tx_count(&self, ch_id: SenderChannelId) -> usize {
     if ch_id.0 == 0 {
@@ -67,6 +81,11 @@ impl<Input: Send, Output: Send> Task for FilterWrap<Input,Output> {
   fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
   }
+
+  fn input_channel_pos(&self, ch_id: ReceiverChannelId) -> ChannelPosition {
+    ChannelPosition( self.get_rx_count(ch_id) )
+  }
+
   fn output_channel_pos(&self, ch_id: SenderChannelId) -> ChannelPosition {
     ChannelPosition( self.get_tx_count(ch_id) )
   }

@@ -7,7 +7,7 @@ pub mod scatter;
 pub mod gather;
 pub mod connectable;
 pub mod identified_input;
-pub mod output_counter;
+pub mod counter;
 
 #[cfg(test)]
 pub mod tests;
