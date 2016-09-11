@@ -101,6 +101,7 @@ pub trait Task {
   fn input_count(&self) -> usize;
   fn output_count(&self) -> usize;
   fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)>;
+  fn output_channel_pos(&self, ch_id: SenderChannelId) -> ChannelPosition;
 }
 
 pub enum ChannelWrapper<Input: Send> {

@@ -9,7 +9,6 @@ pub struct EvalInfo {
 }
 
 impl EvalInfo {
-  #[allow(dead_code)]
   pub fn new(task_id: TaskId, at_usec: &AtomicUsize, eval_id: usize) -> EvalInfo {
     EvalInfo{
       task_id:   task_id,
@@ -54,9 +53,9 @@ pub struct CountingReporter {
   pub time_wait:   usize,
   pub msg_wait:    usize,
   pub ext_wait:    usize,
-  // pub sent:        usize,
   pub channel:     usize,
   pub transition:  usize,
+  pub triggered:   usize,
 }
 
 #[allow(dead_code)]
@@ -70,9 +69,9 @@ impl CountingReporter {
       time_wait:   0,
       msg_wait:    0,
       ext_wait:    0,
-      // sent:        0,
       channel:     0,
       transition:  0,
+      triggered:   0,
     }
   }
 
@@ -92,6 +91,7 @@ impl Observer for CountingReporter {
   }
 
   fn msg_trigger(&mut self, _target_task: TaskId, _last_msg_id: ChannelPosition, _info: &EvalInfo) {
+    self.triggered += 1;
   }
 
   fn transition(&mut self, from: &TaskState, event: &Event, to: &TaskState, info: &EvalInfo) {
@@ -147,15 +147,17 @@ impl Observer for TaskTracer {
 
 #[derive(Clone,Debug)]
 pub struct TaskObserver {
-  exec_count:   u64,
-  msg_waits:    Vec<(TaskId, TaskState)>,
+  exec_count:     u64,
+  msg_waits:      Vec<(TaskId, TaskState)>,
+  msg_triggers:   Vec<TaskId>,
 }
 
 impl TaskObserver {
   pub fn new(n_tasks: usize) -> TaskObserver {
     TaskObserver{
-      exec_count: 0,
-      msg_waits:  Vec::with_capacity(n_tasks),
+      exec_count:   0,
+      msg_waits:    Vec::with_capacity(n_tasks),
+      msg_triggers: Vec::with_capacity(n_tasks),
     }
   }
 
@@ -187,9 +189,3 @@ impl Observer for TaskObserver {
   fn eval_started(&mut self, _info: &EvalInfo) {}
   fn eval_finished(&mut self, _info: &EvalInfo) {}
 }
-
-//impl Drop for TaskObserver {
-//  fn drop(&mut self) {
-//    //println!("Drop {:?}",*self);
-//  }
-//}

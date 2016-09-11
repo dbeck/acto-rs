@@ -1,5 +1,5 @@
 use super::super::{Task, Schedule, ChannelWrapper, ChannelId, SenderName,
-  ReceiverChannelId, ReceiverName
+  ReceiverChannelId, ReceiverName, SenderChannelId, ChannelPosition
 };
 use super::connectable::{Connectable};
 use super::identified_input::{IdentifiedInput};
@@ -45,6 +45,7 @@ impl<Input: Send> Task for SinkWrap<Input> {
   fn execute(&mut self) -> Schedule {
     self.state.process(&mut self.input_rx)
   }
+
   fn name(&self) -> &String { &self.name }
   fn input_count(&self) -> usize { 1 }
   fn output_count(&self) -> usize { 0 }
@@ -52,6 +53,8 @@ impl<Input: Send> Task for SinkWrap<Input> {
   fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
   }
+
+  fn output_channel_pos(&self, _ch_id: SenderChannelId) -> ChannelPosition { ChannelPosition(0) }
 }
 
 pub fn new<Input: Send>(

@@ -1,6 +1,6 @@
 use lossyq::spsc::{Sender, channel};
 use super::super::{Task, Message, Schedule, ChannelWrapper, ChannelId,
-  SenderName, SenderChannelId, ReceiverChannelId, ReceiverName
+  SenderName, SenderChannelId, ReceiverChannelId, ReceiverName, ChannelPosition
 };
 use super::connectable::{ConnectableN};
 use super::identified_input::{IdentifiedInput};
@@ -40,8 +40,8 @@ impl<Input: Send, Output: Send> IdentifiedInput for GatherWrap<Input,Output> {
 }
 
 impl<Input: Send, Output: Send> OutputCounter for GatherWrap<Input,Output> {
-  fn get_tx_count(&self, ch_id: usize) -> usize {
-    if ch_id == 0 {
+  fn get_tx_count(&self, ch_id: SenderChannelId) -> usize {
+    if ch_id.0 == 0 {
       self.output_tx.seqno()
     } else {
       0
@@ -68,6 +68,10 @@ impl<Input: Send, Output: Send> Task for GatherWrap<Input,Output> {
 
   fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
+  }
+
+  fn output_channel_pos(&self, ch_id: SenderChannelId) -> ChannelPosition {
+    ChannelPosition( self.get_tx_count(ch_id) )
   }
 }
 

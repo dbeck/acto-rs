@@ -1,6 +1,6 @@
 use lossyq::spsc::{Sender, channel};
 use super::super::{Task, Message, Schedule, ChannelWrapper, ChannelId,
-  SenderName, SenderChannelId, ReceiverChannelId, ReceiverName
+  SenderName, SenderChannelId, ReceiverChannelId, ReceiverName, ChannelPosition
 };
 use super::connectable::{Connectable};
 use super::identified_input::{IdentifiedInput};
@@ -39,10 +39,10 @@ impl<Input: Send, Output: Send> IdentifiedInput for ScatterWrap<Input,Output> {
 }
 
 impl<Input: Send, Output: Send> OutputCounter for ScatterWrap<Input,Output> {
-  fn get_tx_count(&self, ch_id: usize) -> usize {
-    if ch_id < self.output_tx_vec.len() {
+  fn get_tx_count(&self, ch_id: SenderChannelId) -> usize {
+    if ch_id.0 < self.output_tx_vec.len() {
       let otx_slice = self.output_tx_vec.as_slice();
-      otx_slice[ch_id].seqno()
+      otx_slice[ch_id.0].seqno()
     } else {
       0
     }
@@ -62,12 +62,17 @@ impl<Input: Send, Output: Send> Task for ScatterWrap<Input,Output> {
     self.state.process(&mut self.input_rx,
                        &mut self.output_tx_vec)
   }
+
   fn name(&self) -> &String { &self.name }
   fn input_count(&self) -> usize { 1 }
   fn output_count(&self) -> usize { self.output_tx_vec.len() }
 
   fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
+  }
+
+  fn output_channel_pos(&self, ch_id: SenderChannelId) -> ChannelPosition {
+    ChannelPosition( self.get_tx_count(ch_id) )
   }
 }
 

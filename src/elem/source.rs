@@ -1,6 +1,7 @@
 use lossyq::spsc::{Sender, channel};
 use super::super::{Task, Message, Schedule, ChannelId, SenderName,
-  ChannelWrapper, SenderChannelId, ReceiverChannelId};
+  ChannelWrapper, SenderChannelId, ReceiverChannelId, ChannelPosition
+};
 use super::output_counter::{OutputCounter};
 
 pub trait Source {
@@ -18,8 +19,8 @@ pub struct SourceWrap<Output: Send> {
 }
 
 impl<Output: 'static+Send> OutputCounter for SourceWrap<Output> {
-  fn get_tx_count(&self, ch_id: usize) -> usize {
-    if ch_id == 0 {
+  fn get_tx_count(&self, ch_id: SenderChannelId) -> usize {
+    if ch_id.0 == 0 {
       self.output_tx.seqno()
     } else {
       0
@@ -37,6 +38,10 @@ impl<Output: 'static+Send> Task for SourceWrap<Output> {
 
   fn input_id(&self, _ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     None
+  }
+
+  fn output_channel_pos(&self, ch_id: SenderChannelId) -> ChannelPosition {
+    ChannelPosition( self.get_tx_count(ch_id) )
   }
 }
 

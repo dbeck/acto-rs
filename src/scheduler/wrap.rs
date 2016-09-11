@@ -1,9 +1,10 @@
 use super::super::{Task, Schedule, TaskState, Event, AbsSchedulerTimeInUsec,
   ExtEventSeqno, ChannelId, SenderName, SenderId,
-  TaskId, ChannelPosition, ReceiverChannelId
+  TaskId, ChannelPosition, ReceiverChannelId, SenderChannelId
 };
 use super::observer::{Observer, EvalInfo};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::mem;
 
 #[allow(dead_code)]
 struct Dependent {
@@ -28,26 +29,6 @@ impl TaskWrap {
     self.task.input_id(ch_id)
   }
 
-  /*
-  fn execute(&mut self, observer: &mut Observer, time_us: &AtomicUsize) -> Schedule {
-    let evt = self.task.execute();
-    let info = EvalInfo::new(self.id, self.task.name(), time_us, self.eval_id);
-    observer.executed(&info);
-
-    //let ln = self.tx_counts.len();
-    //let otx_slice = self.tx_counts.as_mut_slice();
-    //for i in 0..ln {
-    //  let new_msg_id = self.task.tx_count(i);
-    //  if otx_slice[i] != new_msg_id {
-    //    observer.message_sent(i, new_msg_id, &info);
-    //    otx_slice[i] = new_msg_id;
-    //  }
-    //}
-
-    evt
-  }
-  */
-
   fn process(&mut self, event: &Event, observer: &mut Observer, time_us: &AtomicUsize, info: &mut EvalInfo) {
     let old_state = self.state;
 
@@ -55,28 +36,30 @@ impl TaskWrap {
     match event {
       &Event::Execute | &Event::ExtTrigger | &Event::MessageArrived | &Event::TimerExpired =>
         {
+          // execute the task, save the schedule request
           let evt = self.task.execute();
+
+          // record statistics about the execution
           let now = time_us.load(Ordering::Acquire);
           info.update_at_with_usec(now);
           observer.executed(&info);
 
+          // check what the schedule tells us
           self.state = match evt {
             Schedule::Loop => TaskState::Execute,
             Schedule::OnMessage(channel_id, channel_position) => {
               let receiver_channel_id = channel_id.receiver_id.0;
               // who is the sender task?
-              // -- input_ids:        Vec<Option<usize>>,
+              // check the input_ids vector for cached task ids
               let len = self.input_ids.len();
-              if len == 0 {
-                TaskState::Execute
-              } else if receiver_channel_id < len {
+              if receiver_channel_id < len {
                 let slice = self.input_ids.as_mut_slice();
                 match slice[receiver_channel_id] {
                   None => {
                     TaskState::MessageWaitNeedSenderId(channel_id, channel_position)
                   },
                   Some(sender_task_id) => {
-                    TaskState::MessageWait(SenderId (sender_task_id), channel_id, channel_position)
+                    TaskState::MessageWait(SenderId(sender_task_id), channel_id, channel_position)
                   }
                 }
               } else {
@@ -90,7 +73,40 @@ impl TaskWrap {
             Schedule::Stop
               => TaskState::Stop,
           };
+
+          // record state transition
           observer.transition(&old_state, &Event::User(evt), &self.state, &info);
+
+          // check if there are any dependents to trigger
+          {
+            let mut pos  = 0;
+            let dep_len  = self.dependents.len();
+            let slice    = self.dependents.as_mut_slice();
+
+            loop {
+              if self.n_dependents == 0 { break; }
+              if pos >= dep_len { break; }
+              let mut act_dep : Option<Dependent> = None;
+              mem::swap(&mut act_dep, &mut slice[pos]);
+              if let Some(dep_swapped) = act_dep {
+                let channel_pos = self.task.output_channel_pos(SenderChannelId(pos));
+                if channel_pos.0 >= dep_swapped.channel_position.0 {
+                  self.n_dependents -= 1;
+                  // tell the scheduler, that the dependent task may become
+                  // eligible to run
+                  observer.msg_trigger(
+                    dep_swapped.task_id,
+                    channel_pos,
+                    &info);
+                } else {
+                  // the channel positions is not yet what is needed
+                  let mut place_dep_back = Some(dep_swapped);
+                  mem::swap(&mut place_dep_back, &mut slice[pos]);
+                }
+              }
+              pos += 1;
+            }
+          }
         },
       _ =>
         {
@@ -144,6 +160,19 @@ impl TaskWrap {
 
   pub fn notify(&mut self) -> usize {
     self.ext_evt_count.fetch_add(1, Ordering::AcqRel) + 1
+  }
+
+  pub fn trigger_message(&mut self,
+                         observer: &mut Observer,
+                         time_us: &AtomicUsize)
+  {
+    let old_state = self.state;
+    if let TaskState::MessageWait(_sender_id, _channel_id, _channel_position) = old_state {
+      self.eval_id += 1;
+      let info = EvalInfo::new(self.id, time_us, self.eval_id);
+      self.state = TaskState::Execute;
+      observer.transition(&old_state, &Event::MessageArrived, &self.state, &info);
+    }
   }
 
   pub fn register_dependent(&mut self, ch: ChannelId, dep_task_id: TaskId, channel_pos: ChannelPosition) {

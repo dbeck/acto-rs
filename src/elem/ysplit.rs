@@ -1,6 +1,6 @@
 use lossyq::spsc::{Sender, channel};
 use super::super::{Task, Message, Schedule, ChannelWrapper, ChannelId,
-  SenderChannelId, ReceiverChannelId, ReceiverName, SenderName
+  SenderChannelId, ReceiverChannelId, ReceiverName, SenderName, ChannelPosition
 };
 use super::connectable::{Connectable};
 use super::identified_input::{IdentifiedInput};
@@ -42,10 +42,10 @@ impl<Input: Send, OutputA: Send, OutputB: Send> IdentifiedInput for YSplitWrap<I
 }
 
 impl<Input: Send, OutputA: Send, OutputB: Send> OutputCounter for  YSplitWrap<Input, OutputA, OutputB> {
-  fn get_tx_count(&self, ch_id: usize) -> usize {
-    if ch_id == 0 {
+  fn get_tx_count(&self, ch_id: SenderChannelId) -> usize {
+    if ch_id.0 == 0 {
       self.output_a_tx.seqno()
-    } else if ch_id == 1 {
+    } else if ch_id.0 == 1 {
       self.output_b_tx.seqno()
     } else {
       0
@@ -67,11 +67,17 @@ impl<Input: Send, OutputA: Send, OutputB: Send> Task for YSplitWrap<Input, Outpu
                        &mut self.output_a_tx,
                        &mut self.output_b_tx)
   }
+
   fn name(&self) -> &String { &self.name }
   fn input_count(&self) -> usize { 1 }
   fn output_count(&self) -> usize { 2 }
+
   fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     self.get_input_id(ch_id)
+  }
+
+  fn output_channel_pos(&self, ch_id: SenderChannelId) -> ChannelPosition {
+    ChannelPosition( self.get_tx_count(ch_id) )
   }
 }
 
