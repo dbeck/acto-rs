@@ -1,7 +1,6 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::sync::Arc;
 use parking_lot::{Mutex, Condvar};
-use time;
 
 #[derive(Clone)]
 pub struct Event {
@@ -24,8 +23,9 @@ impl Event {
 
   pub fn wait(&mut self, ticket: u64, timeout_usec: u64) -> u64 {
     // wait for the thread to start up
-    let start_at = time::precise_time_ns();
-    let &(ref lock, ref cvar) = &*(self.condvar);
+    let start_at = Instant::now();
+    let (ref lock, ref cvar) = *(self.condvar);
+    let timeout = Duration::new(timeout_usec/1000_000, ((timeout_usec%1000_000) as u32) *1000);
 
     loop {
       let mut locked_ticket = lock.lock();
@@ -33,10 +33,9 @@ impl Event {
         return *locked_ticket;
       }
 
-      cvar.wait_for(&mut locked_ticket, Duration::new(timeout_usec/1000_000, ((timeout_usec%1000_000) as u32) *1000 ));
+      cvar.wait_for(&mut locked_ticket, timeout);
 
-      let now = time::precise_time_ns();
-      if now > start_at+(1000*timeout_usec) {
+      if start_at.elapsed() >= timeout {
         return *locked_ticket;
       }
     }

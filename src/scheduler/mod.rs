@@ -51,15 +51,8 @@ impl Scheduler {
 
   pub fn stop(&mut self) {
     (*self.data.get()).stop();
-    loop {
-      match self.threads.pop() {
-        Some(t) => {
-          t.join().unwrap();
-        },
-        None => {
-          break;
-        }
-      }
+    while let Some(t) = self.threads.pop() {
+      t.join().unwrap();
     }
   }
 }
