@@ -8,10 +8,11 @@ use super::{array, task_id, wrap};
 use super::observer::{TaskObserver};
 use parking_lot::{Mutex};
 use std::ptr;
-use time;
+use std::time::{Duration, Instant};
 use libc;
 
 pub struct SchedulerData {
+  start:    Instant,
   max_id:   AtomicUsize,
   l1:       Vec<AtomicPtr<array::TaskArray>>,
   stop:     AtomicBool,
@@ -36,10 +37,11 @@ impl SchedulerData {
   fn new() -> SchedulerData {
     let l1_size = initial_capacity();
     let mut data = SchedulerData{
+      start:    Instant::now(),
       max_id:   AtomicUsize::new(0),
       l1:       Vec::with_capacity(l1_size),
       stop:     AtomicBool::new(false),
-      time_us:  AtomicUsize::new((time::precise_time_ns()/1000) as usize),
+      time_us:  AtomicUsize::new(0),
       ids:      Mutex::new(HashMap::new()),
     };
 
@@ -105,7 +107,9 @@ impl SchedulerData {
   pub fn ticker(&mut self) {
     loop {
       unsafe { libc::usleep(10); }
-      self.time_us.store((time::precise_time_ns()/1000) as usize, Ordering::Release);
+      let diff = self.start.elapsed();
+      let diff = diff.as_secs() as usize * 1000_000 + diff.subsec_nanos() as usize / 1000;
+      self.time_us.store(diff, Ordering::Release);
       // check stop state
       if self.stop.load(Ordering::Acquire) {
         break;
@@ -170,7 +174,7 @@ impl SchedulerData {
 
   pub fn entry(&mut self, id: usize) {
     let mut exec_count : u64 = 0;
-    let start = time::precise_time_ns();
+    let start = Instant::now();
     let l2_max = array::max_idx();
     loop {
       let max_id = self.max_id.load(Ordering::Acquire);
@@ -207,8 +211,8 @@ impl SchedulerData {
         break;
       }
     }
-    let end = time::precise_time_ns();
-    let diff = end - start;
+    let diff = start.elapsed();
+    let diff = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
     println!("thread: #{} exiting. #exec: {} exec-time: {} ns {}k/s",
       id, exec_count, (diff+1)/(exec_count+1), exec_count*1_000*1_000/diff);
   }
