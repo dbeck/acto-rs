@@ -8,7 +8,7 @@ use super::{array, task_id, wrap};
 use super::observer::{TaskObserver};
 use parking_lot::{Mutex};
 use std::ptr;
-use std::time::{Duration, Instant};
+use std::time::{Instant};
 use libc;
 
 pub struct SchedulerData {
@@ -108,8 +108,8 @@ impl SchedulerData {
     loop {
       unsafe { libc::usleep(10); }
       let diff = self.start.elapsed();
-      let diff = diff.as_secs() as usize * 1000_000 + diff.subsec_nanos() as usize / 1000;
-      self.time_us.store(diff, Ordering::Release);
+      let diff_us = diff.as_secs() as usize * 1000_000 + diff.subsec_nanos() as usize / 1000;
+      self.time_us.store(diff_us, Ordering::Release);
       // check stop state
       if self.stop.load(Ordering::Acquire) {
         break;
@@ -124,7 +124,6 @@ impl SchedulerData {
       match w {
         &(task_id, state) => {
           match state {
-            // Note: ch_id here has to be the sender's ch id
             TaskState::MessageWait(sender_id, channel_id, channel_position) => {
               println!("register dependency. {:?} depends on {:?}", task_id, sender_id);
               self.apply( TaskId (sender_id.0), |sender_task_wrapper| {

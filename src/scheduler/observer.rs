@@ -1,4 +1,4 @@
-use super::super::{TaskState, Event, TaskId, AbsSchedulerTimeInUsec};
+use super::super::{TaskState, Event, TaskId, AbsSchedulerTimeInUsec, ChannelPosition};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Copy,Clone,Debug)]
@@ -40,7 +40,7 @@ impl EvalInfo {
 pub trait Observer {
   fn eval_started(&mut self, info: &EvalInfo);
   fn executed(&mut self, info: &EvalInfo);
-  fn msg_trigger(&mut self, target_task: usize, last_msg_id: usize, info: &EvalInfo);
+  fn msg_trigger(&mut self, target_task: TaskId, last_msg_id: ChannelPosition, info: &EvalInfo);
   fn transition(&mut self, from: &TaskState, event: &Event, to: &TaskState, info: &EvalInfo);
   fn eval_finished(&mut self, info: &EvalInfo);
 }
@@ -91,7 +91,7 @@ impl Observer for CountingReporter {
     self.executed += 1;
   }
 
-  fn msg_trigger(&mut self, _target_task: usize, _last_msg_id: usize, _info: &EvalInfo) {
+  fn msg_trigger(&mut self, _target_task: TaskId, _last_msg_id: ChannelPosition, _info: &EvalInfo) {
   }
 
   fn transition(&mut self, from: &TaskState, event: &Event, to: &TaskState, info: &EvalInfo) {
@@ -132,13 +132,9 @@ impl Observer for TaskTracer {
     println!("Executed. ({:?})",info);
   }
 
-  fn msg_trigger(&mut self, target_task: usize, last_msg_id: usize, info: &EvalInfo) {
-    println!("Message trigger. target:{}, last_msg_id:{}, ({:?})", target_task, last_msg_id, info);
+  fn msg_trigger(&mut self, target_task: TaskId, last_msg_id: ChannelPosition, info: &EvalInfo) {
+    println!("Message trigger. target:{:?}, last_msg_id:{:?}, ({:?})", target_task, last_msg_id, info);
   }
-
-  //fn message_sent(&mut self, channel_id: usize, last_msg_id: usize, info: &EvalInfo) {
-  //  println!("Message sent. Ch:[{:}] last_msg_id:{} ({:?})",channel_id ,last_msg_id ,info);
-  //}
 
   fn transition(&mut self, from: &TaskState, event: &Event, to: &TaskState, info: &EvalInfo) {
     println!("Transition. ({:?})+[{:?}] => ({:?})  ({:?})", from, event, to, info);
@@ -177,7 +173,7 @@ impl Observer for TaskObserver {
     self.exec_count += 1;
   }
 
-  fn msg_trigger(&mut self, _target_task: usize, _last_msg_id: usize, _info: &EvalInfo) {}
+  fn msg_trigger(&mut self, _target_task: TaskId, _last_msg_id: ChannelPosition, _info: &EvalInfo) {}
 
   fn transition(&mut self, _from: &TaskState, _event: &Event, to: &TaskState, info: &EvalInfo) {
     match to {

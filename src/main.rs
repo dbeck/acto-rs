@@ -84,8 +84,8 @@ fn time_baseline() {
   for _i in 0..1_000_000 {
     diff = start.elapsed();
   }
-  let diff_ms = diff.as_secs() * 1000 + (diff.subsec_nanos() / 1000_000) as u64;
-  println!("timer overhead: {} ms", diff_ms);
+  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
+  println!("timer overhead: {} ns", diff_ns/1_000_000);
 }
 
 #[allow(dead_code)]
@@ -96,8 +96,8 @@ fn send_data() {
     tx.put(|v| *v = Some(i));
   }
   let diff = start.elapsed();
-  let diff = diff.as_secs() * 1000_000 + (diff.subsec_nanos() / 1000) as u64;
-  println!("send i32 overhead: {} µs", diff);
+  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
+  println!("send i32 overhead: {} ns", diff_ns/10_000_000);
 }
 
 #[allow(dead_code)]
@@ -111,8 +111,8 @@ fn indirect_send_data() {
     sender(i, &mut tx);
   }
   let diff = start.elapsed();
-  let diff = diff.as_secs() * 1000_000 + (diff.subsec_nanos() / 1000) as u64;
-  println!("indirect i32 overhead: {} µs",diff);
+  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
+  println!("indirect i32 overhead: {} ns", diff_ns/10_000_000);
 }
 
 #[allow(dead_code)]
@@ -126,8 +126,8 @@ fn locked_send_data() {
     x.put(|v| *v = Some(i));
   }
   let diff = start.elapsed();
-  let diff = diff.as_secs() * 1000_000 + (diff.subsec_nanos() / 1000) as u64;
-  println!("locked send i32 overhead: {} µs",diff);
+  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
+  println!("locked send i32 overhead: {} ns",diff_ns/10_000_000);
 }
 
 #[allow(dead_code)]
@@ -142,8 +142,8 @@ fn lotted_send_data() {
     x.put(|v| *v = Some(i));
   }
   let diff = start.elapsed();
-  let diff = diff.as_secs() * 1000_000 + (diff.subsec_nanos() / 1000) as u64;
-  println!("lotted send i32 overhead: {} µs",diff/10_000_000);
+  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
+  println!("lotted send i32 overhead: {} ns",diff_ns/10_000_000);
 }
 
 #[allow(dead_code)]
@@ -157,8 +157,8 @@ fn mpsc_send_data() {
     rx.recv().unwrap();
   }
   let diff = start.elapsed();
-  let diff = diff.as_secs() * 1000_000 + (diff.subsec_nanos() / 1000) as u64;
-  println!("mpsc send i32 overhead: {} µs",diff/10_000_000);
+  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
+  println!("mpsc send i32 overhead: {} ns",diff_ns/10_000_000);
 }
 
 #[allow(dead_code)]
@@ -172,8 +172,8 @@ fn receive_data() {
     }
   }
   let diff = start.elapsed();
-  let diff = diff.as_secs() * 1000_000 + (diff.subsec_nanos() / 1000) as u64;
-  println!("receive i32 overhead: {} µs  sum:{}",diff/10_000_000,sum);
+  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
+  println!("receive i32 overhead: {} ns (sum {})",diff_ns/10_000_000, sum);
 }
 
 #[allow(dead_code)]
@@ -186,8 +186,8 @@ fn source_send_data() {
     source_task.execute();
   }
   let diff = start.elapsed();
-  let diff = diff.as_secs() * 1000_000 + (diff.subsec_nanos() / 1000) as u64;
-  println!("source execute: {} µs",diff/10_000_000);
+  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
+  println!("source execute: {} ns",diff_ns/10_000_000);
 }
 
 #[allow(dead_code)]
@@ -206,8 +206,8 @@ fn source_send_data_with_swap() {
     source_ptr.swap(old_ptr,  Ordering::AcqRel);
   }
   let diff = start.elapsed();
-  let diff = diff.as_secs() * 1000_000 + (diff.subsec_nanos() / 1000) as u64;
-  println!("source execute: {} µs (w/ swap)",diff/10_000_000);
+  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
+  println!("source execute: {} ns (w/ swap)",diff_ns/10_000_000);
 }
 
 #[allow(dead_code)]
@@ -229,8 +229,8 @@ fn add_task_time() {
     }
   }
   let diff = start.elapsed();
-  let diff = diff.as_secs() * 1000_000 + (diff.subsec_nanos() / 1000) as u64;
-  println!("source add to sched: {} µs",diff/3_000_000);
+  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
+  println!("source add to sched: {} ns",diff_ns/3_000_000);
 }
 
 #[allow(dead_code)]
