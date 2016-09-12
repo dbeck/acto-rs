@@ -46,7 +46,7 @@ pub fn disconnect_receiver_from_sender<Input: Send>(rcv : &mut ChannelWrapper<In
 
   let mut tmp_receiver = match snd {
     &mut ChannelWrapper::ConnectedSender(ref mut channel_id_rcv, ref mut receiver_name) => {
-      match snd {
+      match rcv {
         &mut ChannelWrapper::ConnectedReceiver(ref mut _channel_id_snd, ref mut _receiver, ref mut _sender_name) => {
           ChannelWrapper::ReceiverNotConnected::<Input>(channel_id_rcv.receiver_id,receiver_name.clone())
         }

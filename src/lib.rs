@@ -114,3 +114,6 @@ pub enum ChannelWrapper<Input: Send> {
 
 #[cfg(test)]
 pub mod tests;
+
+#[cfg(sample)]
+pub mod sample;

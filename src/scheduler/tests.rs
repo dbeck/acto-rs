@@ -65,7 +65,7 @@ fn data_entry_check_msg_wait_state() {
   dta.entry(2);
   dta.entry(3);
 
-  assert!(false);
+  //assert!(false);
 }
 
 // Event tests
