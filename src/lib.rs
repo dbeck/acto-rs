@@ -18,7 +18,7 @@ pub enum Error {
 #[derive(Copy,Clone,Debug,PartialEq)]
 pub struct InclusiveMessageRange {
   pub from: usize,
-  pub to: usize,
+  pub to:   usize,
 }
 
 #[derive(Copy,Clone,Debug,PartialEq)]
@@ -97,7 +97,7 @@ pub enum Event {
 
 pub trait Task {
   fn execute(&mut self) -> Schedule;
-  fn name(&self)  -> &String;
+  fn name(&self) -> &String;
   fn input_count(&self) -> usize;
   fn output_count(&self) -> usize;
   fn input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)>;
@@ -115,5 +115,5 @@ pub enum ChannelWrapper<Input: Send> {
 #[cfg(test)]
 pub mod tests;
 
-#[cfg(sample)]
+#[cfg(test)]
 pub mod sample;

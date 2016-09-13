@@ -6,6 +6,7 @@ use super::super::{Task, Error, TaskState, TaskId, SenderChannelId,
 };
 use super::{array, task_id, wrap};
 use super::observer::{TaskObserver};
+use super::event;
 use parking_lot::{Mutex};
 use std::ptr;
 use std::time::{Instant};
@@ -18,6 +19,7 @@ pub struct SchedulerData {
   stop:     AtomicBool,
   time_us:  AtomicUsize,
   ids:      Mutex<HashMap<String, usize>>,
+  evt:      event::Event,
 }
 
 impl SchedulerData {
@@ -43,6 +45,7 @@ impl SchedulerData {
       stop:     AtomicBool::new(false),
       time_us:  AtomicUsize::new(0),
       ids:      Mutex::new(HashMap::new()),
+      evt:      event::new(),
     };
 
     // fill the l1 bucket
@@ -105,6 +108,7 @@ impl SchedulerData {
   }
 
   pub fn ticker(&mut self) {
+    let mut last_event_at = 0;
     loop {
       unsafe { libc::usleep(10); }
       let diff = self.start.elapsed();
@@ -113,6 +117,12 @@ impl SchedulerData {
       // check stop state
       if self.stop.load(Ordering::Acquire) {
         break;
+      }
+      // tick evt every second
+      if diff_us - last_event_at > 1_000_000 {
+        println!("tick evt at: {}",diff_us);
+        last_event_at = diff_us;
+        self.evt.notify();
       }
     }
   }

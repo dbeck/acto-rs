@@ -43,7 +43,7 @@ impl TaskArray {
     let mut skip = id;
     let mut l2idx = 0;
     loop {
-      if l2idx > l2_max_idx { break; }
+      if l2idx >= l2_max_idx { break; }
       let wrk_ref = unsafe { self.l2.get_unchecked_mut(l2idx) };
       let wrk = wrk_ref.swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
       if wrk.is_null() == false {

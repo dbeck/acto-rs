@@ -4,7 +4,7 @@ mod task_id;
 mod data;
 mod handle;
 mod observer;
-//mod event;
+pub mod event;
 
 use super::{Task, Error};
 use std::thread::{spawn, JoinHandle};
