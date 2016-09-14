@@ -17,3 +17,7 @@ libc = "0.2"
 
 # [profile.release]
 # debug = true
+
+[features]
+default = []
+bench = []

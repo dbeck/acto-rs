@@ -272,7 +272,21 @@ fn dummy_start_stop() {
   }
 }
 
+#[cfg(feature = "bench")]
+use actors::bench;
+
+#[cfg(feature = "bench")]
+pub fn run_benchmarks() {
+  println!("hello from bench");
+}
+
+#[cfg(not(feature = "bench"))]
+pub fn run_benchmarks() {
+  println!("not running benchmarks. if you need them add --features \"bench\" flag");
+}
+
 fn main() {
+  run_benchmarks();
   time_baseline();
   send_data();
   indirect_send_data();

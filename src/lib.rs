@@ -115,5 +115,8 @@ pub enum ChannelWrapper<Input: Send> {
 #[cfg(test)]
 pub mod tests;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "bench"))]
 pub mod sample;
+
+#[cfg(feature = "bench")]
+pub mod bench;
