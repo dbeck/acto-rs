@@ -5,8 +5,17 @@ use super::observer::{Observer};
 use super::{wrap};
 use std::ptr;
 
+pub fn max_idx() -> usize {
+  4095
+}
+
+pub fn position(idx: usize) -> (usize, usize) {
+  // note: this depends on max_idx !!!
+  (idx>>12, idx&0xfff)
+}
+
 pub struct TaskPage {
-  l2: Vec<AtomicPtr<wrap::TaskWrap>>,
+  l2: Vec<AtomicPtr<wrap::TaskWrap>>,  
 }
 
 impl TaskPage {
@@ -77,15 +86,6 @@ pub fn new() -> TaskPage {
     bucket.push(AtomicPtr::default());
   }
   TaskPage{ l2: bucket }
-}
-
-pub fn max_idx() -> usize {
-  65535
-}
-
-pub fn position(idx: usize) -> (usize, usize) {
-  // note: this depends on max_idx !!!
-  (idx>>16, idx&0xffff)
 }
 
 impl Drop for TaskPage {

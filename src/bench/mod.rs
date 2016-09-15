@@ -1,218 +1,161 @@
 
-use std::time::{Duration, Instant};
+use std::time::{Instant};
 use lossyq::spsc::{channel, Sender};
 use libc;
 use super::scheduler;
 use super::elem::{source, /*, filter, sink, ymerge, ysplit*/ };
-use super::{Message, Task, Schedule};
+use super::{Task};
+use super::sample::dummy_source::{DummySource};
 
-#[allow(dead_code)]
-struct DummySource {
-}
-
-impl source::Source for DummySource {
-  type OutputType = u64;
-
-  fn process(
-        &mut self,
-        _output: &mut Sender<Message<Self::OutputType>>)
-      -> Schedule {
-    Schedule::Loop
-  }
-}
-
-#[allow(dead_code)]
-struct CountingSource {
-  count: usize,
-}
-
-impl source::Source for CountingSource {
-  type OutputType = u64;
-
-  fn process(
-        &mut self,
-        _output: &mut Sender<Message<Self::OutputType>>)
-      -> Schedule {
-    self.count += 1;
-    Schedule::Loop
-  }
-}
-
-impl Drop for CountingSource {
-  fn drop(&mut self) {
-    println!("CountingSource executed {} times", self.count);
-  }
-}
-
-#[derive(Copy, Clone)]
-struct SourceState {
-  count      : u64,
-  start      : Option<Instant>,
-}
-
-#[allow(dead_code)]
-impl source::Source for SourceState {
-  type OutputType = u64;
-
-  fn process(
-        &mut self,
-        output: &mut Sender<Message<Self::OutputType>>)
-      -> Schedule {
-    output.put(|x| *x = Some(Message::Value(self.count)));
-    if self.count % 10_000_000 == 0 {
-      if let Some(start) = self.start {
-        let diff_t = start.elapsed();
-        let diff_ns = diff_t.as_secs() * 1000_000_000 + diff_t.subsec_nanos() as u64;
-        println!("diff t: {} {} {}/sec", diff_ns/self.count,self.count,10_000_000_000/(diff_ns/self.count));
-      } else {
-        self.start = Some(Instant::now());
-      }
-    }
-    self.count += 1;
-    Schedule::Loop
-  }
-}
-
-#[allow(dead_code)]
-fn time_baseline() {
+fn bench_200ms<F>(name: &str, fun: F) where F : FnMut(u64) {
   let start = Instant::now();
-  let mut diff = Duration::new(0, 0);
-  for _i in 0..1_000_000 {
+  let mut diff;
+  let mut diff_ns;
+  let mut iteration = 0u64;
+  let mut fun = fun;
+  loop {
+    fun(iteration);    fun(iteration+1);  fun(iteration+2);  fun(iteration+3);
+    fun(iteration+4);  fun(iteration+5);  fun(iteration+6);  fun(iteration+7);
+    fun(iteration+8);  fun(iteration+9);  fun(iteration+10); fun(iteration+11);
+    fun(iteration+12); fun(iteration+13); fun(iteration+14); fun(iteration+15);
+    fun(iteration+16); fun(iteration+17); fun(iteration+18); fun(iteration+19);
+    fun(iteration+20); fun(iteration+21); fun(iteration+22); fun(iteration+23);
+    fun(iteration+24); fun(iteration+25); fun(iteration+26); fun(iteration+27);
+    fun(iteration+28); fun(iteration+29); fun(iteration+30); fun(iteration+31);
+    fun(iteration+32); fun(iteration+33); fun(iteration+34); fun(iteration+35);
+    fun(iteration+36); fun(iteration+37); fun(iteration+38); fun(iteration+39);
+    fun(iteration+40); fun(iteration+41); fun(iteration+42); fun(iteration+43);
+    fun(iteration+44); fun(iteration+45); fun(iteration+46); fun(iteration+47);
+    fun(iteration+48); fun(iteration+49); fun(iteration+50); fun(iteration+51);
+    fun(iteration+52); fun(iteration+53); fun(iteration+54); fun(iteration+55);
+    fun(iteration+56); fun(iteration+57); fun(iteration+58); fun(iteration+59);
+    fun(iteration+60); fun(iteration+61); fun(iteration+62); fun(iteration+63);
+
+    iteration += 64;
     diff = start.elapsed();
+    diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
+    if diff_ns > 200_000_000 {
+      break;
+    }
   }
-  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
-  println!("timer overhead: {} ns", diff_ns/1_000_000);
+  println!("bench_200ms  {}  avg {} ns, iter {}",name, diff_ns/iteration, iteration);
 }
 
-#[allow(dead_code)]
-fn send_data() {
-  let start = Instant::now();
+fn time_baseline() {
+  bench_200ms("time-baseline", |_v| {} );
+}
+
+fn lossyq_send() {
   let (mut tx, _rx) = channel(100);
-  for i in 0..10_000_000i32 {
+  bench_200ms("lossyq-send", |i| {
     tx.put(|v| *v = Some(i));
-  }
-  let diff = start.elapsed();
-  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
-  println!("send i32 overhead: {} ns", diff_ns/10_000_000);
+  });
 }
 
-#[allow(dead_code)]
+fn lossyq_send_recv() {
+  let (mut tx, mut rx) = channel(100);
+  bench_200ms("lossyq-send-recv", |i| {
+    tx.put(|v| *v = Some(i));
+    for _i in rx.iter() {
+    }
+  });
+}
+
+fn lossyq_send_recv_1() {
+  let (mut tx, mut rx) = channel(100);
+  bench_200ms("lossyq-send-recv1", |i| {
+    tx.put(|v| *v = Some(i));
+    rx.iter().next();
+  });
+}
+
+fn lossyq_recv() {
+  let (mut _tx, mut rx) = channel::<u64>(100);
+  bench_200ms("lossyq-recv", |_i| {
+    for _ii in rx.iter() {
+    }
+  });
+}
+
+fn mpsc_send() {
+  use std::sync::mpsc;
+  let (tx, _rx) = mpsc::channel();
+  bench_200ms("mpsc-send", |i| {
+    tx.send(i).unwrap();
+  });
+}
+
+fn mpsc_send_recv() {
+  use std::sync::mpsc;
+  let (tx, rx) = mpsc::channel();
+  bench_200ms("mpsc-send-recv", |i| {
+    tx.send(i).unwrap();
+    rx.recv().unwrap();
+  });
+}
+
 fn indirect_send_data() {
-  let start = Instant::now();
   let (mut tx, _rx) = channel(100);
-  for i in 0..10_000_000i32 {
-    let sender = |val: i32, chan: &mut Sender<i32>| {
-      chan.put(|v: &mut Option<i32>| *v = Some(val));
-    };
-    sender(i, &mut tx);
-  }
-  let diff = start.elapsed();
-  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
-  println!("indirect i32 overhead: {} ns", diff_ns/10_000_000);
+  let sender = |val: u64, chan: &mut Sender<u64>| {
+    chan.put(|v: &mut Option<u64>| *v = Some(val));
+  };
+  bench_200ms("indirect-send", |i| { sender(i, &mut tx); });
 }
 
-#[allow(dead_code)]
 fn locked_send_data() {
   use std::sync::{Arc, Mutex};
-  let start = Instant::now();
   let (tx, _rx) = channel(100);
   let locked = Arc::new(Mutex::new(tx));
-  for i in 0..10_000_000i32 {
+  bench_200ms("std::mutex+send", |i| {
     let mut x = locked.lock().unwrap();
     x.put(|v| *v = Some(i));
-  }
-  let diff = start.elapsed();
-  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
-  println!("locked send i32 overhead: {} ns",diff_ns/10_000_000);
+  });
 }
 
-#[allow(dead_code)]
 fn lotted_send_data() {
   use std::sync::{Arc};
   use parking_lot::Mutex;
-  let start = Instant::now();
   let (tx, _rx) = channel(100);
   let locked = Arc::new(Mutex::new(tx));
-  for i in 0..10_000_000i32 {
+  bench_200ms("parking_lot+send", |i| {
     let mut x = locked.lock();
     x.put(|v| *v = Some(i));
-  }
-  let diff = start.elapsed();
-  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
-  println!("lotted send i32 overhead: {} ns",diff_ns/10_000_000);
+  });
 }
 
-#[allow(dead_code)]
-fn mpsc_send_data() {
-  use std::sync::{Arc,mpsc};
-  let start = Instant::now();
-  let (tx, rx) = mpsc::channel();
-  let atx = Arc::new(tx);
-  for i in 0..10_000_000i32 {
-    atx.send(i).unwrap();
-    rx.recv().unwrap();
-  }
-  let diff = start.elapsed();
-  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
-  println!("mpsc send i32 overhead: {} ns",diff_ns/10_000_000);
-}
-
-#[allow(dead_code)]
-fn receive_data() {
-  let start = Instant::now();
-  let (_tx, mut rx) = channel(100);
-  let mut sum = 0;
-  for _i in 0..10_000_000i32 {
-    for i in rx.iter() {
-      sum += i;
-    }
-  }
-  let diff = start.elapsed();
-  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
-  println!("receive i32 overhead: {} ns (sum {})",diff_ns/10_000_000, sum);
-}
-
-#[allow(dead_code)]
-fn source_send_data() {
+fn source_execute() {
   let (mut source_task, mut _source_out) =
-    source::new( "Source", 2, Box::new(SourceState{count:0, start:None}));
+    source::new( "Source", 2, Box::new(DummySource{}));
 
-  let start = Instant::now();
-  for _i in 0..10_000_000 {
+  bench_200ms("source-execute", |_i| {
     source_task.execute();
-  }
-  let diff = start.elapsed();
-  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
-  println!("source execute: {} ns",diff_ns/10_000_000);
+  });
 }
 
-#[allow(dead_code)]
-fn source_send_data_with_swap() {
+fn source_execute_with_swap() {
   use std::sync::atomic::{AtomicPtr, Ordering};
   use std::ptr;
 
   let (source_task, mut _source_out) =
-    source::new( "Source", 2, Box::new(SourceState{count:0, start:None}));
+    source::new( "Source", 2, Box::new(DummySource{}));
   let source_ptr = AtomicPtr::new(Box::into_raw(source_task));
 
-  let start = Instant::now();
-  for _i in 0..10_000_000 {
+  bench_200ms("source-execute-w-swap", |_i| {
     let old_ptr = source_ptr.swap(ptr::null_mut(), Ordering::AcqRel);
     unsafe { (*old_ptr).execute(); }
     source_ptr.swap(old_ptr,  Ordering::AcqRel);
-  }
-  let diff = start.elapsed();
-  let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
-  println!("source execute: {} ns (w/ swap)",diff_ns/10_000_000);
+  });
+
+  let _bx = unsafe { Box::from_raw(source_ptr.swap(ptr::null_mut(), Ordering::AcqRel)) };
 }
 
-#[allow(dead_code)]
+// TODO : remove later
 fn add_task_time() {
-  let mut sources = vec![];
-  for i in 0..3_000_000i32 {
+  let mut sources = Vec::with_capacity(1_000_000);
+  for i in 0..1_000_000i32 {
     let name = format!("Source {}",i);
     let (source_task, mut _source_out) =
-      source::new( name.as_str(), 2, Box::new(SourceState{count:0, start:None}));
+      source::new( name.as_str(), 2, Box::new(DummySource{}));
     sources.push(source_task);
   }
   let mut sched = scheduler::new();
@@ -226,27 +169,10 @@ fn add_task_time() {
   }
   let diff = start.elapsed();
   let diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
-  println!("source add to sched: {} ns",diff_ns/3_000_000);
+  println!("source add to sched: {} ns",diff_ns/1_000_000);
 }
 
-#[allow(dead_code)]
-fn start_stop() {
-  let mut sched = scheduler::new();
-  for i in 0..10_000 {
-    let name = format!("Source {}",i);
-    let (source_task, mut _source_out) =
-      source::new( name.as_str(), 2, Box::new(SourceState{count:0, start:None}));
-    match sched.add_task(source_task) {
-      Ok(_) => {}
-      Err(e) => { println!("cannot add: {} because of: {:?} idx: {}", name, e, i); }
-    }
-  }
-  sched.start_with_threads(1);
-  unsafe { libc::sleep(5); }
-  sched.stop();
-}
-
-#[allow(dead_code)]
+// TODO : remove later
 fn dummy_start_stop() {
   let v = vec![1, 2, 5, 10, 16, 32, 64, 100, 128, 256,
     1000, 5_000, 10_000, 30_000, 50_000, 100_000, 200_000, 500_000];
@@ -270,15 +196,17 @@ fn dummy_start_stop() {
 
 pub fn run() {
   time_baseline();
-  send_data();
+  lossyq_send();
+  lossyq_send_recv();
+  lossyq_send_recv_1();
+  lossyq_recv();
+  mpsc_send();
+  mpsc_send_recv();
   indirect_send_data();
   locked_send_data();
   lotted_send_data();
-  mpsc_send_data();
-  receive_data();
-  source_send_data();
-  source_send_data_with_swap();
+  source_execute();
+  source_execute_with_swap();
   add_task_time();
-  start_stop();
   dummy_start_stop();
 }

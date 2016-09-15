@@ -4,7 +4,7 @@ use super::super::elem::source;
 use super::super::{Schedule, Message};
 
 #[allow(dead_code)]
-struct DummySource {}
+pub struct DummySource {}
 
 impl source::Source for DummySource {
   type OutputType = usize;
