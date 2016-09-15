@@ -5,11 +5,11 @@ use super::observer::{Observer};
 use super::{wrap};
 use std::ptr;
 
-pub struct TaskArray {
+pub struct TaskPage {
   l2: Vec<AtomicPtr<wrap::TaskWrap>>,
 }
 
-impl TaskArray {
+impl TaskPage {
   pub fn store(&mut self, idx: usize, task: Box<Task+Send>, id: TaskId, input_task_ids: Vec<Option<usize>>) {
     let wrap = Box::new(wrap::new(task, id, input_task_ids));
     let slice = self.l2.as_mut_slice();
@@ -70,13 +70,13 @@ impl TaskArray {
   }
 }
 
-pub fn new() -> TaskArray {
+pub fn new() -> TaskPage {
   let sz = max_idx()+1;
   let mut bucket = Vec::with_capacity(sz);
   for _i in 0..sz {
     bucket.push(AtomicPtr::default());
   }
-  TaskArray{ l2: bucket }
+  TaskPage{ l2: bucket }
 }
 
 pub fn max_idx() -> usize {
@@ -88,7 +88,7 @@ pub fn position(idx: usize) -> (usize, usize) {
   (idx>>16, idx&0xffff)
 }
 
-impl Drop for TaskArray {
+impl Drop for TaskPage {
   fn drop(&mut self) {
     let l2_slice = self.l2.as_mut_slice();
     for i in 0..(1+max_idx()) {

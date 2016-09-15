@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
 use super::super::{Task, Error, TaskState, TaskId, SenderChannelId,
   ReceiverChannelId, ChannelPosition
 };
-use super::{array, task_id, wrap};
+use super::{page, task_id, wrap};
 use super::observer::{TaskObserver};
 use super::event;
 use parking_lot::{Mutex};
@@ -15,7 +15,7 @@ use libc;
 pub struct SchedulerData {
   start:    Instant,
   max_id:   AtomicUsize,
-  l1:       Vec<AtomicPtr<array::TaskArray>>,
+  l1:       Vec<AtomicPtr<page::TaskPage>>,
   stop:     AtomicBool,
   time_us:  AtomicUsize,
   ids:      Mutex<HashMap<String, usize>>,
@@ -23,8 +23,8 @@ pub struct SchedulerData {
 }
 
 impl SchedulerData {
-  fn add_l2_bucket(&mut self, idx: usize) {
-    let array = Box::new(array::new());
+  fn add_l2_page(&mut self, idx: usize) {
+    let array = Box::new(page::new());
     let len = self.l1.len();
     if idx >= len-1 {
       // extend slice
@@ -53,8 +53,8 @@ impl SchedulerData {
       data.l1.push(AtomicPtr::default());
     }
 
-    // add an initial l2 bucket
-    data.add_l2_bucket(0);
+    // add an initial l2 page
+    data.add_l2_page(0);
     data
   }
 
@@ -93,10 +93,10 @@ impl SchedulerData {
         }
       }
     }
-    let (l1, l2) = array::position(ret_id);
+    let (l1, l2) = page::position(ret_id);
     if l2 == 0 {
       // make sure the next bucket exists when needed
-      self.add_l2_bucket(l1+1);
+      self.add_l2_page(l1+1);
     }
     unsafe {
       let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
@@ -223,11 +223,11 @@ impl SchedulerData {
   pub fn entry(&mut self, id: usize) {
     let mut exec_count : u64 = 0;
     let start = Instant::now();
-    let l2_max = array::max_idx();
+    let l2_max = page::max_idx();
     loop {
       let max_id = self.max_id.load(Ordering::Acquire);
       let mut reporter = TaskObserver::new(max_id);
-      let (l1, l2) = array::position(max_id);
+      let (l1, l2) = page::position(max_id);
       {
         let l1_slice = self.l1.as_mut_slice();
 
@@ -267,7 +267,7 @@ impl SchedulerData {
 
   pub fn apply<F>(&self, task_id: TaskId, f: F) where F : FnMut(*mut wrap::TaskWrap) {
     if task_id.0 < self.max_id.load(Ordering::Acquire) {
-      let (l1, l2) = array::position(task_id.0);
+      let (l1, l2) = page::position(task_id.0);
       unsafe {
         let l1_ptr = self.l1.get_unchecked(l1).load(Ordering::Acquire);
         if l1_ptr.is_null() == false {
@@ -285,7 +285,7 @@ impl SchedulerData {
     if id.id() >= max {
       return Result::Err(Error::NonExistent);
     }
-    let (l1, l2) = array::position(id.id());
+    let (l1, l2) = page::position(id.id());
     let l1_slice = self.l1.as_mut_slice();
     let l1_ptr = l1_slice[l1].load(Ordering::Acquire);
     if l1_ptr.is_null() {
@@ -313,7 +313,7 @@ impl Drop for SchedulerData {
     let l1_slice = self.l1.as_mut_slice();
     for i in 0..len {
       let l1_atomic_ptr = &mut l1_slice[i];
-      let ptr = l1_atomic_ptr.swap(ptr::null_mut::<array::TaskArray>(), Ordering::AcqRel);
+      let ptr = l1_atomic_ptr.swap(ptr::null_mut::<page::TaskPage>(), Ordering::AcqRel);
       if ptr.is_null() == false {
         // make sure we drop the pointers
         let _b = unsafe { Box::from_raw(ptr) };
