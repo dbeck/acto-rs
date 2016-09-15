@@ -15,8 +15,6 @@ pub struct Scheduler {
   threads:  Vec<JoinHandle<()>>,
 }
 
-// L1: 64k entries preallocated
-// L2: 4k entries on-demand
 impl Scheduler {
 
   pub fn add_task(&mut self, task: Box<Task+Send>) -> Result<task_id::TaskId, Error> {

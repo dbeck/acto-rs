@@ -304,7 +304,7 @@ pub fn new() -> SchedulerData {
 }
 
 pub fn initial_capacity() -> usize {
-  65536
+  1024*1024
 }
 
 impl Drop for SchedulerData {
