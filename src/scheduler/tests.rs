@@ -96,7 +96,7 @@ fn sched_add_task() {
     let result = sched.add_task(source_task);
     assert!(result.is_ok());
     first_id = match result {
-      Ok(task_id) => { task_id.id() }
+      Ok(task_id) => { task_id.0 }
       _           => { 9999 }
     };
     assert!(first_id != 9999);
@@ -120,7 +120,7 @@ fn sched_add_task() {
     let result = sched.add_task(source_task);
     assert!(result.is_ok());
     let third_id = match result {
-      Ok(task_id) => { task_id.id() }
+      Ok(task_id) => { task_id.0 }
       _           => { 9999 }
     };
     assert!(third_id != first_id);

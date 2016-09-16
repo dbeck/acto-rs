@@ -8,3 +8,4 @@ pub mod evt_source;
 pub mod ext_pipeline_filter;
 pub mod ext_pipeline_sink;
 pub mod ext_pipeline_source;
+pub mod ext_pipeline;

@@ -19,8 +19,14 @@ impl source::Source for ExtPipelineSource {
   }
 }
 
-pub fn new(on_exec: event::Event) -> ExtPipelineSource {
-  ExtPipelineSource{
-    on_exec: on_exec,
+impl ExtPipelineSource {
+  pub fn new(on_exec: event::Event) -> ExtPipelineSource {
+    ExtPipelineSource{
+      on_exec: on_exec,
+    }
   }
+}
+
+pub fn new(on_exec: event::Event) -> ExtPipelineSource {
+  ExtPipelineSource::new(on_exec)
 }

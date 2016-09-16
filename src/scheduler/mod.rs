@@ -1,12 +1,11 @@
 mod wrap;
 mod page;
-mod task_id;
 mod data;
 mod handle;
 mod observer;
 pub mod event;
 
-use super::{Task, Error};
+use super::{Task, Error, TaskId};
 use std::thread::{spawn, JoinHandle};
 
 #[allow(dead_code)]
@@ -17,7 +16,7 @@ pub struct Scheduler {
 
 impl Scheduler {
 
-  pub fn add_task(&mut self, task: Box<Task+Send>) -> Result<task_id::TaskId, Error> {
+  pub fn add_task(&mut self, task: Box<Task+Send>) -> Result<TaskId, Error> {
     (*self.data.get()).add_task(task)
   }
 
@@ -25,7 +24,7 @@ impl Scheduler {
     self.start_with_threads(1);
   }
 
-  pub fn notify(&mut self, id: &task_id::TaskId) -> Result<usize, Error> {
+  pub fn notify(&mut self, id: &TaskId) -> Result<usize, Error> {
     (*self.data.get()).notify(id)
   }
 
@@ -53,13 +52,17 @@ impl Scheduler {
       t.join().unwrap();
     }
   }
+
+  pub fn new() -> Scheduler {
+    Scheduler{
+      data:     handle::new(),
+      threads:  Vec::new(),
+    }
+  }
 }
 
 pub fn new() -> Scheduler {
-  Scheduler{
-    data:     handle::new(),
-    threads:  Vec::new(),
-  }
+  Scheduler::new()
 }
 
 #[cfg(test)]

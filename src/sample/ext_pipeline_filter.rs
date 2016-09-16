@@ -35,9 +35,15 @@ impl filter::Filter for ExtPipelineFilter {
   }
 }
 
-pub fn new(on_exec: event::Event, on_msg: event::Event) -> ExtPipelineFilter {
-  ExtPipelineFilter{
-    on_exec: on_exec,
-    on_msg: on_msg,
+impl ExtPipelineFilter {
+  pub fn new(on_exec: event::Event, on_msg: event::Event) -> ExtPipelineFilter {
+    ExtPipelineFilter{
+      on_exec: on_exec,
+      on_msg: on_msg,
+    }
   }
+}
+
+pub fn new(on_exec: event::Event, on_msg: event::Event) -> ExtPipelineFilter {
+  ExtPipelineFilter::new(on_exec, on_msg)
 }

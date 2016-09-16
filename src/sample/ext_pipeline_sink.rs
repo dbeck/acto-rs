@@ -28,9 +28,15 @@ impl sink::Sink for ExtPipelineSink {
   }
 }
 
-pub fn new(on_exec: event::Event, on_msg: event::Event) -> ExtPipelineSink {
-  ExtPipelineSink{
-    on_exec: on_exec,
-    on_msg: on_msg,
+impl ExtPipelineSink {
+  pub fn new(on_exec: event::Event, on_msg: event::Event) -> ExtPipelineSink {
+    ExtPipelineSink{
+      on_exec: on_exec,
+      on_msg: on_msg,
+    }
   }
+}
+
+pub fn new(on_exec: event::Event, on_msg: event::Event) -> ExtPipelineSink {
+  ExtPipelineSink::new(on_exec, on_msg)
 }

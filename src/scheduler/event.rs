@@ -42,10 +42,14 @@ impl Event {
       }
     }
   }
+
+  pub fn new() -> Event {
+    Event {
+      condvar: Arc::new((Mutex::new(0u64), Condvar::new())),
+    }
+  }
 }
 
 pub fn new() -> Event {
-  Event {
-    condvar: Arc::new((Mutex::new(0u64), Condvar::new())),
-  }
+  Event::new()
 }

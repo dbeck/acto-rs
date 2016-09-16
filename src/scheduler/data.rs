@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
 use super::super::{Task, Error, TaskState, TaskId, SenderChannelId,
   ReceiverChannelId, ChannelPosition
 };
-use super::{page, task_id, wrap};
+use super::{page, wrap};
 use super::observer::{TaskObserver};
 use super::event;
 use parking_lot::{Mutex};
@@ -66,7 +66,7 @@ impl SchedulerData {
     }
   }
 
-  pub fn add_task(&mut self, task: Box<Task+Send>) -> Result<task_id::TaskId, Error> {
+  pub fn add_task(&mut self, task: Box<Task+Send>) -> Result<TaskId, Error> {
     let ret_id : usize;
     let input_count = task.input_count();
     let mut input_task_ids : Vec<Option<usize>> = Vec::with_capacity(input_count);
@@ -104,7 +104,7 @@ impl SchedulerData {
         (*l1_ptr).store(l2, task, TaskId(ret_id), input_task_ids);
       }
     }
-    Result::Ok(task_id::new(ret_id))
+    Result::Ok(TaskId(ret_id))
   }
 
   pub fn ticker(&mut self) {
@@ -277,15 +277,15 @@ impl SchedulerData {
     }
   }
 
-  pub fn notify(&mut self, id: &task_id::TaskId) -> Result<usize, Error> {
+  pub fn notify(&mut self, id: &TaskId) -> Result<usize, Error> {
     if self.stop.load(Ordering::Acquire) {
       return Result::Err(Error::Stopping);
     }
     let max = self.max_id.load(Ordering::Acquire);
-    if id.id() >= max {
+    if id.0 >= max {
       return Result::Err(Error::NonExistent);
     }
-    let (l1, l2) = page::position(id.id());
+    let (l1, l2) = page::position(id.0);
     let l1_slice = self.l1.as_mut_slice();
     let l1_ptr = l1_slice[l1].load(Ordering::Acquire);
     if l1_ptr.is_null() {
