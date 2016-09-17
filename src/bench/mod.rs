@@ -41,10 +41,14 @@ fn bench_200ms<F>(name: &str, fun: F) where F : FnMut(u64) {
     // calculate how much it can run without calling the timer function
     // again
     let remaining = 200_000_000 - diff_ns;
-    repeat = 1+(remaining/diff_ns);
+    repeat = 1+(remaining/diff_ns/10*9);
   }
-  println!("bench_200ms  {}  avg {} ns, iter {}, {}m iter/s",
-    name, diff_ns/iteration, iteration, 1_000*iteration/diff_ns );
+  println!("bench_200ms  {}  avg {} ns, iter {}, {}m iter/s {}k iter/s",
+    name,
+    diff_ns/iteration,
+    iteration,
+    1_000*iteration/diff_ns,
+    iteration/(diff_ns/1_000_000));
 }
 
 pub fn run() {

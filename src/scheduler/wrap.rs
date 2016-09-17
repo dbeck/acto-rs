@@ -162,9 +162,10 @@ impl TaskWrap {
         => Event::Execute,
       TaskState::TimeWait(exec_at) if exec_at.0 <= now
         => Event::TimerExpired,
+      /*
       TaskState::ExtEventWait(threshold)
         if self.ext_evt_count.load(Ordering::Acquire) >= threshold.0 => Event::ExtTrigger,
-      TaskState::MessageWait(_sender_id, channel_id, channel_position) => {
+      TaskState::MessageWait(_sender_id, _channel_id, _channel_position) => {
         let act_channel_pos = self.task.input_channel_pos(channel_id.receiver_id);
         if act_channel_pos.0 >= channel_position.0 {
           Event::MessageArrived
@@ -172,14 +173,14 @@ impl TaskWrap {
           Event::Delay
         }
       },
-      TaskState::MessageWaitNeedSenderId(channel_id, channel_position) => {
+      TaskState::MessageWaitNeedSenderId(_channel_id, _channel_position) => {
         let act_channel_pos = self.task.input_channel_pos(channel_id.receiver_id);
         if act_channel_pos.0 >= channel_position.0 {
           Event::MessageArrived
         } else {
           Event::Delay
         }
-      }
+      }*/
       _ => Event::Delay,
     };
 
@@ -188,42 +189,42 @@ impl TaskWrap {
     observer.eval_finished(&info);
   }
 
-  pub fn notify(&mut self) -> usize {
-    self.ext_evt_count.fetch_add(1, Ordering::AcqRel) + 1
-  }
+  pub fn ext_notify(&mut self,
+                    incr: usize,
+                    observer: &mut Observer,
+                    time_us: &AtomicUsize) {
 
-  pub fn trigger_message(&mut self,
-                         channel_position: ChannelPosition,
-                         observer: &mut Observer,
-                         time_us: &AtomicUsize)
-  {
     let old_state = self.state;
-    if let TaskState::MessageWait(_sender_id, _channel_id, requested_channel_position) = old_state {
-      self.eval_id += 1;
-      let mut event = Event::Delay;
-      if channel_position.0 >= requested_channel_position.0 {
-        event = Event::MessageArrived;
+    let new_val = incr + self.ext_evt_count.fetch_add(incr, Ordering::AcqRel);
+    if let TaskState::ExtEventWait(threshold) = old_state {
+      let event = if new_val >= threshold.0 {
         self.state = TaskState::Execute;
-      }
+        Event::ExtTrigger
+      } else {
+        Event::Delay
+      };
+      self.eval_id += 1;
       let info = EvalInfo::new(self.id, time_us, self.eval_id);
       observer.transition(&old_state, &event, &self.state, &info);
-    } else {
-      //println!("unexpected state: state:{:?} id:{:?}", old_state, self.id);
     }
   }
 
-  pub fn trigger_message_immediate(&mut self,
-                                   observer: &mut Observer,
-                                   time_us: &AtomicUsize)
+  pub fn msg_trigger(&mut self,
+                     observer: &mut Observer,
+                     time_us: &AtomicUsize)
   {
     let old_state = self.state;
-    if let TaskState::MessageWait(_sender_id, _channel_id, _channel_position) = old_state {
+    if let TaskState::MessageWait(_sender_id, channel_id, requested_channel_position) = old_state {
+      let act_channel_pos = self.task.input_channel_pos(channel_id.receiver_id);
+      let event = if act_channel_pos.0 >= requested_channel_position.0 {
+        self.state = TaskState::Execute;
+        Event::MessageArrived
+      } else {
+        Event::Delay
+      };
       self.eval_id += 1;
       let info = EvalInfo::new(self.id, time_us, self.eval_id);
-      self.state = TaskState::Execute;
-      observer.transition(&old_state, &Event::MessageArrived, &self.state, &info);
-    } else {
-      //println!("unexpected state: state:{:?} id:{:?}", old_state, self.id);
+      observer.transition(&old_state, &event, &self.state, &info);
     }
   }
 

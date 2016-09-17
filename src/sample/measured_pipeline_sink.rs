@@ -3,13 +3,12 @@ use super::super::elem::sink;
 use super::super::{ChannelWrapper, Schedule, ChannelPosition};
 use super::super::scheduler::event;
 
-#[allow(dead_code)]
-pub struct ExtPipelineSink {
+pub struct MeasuredPipelineSink {
   on_exec:  event::Event,
   on_msg:   event::Event,
 }
 
-impl sink::Sink for ExtPipelineSink {
+impl sink::Sink for MeasuredPipelineSink {
   type InputType = usize;
 
   fn process(&mut self, input: &mut ChannelWrapper<Self::InputType>) -> Schedule {
@@ -28,15 +27,23 @@ impl sink::Sink for ExtPipelineSink {
   }
 }
 
-impl ExtPipelineSink {
-  pub fn new(on_exec: event::Event, on_msg: event::Event) -> ExtPipelineSink {
-    ExtPipelineSink{
+impl MeasuredPipelineSink {
+  pub fn new(on_exec: event::Event, on_msg: event::Event) -> MeasuredPipelineSink {
+    MeasuredPipelineSink{
       on_exec: on_exec,
       on_msg: on_msg,
     }
   }
 }
 
-pub fn new(on_exec: event::Event, on_msg: event::Event) -> ExtPipelineSink {
-  ExtPipelineSink::new(on_exec, on_msg)
+pub fn new(on_exec: event::Event, on_msg: event::Event) -> MeasuredPipelineSink {
+  MeasuredPipelineSink::new(on_exec, on_msg)
+}
+
+impl Drop for MeasuredPipelineSink {
+  fn drop(&mut self) {
+    let (_r, exec_count) = self.on_exec.ready(0);
+    let (_r, msg_count)  = self.on_msg.ready(0);
+    println!(" @drop MeasuredPipelineSink exec_count:{} msg_count:{}",exec_count, msg_count);
+  }
 }

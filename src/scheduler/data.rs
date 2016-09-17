@@ -144,12 +144,7 @@ impl SchedulerData {
             }
           });
           if immediate_release {
-            let mut reporter = TaskObserver::new(observer.msg_triggers().capacity());
-            self.apply( task_id, |sender_task_wrapper| {
-              unsafe { (*sender_task_wrapper).trigger_message_immediate(
-                &mut reporter,
-                &self.time_us); };
-            });
+            self.msg_trigger(task_id);
           }
         },
 
@@ -189,12 +184,7 @@ impl SchedulerData {
               }
             });
             if immediate_release {
-              let mut reporter = TaskObserver::new(observer.msg_triggers().capacity());
-              self.apply( task_id, |sender_task_wrapper| {
-                unsafe { (*sender_task_wrapper).trigger_message_immediate(
-                  &mut reporter,
-                  &self.time_us); };
-              });
+              self.msg_trigger(task_id);
             }
           }
         },
@@ -206,15 +196,8 @@ impl SchedulerData {
     {
       let to_trigger : &Vec<(TaskId, ChannelPosition)> = observer.msg_triggers();
       if to_trigger.len() > 0 {
-        let mut reporter = TaskObserver::new(to_trigger.capacity());
-
-        for &(t_task_id, t_channel_pos) in observer.msg_triggers() {
-          self.apply( t_task_id, |task_wrapper| {
-            unsafe { (*task_wrapper).trigger_message(
-              t_channel_pos,
-              &mut reporter,
-              &self.time_us); };
-          });
+        for &(t_task_id, _t_channel_pos) in observer.msg_triggers() {
+          self.msg_trigger(t_task_id);
         }
       }
     }
@@ -257,7 +240,19 @@ impl SchedulerData {
     }
   }
 
-  pub fn apply<F>(&self, task_id: TaskId, f: F) where F : FnMut(*mut wrap::TaskWrap) {
+  fn msg_trigger(&self, task_id: TaskId)  {
+    if task_id.0 < self.max_id.load(Ordering::Acquire) {
+      let (l1, l2) = page::position(task_id.0);
+      unsafe {
+        let l1_ptr = self.l1.get_unchecked(l1).load(Ordering::Acquire);
+        if l1_ptr.is_null() == false {
+          (*l1_ptr).msg_trigger(l2);
+        }
+      }
+    }
+  }
+
+  fn apply<F>(&self, task_id: TaskId, f: F) where F : FnMut(*mut wrap::TaskWrap) {
     if task_id.0 < self.max_id.load(Ordering::Acquire) {
       let (l1, l2) = page::position(task_id.0);
       unsafe {
@@ -283,7 +278,7 @@ impl SchedulerData {
     if l1_ptr.is_null() {
       return Result::Err(Error::NonExistent);
     }
-    unsafe { (*l1_ptr).notify(l2) }
+    unsafe { Ok((*l1_ptr).notify(l2)) }
   }
 
   pub fn stop(&mut self) {

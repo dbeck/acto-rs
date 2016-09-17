@@ -9,6 +9,7 @@ pub struct EvalInfo {
 }
 
 impl EvalInfo {
+  #[allow(dead_code)]
   pub fn new(task_id: TaskId, at_usec: &AtomicUsize, eval_id: usize) -> EvalInfo {
     EvalInfo{
       task_id:   task_id,

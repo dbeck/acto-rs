@@ -182,9 +182,6 @@ fn wrap_eval_ext_triggered() {
   assert_eq!(obs.delayed, 1);
   assert_eq!(obs.ext_wait, 2);
 
-  // send a notify to stop delays and return the new value
-  assert_eq!(wrp.notify(), 1);
-
   // third eval will execute and report the new
   wrp.eval(&mut obs, &tim); //, TaskState::ExtEventWait(2));
   assert_eq!(obs.executed, 2);

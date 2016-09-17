@@ -15,14 +15,12 @@ impl Event {
     cvar.notify_one();
   }
 
-  #[allow(dead_code)]
   pub fn ready(&self, ticket: u64) -> (bool, u64) {
     let &(ref lock, ref _cvar) = &*(self.condvar);
     let started = lock.lock();
     (*started > ticket, *started)
   }
 
-  #[allow(dead_code)]
   pub fn wait(&mut self, ticket: u64, timeout_usec: u64) -> u64 {
     // wait for the thread to start up
     let start_at = Instant::now();

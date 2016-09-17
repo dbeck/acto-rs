@@ -4,7 +4,6 @@ use super::super::elem::filter;
 use super::super::{ChannelWrapper, Message, Schedule, ChannelPosition};
 use super::super::scheduler::event;
 
-#[allow(dead_code)]
 pub struct MeasuredPipelineFilter {
   on_exec:  event::Event,
   on_msg:   event::Event,
@@ -46,4 +45,12 @@ impl MeasuredPipelineFilter {
 
 pub fn new(on_exec: event::Event, on_msg: event::Event) -> MeasuredPipelineFilter {
   MeasuredPipelineFilter::new(on_exec, on_msg)
+}
+
+impl Drop for MeasuredPipelineFilter {
+  fn drop(&mut self) {
+    let (_r, exec_count) = self.on_exec.ready(0);
+    let (_r, msg_count)  = self.on_msg.ready(0);
+    println!(" @drop MeasuredPipelineFilter exec_count:{} msg_count:{}",exec_count, msg_count);
+  }
 }
