@@ -2,7 +2,7 @@
 use std::collections::{HashMap};
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
 use super::super::{Task, Error, TaskState, TaskId, SenderChannelId,
-  ReceiverChannelId, ChannelPosition
+  ReceiverChannelId, ChannelPosition, ChannelId
 };
 use super::{page, wrap};
 use super::observer::{TaskObserver};
@@ -14,15 +14,16 @@ use libc;
 
 pub struct SchedulerData {
   // ticker only:
-  start:    Instant,
+  start:       Instant,
   // shared between threads
   // everything below has to be thread safe:
-  max_id:   AtomicUsize,
-  l1:       Vec<AtomicPtr<page::TaskPage>>,
-  stop:     AtomicBool,
-  time_us:  AtomicUsize,
-  ids:      Mutex<HashMap<String, usize>>,
-  evt:      event::Event,
+  max_id:      AtomicUsize,
+  l1:          Vec<AtomicPtr<page::TaskPage>>,
+  stop:        AtomicBool,
+  time_us:     AtomicUsize,
+  ids:         Mutex<HashMap<String, usize>>,
+  unresolved:  Mutex<HashMap<String, HashMap<TaskId,Vec<ChannelId>>>>,
+  evt:         event::Event,
 }
 
 impl SchedulerData {
@@ -42,13 +43,14 @@ impl SchedulerData {
   fn new() -> SchedulerData {
     let l1_size = initial_capacity();
     let mut data = SchedulerData{
-      start:    Instant::now(),
-      max_id:   AtomicUsize::new(0),
-      l1:       Vec::with_capacity(l1_size),
-      stop:     AtomicBool::new(false),
-      time_us:  AtomicUsize::new(0),
-      ids:      Mutex::new(HashMap::new()),
-      evt:      event::new(),
+      start:       Instant::now(),
+      max_id:      AtomicUsize::new(0),
+      l1:          Vec::with_capacity(l1_size),
+      stop:        AtomicBool::new(false),
+      time_us:     AtomicUsize::new(0),
+      ids:         Mutex::new(HashMap::new()),
+      unresolved:  Mutex::new(HashMap::new()),
+      evt:         event::new(),
     };
 
     // fill the l1 bucket
@@ -81,6 +83,9 @@ impl SchedulerData {
       } else {
         ret_id = self.max_id.fetch_add(1, Ordering::AcqRel);
         ids.insert(task.name().clone(), ret_id);
+
+        // TODO resolved ids if any, for other tasks
+
         // resolve input task ids
         for i in 0..input_count {
           match task.input_id(ReceiverChannelId(i)) {
@@ -88,7 +93,10 @@ impl SchedulerData {
               let ref ch_id_name = ch_id_sender_name.1;
               match ids.get(&ch_id_name.0) {
                 Some(&id)  => input_task_ids.push(Some(id)),
-                None       => input_task_ids.push(None)
+                None       => {
+                  // TODO register unresolved ID
+                  input_task_ids.push(None)
+                }
               }
             },
             _ => input_task_ids.push(None)

@@ -80,6 +80,9 @@ pub enum TaskState {
   Execute,
   TimeWait(AbsSchedulerTimeInUsec),
   MessageWait(SenderId, ChannelId, ChannelPosition),
+  // TODO : this must go. the only reason it is here that it supports delayed
+  //   task id resolution. this should be moved to add_task() and apply() to
+  //   be removed from the main loop.
   MessageWaitNeedSenderId(ChannelId, ChannelPosition),
   ExtEventWait(ExtEventSeqno),
   Stop,
