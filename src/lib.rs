@@ -60,7 +60,7 @@ pub enum Schedule {
 #[derive(Copy,Clone,Debug,PartialEq)]
 pub struct AbsSchedulerTimeInUsec (usize);
 
-#[derive(Copy,Clone,Debug,PartialEq)]
+#[derive(Copy,Clone,Debug,PartialEq,Eq)]
 pub struct TaskId (usize);
 
 #[derive(Copy,Clone,Debug,PartialEq)]

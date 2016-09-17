@@ -85,16 +85,28 @@ impl SchedulerData {
         ids.insert(task.name().clone(), ret_id);
 
         // TODO resolved ids if any, for other tasks
+        let unresolved = self.unresolved.lock();
+        if unresolved.contains_key(task.name()) {
+
+        }
 
         // resolve input task ids
         for i in 0..input_count {
           match task.input_id(ReceiverChannelId(i)) {
             Some(ref ch_id_sender_name) => {
+              let ref ch_id_id   = ch_id_sender_name.0;
               let ref ch_id_name = ch_id_sender_name.1;
               match ids.get(&ch_id_name.0) {
                 Some(&id)  => input_task_ids.push(Some(id)),
                 None       => {
                   // TODO register unresolved ID
+                  if unresolved.contains_key(*ch_id_name.0) {
+
+                  } else {
+                    let dep = HashMap::new();
+                    dep.insert(TaskId(ret_id), ch_id_id);
+                    unresolved.insert( ch_id_name.0.clone(), dep );
+                  }
                   input_task_ids.push(None)
                 }
               }
