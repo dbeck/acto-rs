@@ -162,6 +162,7 @@ impl Observer for TaskTracer {
 
 #[derive(Clone,Debug)]
 pub struct TaskObserver {
+  exec_count:     u64,
   msg_waits:      Vec<(TaskId, TaskState)>,
   msg_triggers:   Vec<(TaskId, ChannelPosition)>,
 }
@@ -169,6 +170,7 @@ pub struct TaskObserver {
 impl TaskObserver {
   pub fn new(n_tasks: usize) -> TaskObserver {
     TaskObserver{
+      exec_count:   0,
       msg_waits:    Vec::with_capacity(n_tasks),
       msg_triggers: Vec::with_capacity(n_tasks),
     }
@@ -181,10 +183,16 @@ impl TaskObserver {
   pub fn msg_triggers(&self) -> &Vec<(TaskId, ChannelPosition)> {
     &self.msg_triggers
   }
+
+  pub fn exec_count(&self) -> u64 {
+    self.exec_count
+  }
 }
 
 impl Observer for TaskObserver {
-  fn executed(&mut self, _info: &EvalInfo) {}
+  fn executed(&mut self, _info: &EvalInfo) {
+    self.exec_count += 1;
+  }
 
   fn msg_trigger(&mut self,
                  target_task: TaskId,

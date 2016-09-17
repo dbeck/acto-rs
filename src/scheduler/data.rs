@@ -13,7 +13,10 @@ use std::time::{Instant};
 use libc;
 
 pub struct SchedulerData {
+  // ticker only:
   start:    Instant,
+  // shared between threads
+  // everything below has to be thread safe:
   max_id:   AtomicUsize,
   l1:       Vec<AtomicPtr<page::TaskPage>>,
   stop:     AtomicBool,
@@ -148,6 +151,9 @@ impl SchedulerData {
           }
         },
 
+        // TODO : this must go. the only reason it is here that it supports delayed
+        //   task id resolution. this should be moved to add_task() and apply() to
+        //   be removed from the main loop.
         TaskState::MessageWaitNeedSenderId(channel_id, channel_position) => {
           //println!("unresolved dependency. for: {:?} depends on ch:{:?}/{:?}", task_id, channel_id, channel_position);
 
@@ -204,6 +210,12 @@ impl SchedulerData {
   }
 
   pub fn entry(&mut self, id: usize) {
+    use std::ops::Sub;
+    let mut pp_time = 0u64;
+    let mut pp_count = 0u64;
+    let mut no_exec = 0u64;
+    let start = Instant::now();
+
     let l2_max = page::max_idx();
     loop {
       let max_id = self.max_id.load(Ordering::Acquire);
@@ -231,13 +243,24 @@ impl SchedulerData {
         }
       }
 
+      if reporter.exec_count() == 0 {
+        no_exec += 1;
+      }
+
+      let pp_start = start.elapsed();
       self.post_process_tasks(reporter);
+      let pp_end = start.elapsed();
+      let pp_diff = pp_end.sub(pp_start);
+      pp_time += pp_diff.subsec_nanos() as u64;
+      pp_count += 1;
 
       // check stop state
       if self.stop.load(Ordering::Acquire) {
         break;
       }
     }
+    println!("pp_count: {} pp_ns: {} ns/pp: {} no_exec: {}",
+      pp_count, pp_time, pp_time/pp_count, no_exec);
   }
 
   fn msg_trigger(&self, task_id: TaskId)  {
@@ -252,6 +275,9 @@ impl SchedulerData {
     }
   }
 
+  // TODO : this must go. the only reason it is here that it supports delayed
+  //   task id resolution. this should be moved to add_task() and apply() to
+  //   be removed from the main loop.
   fn apply<F>(&self, task_id: TaskId, f: F) where F : FnMut(*mut wrap::TaskWrap) {
     if task_id.0 < self.max_id.load(Ordering::Acquire) {
       let (l1, l2) = page::position(task_id.0);

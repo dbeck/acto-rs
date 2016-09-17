@@ -21,6 +21,8 @@ pub struct TaskWrap {
   input_ids:        Vec<Option<usize>>,
   dependents:       Vec<Option<Dependent>>,
   n_dependents:     usize,
+  exec_count:       u64,
+  delay_count:      u64,
 }
 
 impl TaskWrap {
@@ -30,7 +32,8 @@ impl TaskWrap {
   }
 
   fn process(&mut self, event: &Event, observer: &mut Observer, time_us: &AtomicUsize, info: &mut EvalInfo) {
-    let old_state = self.state;
+    let old_state     = self.state;
+    let mut executed  = false;
 
     // execute first, if needed
     match event {
@@ -44,7 +47,8 @@ impl TaskWrap {
           }
 
           // execute the task, save the schedule request
-          let evt = self.task.execute();
+          let user_evt = self.task.execute();
+          executed = true;
 
           // record statistics about the execution
           let now = time_us.load(Ordering::Acquire);
@@ -52,7 +56,7 @@ impl TaskWrap {
           observer.executed(&info);
 
           // check what the schedule tells us
-          self.state = match evt {
+          self.state = match user_evt {
             Schedule::Loop => TaskState::Execute,
             Schedule::OnMessage(channel_id, channel_position) => {
               let act_channel_pos = self.task.input_channel_pos(channel_id.receiver_id);
@@ -68,6 +72,9 @@ impl TaskWrap {
                   let slice = self.input_ids.as_mut_slice();
                   match slice[receiver_channel_id] {
                     None => {
+                      // TODO : this must go. the only reason it is here that it supports delayed
+                      //   task id resolution. this should be moved to add_task() and apply() to
+                      //   be removed from the main loop.
                       TaskState::MessageWaitNeedSenderId(channel_id, channel_position)
                     },
                     Some(sender_task_id) => {
@@ -88,7 +95,7 @@ impl TaskWrap {
           };
 
           // record state transition
-          observer.transition(&old_state, &Event::User(evt), &self.state, &info);
+          observer.transition(&old_state, &Event::User(user_evt), &self.state, &info);
 
           // check if there are any dependents to trigger
           {
@@ -145,6 +152,12 @@ impl TaskWrap {
           observer.transition(&old_state, event, &self.state, &info);
         },
     };
+
+    if executed {
+      self.exec_count += 1;
+    } else {
+      self.delay_count += 1;
+    }
   }
 
   pub fn eval(&mut self,
@@ -162,25 +175,6 @@ impl TaskWrap {
         => Event::Execute,
       TaskState::TimeWait(exec_at) if exec_at.0 <= now
         => Event::TimerExpired,
-      /*
-      TaskState::ExtEventWait(threshold)
-        if self.ext_evt_count.load(Ordering::Acquire) >= threshold.0 => Event::ExtTrigger,
-      TaskState::MessageWait(_sender_id, _channel_id, _channel_position) => {
-        let act_channel_pos = self.task.input_channel_pos(channel_id.receiver_id);
-        if act_channel_pos.0 >= channel_position.0 {
-          Event::MessageArrived
-        } else {
-          Event::Delay
-        }
-      },
-      TaskState::MessageWaitNeedSenderId(_channel_id, _channel_position) => {
-        let act_channel_pos = self.task.input_channel_pos(channel_id.receiver_id);
-        if act_channel_pos.0 >= channel_position.0 {
-          Event::MessageArrived
-        } else {
-          Event::Delay
-        }
-      }*/
       _ => Event::Delay,
     };
 
@@ -287,5 +281,17 @@ pub fn new(task: Box<Task+Send>, id: TaskId, input_task_ids: Vec<Option<usize>>)
     input_ids:       input_task_ids,
     dependents:      dependents,
     n_dependents:    0,
+    exec_count:      0,
+    delay_count:     0,
+  }
+}
+
+impl Drop for TaskWrap {
+  fn drop(&mut self) {
+    println!(" @drop TaskWrap task_id:{:?} exec_count:{} delay_count:{} eval_id:{}",
+     self.id,
+     self.exec_count,
+     self.delay_count,
+     self.eval_id);
   }
 }

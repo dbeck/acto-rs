@@ -38,8 +38,12 @@ impl TaskPage {
     }
   }
 
+  // TODO : this must go. the only reason it is here that it supports delayed
+  //   task id resolution. this should be moved to add_task() and apply() to
+  //   be removed from the main loop.
   pub fn apply<F>(&self, l2_idx: usize, f: F) where F : FnMut(*mut wrap::TaskWrap) {
     let slice = self.l2.as_slice();
+    // BAD THING HERE
     loop {
       let wrk = slice[l2_idx].swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
       if wrk.is_null() == false {
