@@ -11,7 +11,7 @@ pub struct ExtPipeline {
   sched:              Scheduler,
   sink_msg_evt:       event::Event,
   source_id:          TaskId,
-  last_notification:  usize,
+  wait_ticket:        u64,
 }
 
 impl ExtPipeline {
@@ -43,7 +43,7 @@ impl ExtPipeline {
       sched:              sched,
       sink_msg_evt:       sink_msg_evt,
       source_id:          source_id,
-      last_notification:  0,
+      wait_ticket:        0,
     }
   }
 
@@ -58,9 +58,7 @@ impl ExtPipeline {
   pub fn notify(&mut self) {
     loop {
       let source_id = self.source_id;
-      if let Ok(result) = self.sched.notify(&source_id) {
-        self.last_notification = result;
-        println!("last self.last_notification:{}",self.last_notification);
+      if let Ok(_result) = self.sched.notify(&source_id) {
         break;
       }
     }
@@ -68,10 +66,9 @@ impl ExtPipeline {
 
   pub fn wait(&mut self) {
     loop {
-      let res = self.sink_msg_evt.wait(self.last_notification as u64, 10_000_000);
-      println!("act self.last_notification:{} res:{}",self.last_notification,res);
-      if res >= self.last_notification as u64 {
-        println!("wait done");
+      let res = self.sink_msg_evt.wait(self.wait_ticket, 10_000_000);
+      if res > self.wait_ticket {
+        self.wait_ticket = res;
         break;
       }
     }

@@ -9,3 +9,6 @@ pub mod ext_pipeline_filter;
 pub mod ext_pipeline_sink;
 pub mod ext_pipeline_source;
 pub mod ext_pipeline;
+pub mod measured_pipeline_filter;
+pub mod measured_pipeline_sink;
+pub mod measured_pipeline_source;

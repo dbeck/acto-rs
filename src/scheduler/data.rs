@@ -221,8 +221,6 @@ impl SchedulerData {
   }
 
   pub fn entry(&mut self, id: usize) {
-    let mut exec_count : u64 = 0;
-    let start = Instant::now();
     let l2_max = page::max_idx();
     loop {
       let max_id = self.max_id.load(Ordering::Acquire);
@@ -250,8 +248,6 @@ impl SchedulerData {
         }
       }
 
-      exec_count += reporter.exec_count();
-
       self.post_process_tasks(reporter);
 
       // check stop state
@@ -259,10 +255,6 @@ impl SchedulerData {
         break;
       }
     }
-    let diff = start.elapsed();
-    let diff = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
-    println!("thread: #{} exiting. #exec: {} exec-time: {} ns {}k/s",
-      id, exec_count, (diff+1)/(exec_count+1), exec_count*1_000*1_000/diff);
   }
 
   pub fn apply<F>(&self, task_id: TaskId, f: F) where F : FnMut(*mut wrap::TaskWrap) {
