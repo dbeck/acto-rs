@@ -1,7 +1,7 @@
 
 use lossyq::spsc::Sender;
 use super::super::elem::filter;
-use super::super::{ChannelWrapper, Message, Schedule, ChannelPosition};
+use super::super::{ChannelWrapper, Message, Schedule};
 use super::super::scheduler::event;
 
 #[allow(dead_code)]
@@ -28,7 +28,7 @@ impl filter::Filter for ExtPipelineFilter {
         output.put(|v| *v = Some(m));
       }
       // only execute when there is a new message on the input channel
-      Schedule::OnMessage(*channel_id, ChannelPosition(1+receiver.seqno()))
+      Schedule::OnMessage(*channel_id)
     } else {
       Schedule::Stop
     }

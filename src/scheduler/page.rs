@@ -1,6 +1,6 @@
 
 use std::sync::atomic::{AtomicPtr, Ordering, AtomicUsize};
-use super::super::{Task, TaskId};
+use super::super::{Task, TaskId, ChannelId};
 use super::observer::{Observer};
 use super::{wrap};
 use std::ptr;
@@ -38,12 +38,8 @@ impl TaskPage {
     }
   }
 
-  // TODO : this must go. the only reason it is here that it supports delayed
-  //   task id resolution. this should be moved to add_task() and apply() to
-  //   be removed from the main loop.
-  pub fn apply<F>(&self, l2_idx: usize, f: F) where F : FnMut(*mut wrap::TaskWrap) {
+  pub fn blocking_apply<F>(&self, l2_idx: usize, f: F) where F : FnMut(*mut wrap::TaskWrap) {
     let slice = self.l2.as_slice();
-    // BAD THING HERE
     loop {
       let wrk = slice[l2_idx].swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
       if wrk.is_null() == false {
@@ -109,6 +105,18 @@ impl TaskPage {
   pub fn msg_trigger(&mut self, l2_idx: usize) {
     let trig_slice = self.msg_trigger.as_mut_slice();
     trig_slice[l2_idx].pending.fetch_add(1, Ordering::AcqRel);
+  }
+
+  pub fn resolve_input_task_id(&mut self, l2_idx: usize, sender: &TaskId, channel: &ChannelId) {
+    self.blocking_apply(l2_idx, |task_wrapper| {
+      unsafe { (*task_wrapper).resolve_input_task_id(*channel, *sender) };
+    });
+  }
+
+  pub fn register_dependent(&mut self, l2_idx: usize, ch: ChannelId, dep_task_id: TaskId) {
+    self.blocking_apply(l2_idx, |task_wrapper| {
+      unsafe { (*task_wrapper).register_dependent(ch, dep_task_id) };
+    });
   }
 }
 

@@ -25,10 +25,10 @@ impl MeasuredPipeline {
     let sink_msg_evt     = event::Event::new();
 
     let (source_task, mut source_out) =
-      source::new( "Source", 20, Box::new(MeasuredPipelineSource::new(source_exec_evt.clone())));
+      source::new( "Source", 20000000, Box::new(MeasuredPipelineSource::new(source_exec_evt.clone())));
 
     let (mut filter_task, mut filter_out) =
-      filter::new( "Filter", 20, Box::new(MeasuredPipelineFilter::new(filter_exec_evt.clone(), filter_msg_evt.clone())));
+      filter::new( "Filter", 20000000, Box::new(MeasuredPipelineFilter::new(filter_exec_evt.clone(), filter_msg_evt.clone())));
 
     let mut sink_task =
       sink::new( "Sink", Box::new(MeasuredPipelineSink::new(sink_exec_evt.clone(), sink_msg_evt.clone())));
@@ -53,7 +53,7 @@ impl MeasuredPipeline {
   }
 
   pub fn start(&mut self) {
-    self.sched.start_with_threads(2);
+    self.sched.start_with_threads(1);
   }
 
   pub fn stop(&mut self) {
@@ -70,16 +70,18 @@ impl MeasuredPipeline {
   }
 
   pub fn wait(&mut self) {
+    use std::thread;
     let mut c = 0;
     loop {
-      let res = self.sink_msg_evt.wait(self.wait_ticket, 1_000);
+      //let (_ready, res) = self.sink_msg_evt.ready(self.wait_ticket);
+      let res = self.sink_msg_evt.wait(self.wait_ticket, 1_00);
       if res > self.wait_ticket {
         self.wait_ticket = res;
         break;
       } else {
+        thread::yield_now();
         c += 1;
-        if c > 100 {
-          println!("ERR res:{} ticket:{} sent:{}",res,self.wait_ticket,self.sent);
+        if c > 10 {
           break;
         }
       }

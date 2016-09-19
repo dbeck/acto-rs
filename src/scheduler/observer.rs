@@ -1,4 +1,4 @@
-use super::super::{TaskState, Event, TaskId, AbsSchedulerTimeInUsec, ChannelPosition};
+use super::super::{TaskState, Event, TaskId, AbsSchedulerTimeInUsec};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[derive(Copy,Clone,Debug)]
@@ -40,7 +40,7 @@ impl EvalInfo {
 pub trait Observer {
   fn eval_started(&mut self, info: &EvalInfo);
   fn executed(&mut self, info: &EvalInfo);
-  fn msg_trigger(&mut self, target_task: TaskId, channel_position: ChannelPosition, info: &EvalInfo);
+  fn msg_trigger(&mut self, target_task: TaskId, info: &EvalInfo);
   fn transition(&mut self, from: &TaskState, event: &Event, to: &TaskState, info: &EvalInfo);
   fn eval_finished(&mut self, info: &EvalInfo);
 }
@@ -93,7 +93,6 @@ impl Observer for CountingReporter {
 
   fn msg_trigger(&mut self,
                  _target_task: TaskId,
-                 _channel_position: ChannelPosition,
                  _info: &EvalInfo)
   {
     self.triggered += 1;
@@ -104,7 +103,6 @@ impl Observer for CountingReporter {
     match to {
       &TaskState::ExtEventWait(..)             => { self.ext_wait  += 1; },
       &TaskState::MessageWait(..)              => { self.msg_wait  += 1; },
-      &TaskState::MessageWaitNeedSenderId(..)  => { self.msg_wait  += 1; },
       &TaskState::TimeWait(..)                 => { self.time_wait += 1; },
       &TaskState::Stop                         => { self.stopped   += 1; },
       _                                        => { },
@@ -139,11 +137,10 @@ impl Observer for TaskTracer {
 
   fn msg_trigger(&mut self,
                  target_task: TaskId,
-                 channel_position: ChannelPosition,
                  info: &EvalInfo)
   {
-    println!("Message trigger. target:{:?}, pos:{:?}, ({:?})",
-      target_task, channel_position, info);
+    println!("Message trigger. target:{:?}, ({:?})",
+      target_task, info);
   }
 
   fn transition(&mut self,
@@ -164,7 +161,7 @@ impl Observer for TaskTracer {
 pub struct TaskObserver {
   exec_count:     u64,
   msg_waits:      Vec<(TaskId, TaskState)>,
-  msg_triggers:   Vec<(TaskId, ChannelPosition)>,
+  msg_triggers:   Vec<TaskId>,
 }
 
 impl TaskObserver {
@@ -180,10 +177,11 @@ impl TaskObserver {
     &self.msg_waits
   }
 
-  pub fn msg_triggers(&self) -> &Vec<(TaskId, ChannelPosition)> {
+  pub fn msg_triggers(&self) -> &Vec<TaskId> {
     &self.msg_triggers
   }
 
+  #[allow(dead_code)]
   pub fn exec_count(&self) -> u64 {
     self.exec_count
   }
@@ -196,16 +194,15 @@ impl Observer for TaskObserver {
 
   fn msg_trigger(&mut self,
                  target_task: TaskId,
-                 channel_position: ChannelPosition,
                  _info: &EvalInfo) {
     //println!(" .. Trigger: task:{:?} position:{:?}  info:{:?}",target_task, channel_position, info);
-    self.msg_triggers.push((target_task, channel_position));
+    self.msg_triggers.push(target_task);
   }
 
   fn transition(&mut self, _from: &TaskState, _event: &Event, to: &TaskState, info: &EvalInfo) {
     //println!(" .. Transition: {:?} + {:?} -> {:?}  =@= {:?}", from, event, to, info);
     match to {
-      &TaskState::MessageWait(..) | &TaskState::MessageWaitNeedSenderId(..) => {
+      &TaskState::MessageWait(..) => {
         //println!(" // Message dependency: info:{:?}", info);
         self.msg_waits.push((info.task_id, *to));
       },

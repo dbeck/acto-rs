@@ -51,7 +51,7 @@ pub struct DelayFromNowInUsec (usize);
 #[derive(Copy,Clone,Debug)]
 pub enum Schedule {
   Loop,
-  OnMessage(ChannelId, ChannelPosition),
+  OnMessage(ChannelId),
   DelayUsec(DelayFromNowInUsec),
   OnExternalEvent,
   Stop,
@@ -60,7 +60,7 @@ pub enum Schedule {
 #[derive(Copy,Clone,Debug,PartialEq)]
 pub struct AbsSchedulerTimeInUsec (usize);
 
-#[derive(Copy,Clone,Debug,PartialEq,Eq)]
+#[derive(Copy,Clone,Debug,PartialEq,Eq,Hash)]
 pub struct TaskId (usize);
 
 #[derive(Copy,Clone,Debug,PartialEq)]
@@ -79,11 +79,7 @@ pub struct ExtEventSeqno (usize);
 pub enum TaskState {
   Execute,
   TimeWait(AbsSchedulerTimeInUsec),
-  MessageWait(SenderId, ChannelId, ChannelPosition),
-  // TODO : this must go. the only reason it is here that it supports delayed
-  //   task id resolution. this should be moved to add_task() and apply() to
-  //   be removed from the main loop.
-  MessageWaitNeedSenderId(ChannelId, ChannelPosition),
+  MessageWait(SenderId, ChannelId),
   ExtEventWait(ExtEventSeqno),
   Stop,
 }

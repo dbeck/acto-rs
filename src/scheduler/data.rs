@@ -1,10 +1,10 @@
 
 use std::collections::{HashMap};
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
-use super::super::{Task, Error, TaskState, TaskId, SenderChannelId,
-  ReceiverChannelId, ChannelPosition, ChannelId
+use super::super::{Task, Error, TaskState, TaskId,
+  ReceiverChannelId, ChannelId
 };
-use super::{page, wrap};
+use super::{page};
 use super::observer::{TaskObserver};
 use super::event;
 use parking_lot::{Mutex};
@@ -63,19 +63,13 @@ impl SchedulerData {
     data
   }
 
-  fn resolve_task_id(&self, name: &String) -> Option<TaskId> {
-    let ids = self.ids.lock();
-    match ids.get(name) {
-      Some(&id)  => Some(TaskId (id) ),
-      None       => None
-    }
-  }
-
   pub fn add_task(&mut self, task: Box<Task+Send>) -> Result<TaskId, Error> {
     let ret_id : usize;
     let input_count = task.input_count();
     let mut input_task_ids : Vec<Option<usize>> = Vec::with_capacity(input_count);
-    // check if name exists, and register if not
+
+    // check if name exists, and register if not. also register
+    // unresolved sender ids if any.
     {
       let mut ids = self.ids.lock();
       if ids.contains_key(task.name()) {
@@ -83,12 +77,6 @@ impl SchedulerData {
       } else {
         ret_id = self.max_id.fetch_add(1, Ordering::AcqRel);
         ids.insert(task.name().clone(), ret_id);
-
-        // TODO resolved ids if any, for other tasks
-        let unresolved = self.unresolved.lock();
-        if unresolved.contains_key(task.name()) {
-
-        }
 
         // resolve input task ids
         for i in 0..input_count {
@@ -99,14 +87,12 @@ impl SchedulerData {
               match ids.get(&ch_id_name.0) {
                 Some(&id)  => input_task_ids.push(Some(id)),
                 None       => {
-                  // TODO register unresolved ID
-                  if unresolved.contains_key(*ch_id_name.0) {
-
-                  } else {
-                    let dep = HashMap::new();
-                    dep.insert(TaskId(ret_id), ch_id_id);
-                    unresolved.insert( ch_id_name.0.clone(), dep );
-                  }
+                  let mut unresolved = self.unresolved.lock();
+                  // register that this task needs the task id of the sender
+                  // - based on the sender name and chanel id
+                  let dependents = unresolved.entry(ch_id_name.0.clone()).or_insert(HashMap::new());
+                  let channels = dependents.entry(TaskId(ret_id)).or_insert(Vec::new());
+                  channels.push(*ch_id_id);
                   input_task_ids.push(None)
                 }
               }
@@ -116,15 +102,45 @@ impl SchedulerData {
         }
       }
     }
-    let (l1, l2) = page::position(ret_id);
-    if l2 == 0 {
-      // make sure the next bucket exists when needed
-      self.add_l2_page(l1+1);
+
+    let task_name = task.name().clone();
+    {
+      // store task
+      let (l1, l2) = page::position(ret_id);
+      if l2 == 0 {
+        // make sure the next bucket exists when needed
+        self.add_l2_page(l1+1);
+      }
+      unsafe {
+        let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
+        if l1_ptr.is_null() == false {
+          (*l1_ptr).store(l2, task, TaskId(ret_id), input_task_ids);
+        }
+      }
     }
-    unsafe {
-      let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
-      if l1_ptr.is_null() == false {
-        (*l1_ptr).store(l2, task, TaskId(ret_id), input_task_ids);
+
+    {
+      // resolved ids if any, for other tasks
+      let mut unresolved = self.unresolved.lock();
+      let mut remove = false;
+      if let Some(dependents) = unresolved.get(&task_name) {
+        remove = true;
+        for (dep_id, channels) in dependents.iter() {
+          for ch in channels.iter() {
+            //self.resolve_dependent_task_id(&dep_id, &TaskId(ret_id), &ch);
+            let (l1, l2) = page::position(dep_id.0);
+            //
+            unsafe {
+              let l1_ptr = self.l1.get_unchecked(l1).load(Ordering::Acquire);
+              if l1_ptr.is_null() == false {
+                (*l1_ptr).resolve_input_task_id(l2, &TaskId(ret_id), &ch);
+              }
+            }
+          }
+        }
+      }
+      if remove {
+        unresolved.remove(&task_name);
       }
     }
     Result::Ok(TaskId(ret_id))
@@ -156,73 +172,25 @@ impl SchedulerData {
     for w in observer.msg_waits() {
       let &(task_id, state) = w;
       match state {
-        TaskState::MessageWait(sender_id, channel_id, channel_position) => {
-          //println!("register dependency. {:?} depends on {:?}", task_id, sender_id);
-          let mut immediate_release = false;
-          self.apply( TaskId (sender_id.0), |sender_task_wrapper| {
-            let res = unsafe { (*sender_task_wrapper).register_dependent(channel_id, task_id, channel_position) };
-            if res.is_err() {
-              //println!("failed to register dependent. {:?}",res.err());
-              immediate_release = true;
-            }
-          });
-          if immediate_release {
-            self.msg_trigger(task_id);
-          }
-        },
-
-        // TODO : this must go. the only reason it is here that it supports delayed
-        //   task id resolution. this should be moved to add_task() and apply() to
-        //   be removed from the main loop.
-        TaskState::MessageWaitNeedSenderId(channel_id, channel_position) => {
-          //println!("unresolved dependency. for: {:?} depends on ch:{:?}/{:?}", task_id, channel_id, channel_position);
-
-          let mut sender_ch_id    = SenderChannelId(0);
-          let mut sender_task_id  = TaskId(0);
-          let mut resolved        = false;
-
-          self.apply( task_id, |receiver_task_wrapper| {
-            match unsafe { (*receiver_task_wrapper).input_id(channel_id.receiver_id) } {
-              Some(ref channel_id_name) => {
-                let ref channel_name  = channel_id_name.1;
-                match self.resolve_task_id(&channel_name.0) {
-                  Some(sender_id) => {
-                    unsafe { (*receiver_task_wrapper).resolve_input_task_id(channel_id, sender_id); };
-                    sender_task_id   = sender_id;
-                    sender_ch_id     = channel_id.sender_id;
-                    resolved         = true;
-                    //println!("resolved: {:?} for task_id:{:?} sender_id:{:?}", channel_id, task_id, sender_id);
-                  },
-                  None => {},
-                }
-              },
-              None => {},
-            }
-          });
-
-          if resolved {
-            let mut immediate_release = false;
-            self.apply( sender_task_id, |sender_task_wrapper| {
-              let res = unsafe { (*sender_task_wrapper).register_dependent(channel_id, task_id, channel_position) };
-              if res.is_err() {
-                //println!("failed to register dependent. {:?}",res.err());
-                immediate_release = true;
-              }
-            });
-            if immediate_release {
-              self.msg_trigger(task_id);
+        TaskState::MessageWait(sender_id, channel_id) => {
+          // register dependencies
+          let (l1, l2) = page::position(sender_id.0);
+          //
+          unsafe {
+            let l1_ptr = self.l1.get_unchecked(l1).load(Ordering::Acquire);
+            if l1_ptr.is_null() == false {
+              (*l1_ptr).register_dependent(l2, channel_id, task_id);
             }
           }
-        },
-
+        }
         _ => {},
       }
     }
 
     {
-      let to_trigger : &Vec<(TaskId, ChannelPosition)> = observer.msg_triggers();
+      let to_trigger : &Vec<TaskId> = observer.msg_triggers();
       if to_trigger.len() > 0 {
-        for &(t_task_id, _t_channel_pos) in observer.msg_triggers() {
+        for &t_task_id in observer.msg_triggers() {
           self.msg_trigger(t_task_id);
         }
       }
@@ -230,11 +198,11 @@ impl SchedulerData {
   }
 
   pub fn entry(&mut self, id: usize) {
-    use std::ops::Sub;
-    let mut pp_time = 0u64;
-    let mut pp_count = 0u64;
-    let mut no_exec = 0u64;
-    let start = Instant::now();
+    //use std::ops::Sub;
+    //let mut pp_time = 0u64;
+    //let mut pp_count = 0u64;
+    //let mut no_exec = 0u64;
+    //let start = Instant::now();
 
     let l2_max = page::max_idx();
     loop {
@@ -263,6 +231,9 @@ impl SchedulerData {
         }
       }
 
+      self.post_process_tasks(reporter);
+
+      /*
       if reporter.exec_count() == 0 {
         no_exec += 1;
       }
@@ -273,14 +244,15 @@ impl SchedulerData {
       let pp_diff = pp_end.sub(pp_start);
       pp_time += pp_diff.subsec_nanos() as u64;
       pp_count += 1;
+      */
 
       // check stop state
       if self.stop.load(Ordering::Acquire) {
         break;
       }
     }
-    println!("pp_count: {} pp_ns: {} ns/pp: {} no_exec: {}",
-      pp_count, pp_time, pp_time/pp_count, no_exec);
+    //println!("pp_count: {} pp_ns: {} ns/pp: {} no_exec: {}",
+      //pp_count, pp_time, pp_time/pp_count, no_exec);
   }
 
   fn msg_trigger(&self, task_id: TaskId)  {
@@ -290,21 +262,6 @@ impl SchedulerData {
         let l1_ptr = self.l1.get_unchecked(l1).load(Ordering::Acquire);
         if l1_ptr.is_null() == false {
           (*l1_ptr).msg_trigger(l2);
-        }
-      }
-    }
-  }
-
-  // TODO : this must go. the only reason it is here that it supports delayed
-  //   task id resolution. this should be moved to add_task() and apply() to
-  //   be removed from the main loop.
-  fn apply<F>(&self, task_id: TaskId, f: F) where F : FnMut(*mut wrap::TaskWrap) {
-    if task_id.0 < self.max_id.load(Ordering::Acquire) {
-      let (l1, l2) = page::position(task_id.0);
-      unsafe {
-        let l1_ptr = self.l1.get_unchecked(l1).load(Ordering::Acquire);
-        if l1_ptr.is_null() == false {
-          (*l1_ptr).apply(l2, f);
         }
       }
     }

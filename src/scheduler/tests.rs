@@ -3,8 +3,7 @@ use scheduler;
 use super::{wrap, data};
 use super::observer::{CountingReporter, TaskTracer};
 use super::super::{Message, Schedule, Error, ChannelWrapper, ChannelId,
-  DelayFromNowInUsec, SenderChannelId, ReceiverChannelId, ChannelPosition,
-  TaskId
+  DelayFromNowInUsec, SenderChannelId, ReceiverChannelId, TaskId
 };
 use super::super::elem::{source, filter, sink};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -35,10 +34,10 @@ fn data_entry_check_msg_wait_state() {
     source::new( "Source", 20, Box::new(ExecLogSource::new_with_send(Schedule::Loop)));
 
   let (mut filter_task, mut filter_out) =
-    filter::new( "Filter", 20, Box::new(ExecLogFilter::new(Schedule::OnMessage(channel_id.clone(),ChannelPosition(2)))));
+    filter::new( "Filter", 20, Box::new(ExecLogFilter::new(Schedule::OnMessage(channel_id.clone()))));
 
   let mut sink_task =
-    sink::new( "Sink", Box::new(ExecLogSink::new(Schedule::OnMessage(channel_id.clone(),ChannelPosition(2)))));
+    sink::new( "Sink", Box::new(ExecLogSink::new(Schedule::OnMessage(channel_id.clone()))));
 
   filter_task.connect(&mut source_out).unwrap();
   sink_task.connect(&mut filter_out).unwrap();
@@ -138,7 +137,7 @@ fn wrap_eval_msg_triggered() {
   let channel_id = ChannelId{ sender_id: SenderChannelId(0), receiver_id: ReceiverChannelId(0) };
 
   let sink_task =
-    sink::new( "Sink", Box::new(ExecLogSink::new(Schedule::OnMessage(channel_id, ChannelPosition(1)))));
+    sink::new( "Sink", Box::new(ExecLogSink::new(Schedule::OnMessage(channel_id))));
 
   let input_ids : Vec<Option<usize>> = vec![Some(1)];
   let mut wrp = wrap::new(sink_task, TaskId(99), input_ids);

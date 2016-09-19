@@ -1,6 +1,6 @@
 
 use super::super::elem::sink;
-use super::super::{ChannelWrapper, Schedule, ChannelPosition};
+use super::super::{ChannelWrapper, Schedule};
 use super::super::scheduler::event;
 
 #[allow(dead_code)]
@@ -21,7 +21,7 @@ impl sink::Sink for ExtPipelineSink {
         self.on_msg.notify();
       }
       // only execute when there is a new message on the input channel
-      Schedule::OnMessage(*channel_id, ChannelPosition(1+receiver.seqno()))
+      Schedule::OnMessage(*channel_id)
     } else {
       Schedule::Stop
     }

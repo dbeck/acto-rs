@@ -5,10 +5,39 @@ use super::super::elem::{source, /*, filter, sink, ymerge, ysplit*/ };
 use super::super::{Task};
 use super::super::sample::dummy_source::{DummySource};
 use super::super::scheduler::event::{Event};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 
 fn time_baseline() {
   bench_200ms("time-baseline", |_v| {} );
+}
+
+fn atomic_ops() {
+  let val = AtomicUsize::new(0);
+  bench_200ms("fetch-add-relaxed", |_v| {
+    val.fetch_add(1, Ordering::Relaxed);
+  });
+  bench_200ms("fetch-add-seqcst", |_v| {
+    val.fetch_add(1, Ordering::SeqCst);
+  });
+  bench_200ms("fetch-add-acqrel", |_v| {
+    val.fetch_add(1, Ordering::AcqRel);
+  });
+}
+
+fn hash_map_10() {
+  let mut m = HashMap::new();
+  for i in 0..10u64 {
+    m.insert(i, i);
+  }
+  bench_200ms("hash-map-nonex", |v| {
+    let _x = m.get(&v);
+  });
+  bench_200ms("hash-map-seq", |v| {
+    let k = v%10;
+    let _x = m.get(&k);
+  });
 }
 
 fn lossyq_send() {
@@ -211,6 +240,8 @@ fn event_mt_notify() {
 
 pub fn run() {
   time_baseline();
+  atomic_ops();
+  hash_map_10();
   lossyq_send();
   lossyq_recv();
   lossyq_send_recv();
