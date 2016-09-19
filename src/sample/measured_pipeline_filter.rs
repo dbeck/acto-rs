@@ -3,6 +3,7 @@ use lossyq::spsc::Sender;
 use super::super::elem::filter;
 use super::super::{ChannelWrapper, Message, Schedule};
 use super::super::scheduler::event;
+use super::tick::{Tick};
 
 pub struct MeasuredPipelineFilter {
   on_exec:  event::Event,
@@ -10,8 +11,8 @@ pub struct MeasuredPipelineFilter {
 }
 
 impl filter::Filter for MeasuredPipelineFilter {
-  type InputType = usize;
-  type OutputType = usize;
+  type InputType  = Tick;
+  type OutputType = Tick;
 
   fn process(
     &mut self,

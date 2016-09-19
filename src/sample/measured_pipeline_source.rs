@@ -3,16 +3,17 @@ use lossyq::spsc::Sender;
 use super::super::elem::source;
 use super::super::{Schedule, Message};
 use super::super::scheduler::event;
+use super::tick::{Tick};
 
 pub struct MeasuredPipelineSource {
-  on_exec: event::Event,
+  on_exec:  event::Event,
 }
 
 impl source::Source for MeasuredPipelineSource {
-  type OutputType = usize;
+  type OutputType = Tick;
 
   fn process(&mut self, output: &mut Sender<Message<Self::OutputType>>) -> Schedule {
-    output.put(|v| *v = Some(Message::Value(0)));
+    output.put(|v| *v = Some(Message::Value(Tick::new())));
     self.on_exec.notify();
     Schedule::OnExternalEvent
   }

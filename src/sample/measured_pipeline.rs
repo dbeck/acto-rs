@@ -70,6 +70,7 @@ impl MeasuredPipeline {
   }
 
   pub fn wait(&mut self) {
+    /*
     use std::thread;
     let mut c = 0;
     loop {
@@ -86,6 +87,9 @@ impl MeasuredPipeline {
         }
       }
     }
+    */
+    use std::thread;
+    thread::yield_now();
   }
 }
 
