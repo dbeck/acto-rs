@@ -4,48 +4,46 @@ use super::measured_pipeline_filter::MeasuredPipelineFilter;
 use super::measured_pipeline_sink::MeasuredPipelineSink;
 use super::super::elem::connectable::{Connectable};
 use super::super::elem::{source, sink, filter};
-use super::super::scheduler::{Scheduler, event};
+use super::super::scheduler::{Scheduler};
 use super::super::{TaskId};
+use std::sync::atomic::{AtomicUsize};
+use std::sync::Arc;
+
 
 pub struct MeasuredPipeline {
   sched:              Scheduler,
-  sink_msg_evt:       event::Event,
   source_id:          TaskId,
   wait_ticket:        u64,
   sent:               u64,
 }
 
 impl MeasuredPipeline {
-  pub fn new() -> MeasuredPipeline {
-    let mut sched            = Scheduler::new();
-    let source_exec_evt  = event::Event::new();
-    let filter_exec_evt  = event::Event::new();
-    let filter_msg_evt   = event::Event::new();
-    let sink_exec_evt    = event::Event::new();
-    let sink_msg_evt     = event::Event::new();
+  pub fn new(spinned:  Arc<AtomicUsize>) -> MeasuredPipeline {
+    let mut sched        = Scheduler::new();
 
     let (source_task, mut source_out) =
-      source::new( "Source", 20000000, Box::new(MeasuredPipelineSource::new(source_exec_evt.clone())));
+      source::new( "Source", 20000000, Box::new(MeasuredPipelineSource::new(spinned.clone())));
 
     let (mut filter_task, mut filter_out) =
-      filter::new( "Filter", 20000000, Box::new(MeasuredPipelineFilter::new(filter_exec_evt.clone(), filter_msg_evt.clone())));
+      filter::new( "Filter", 20000000, Box::new(MeasuredPipelineFilter::new(spinned.clone())));
 
     let mut sink_task =
-      sink::new( "Sink", Box::new(MeasuredPipelineSink::new(sink_exec_evt.clone(), sink_msg_evt.clone())));
+      sink::new( "Sink", Box::new(MeasuredPipelineSink::new(spinned.clone())));
 
     filter_task.connect(&mut source_out).unwrap();
     sink_task.connect(&mut filter_out).unwrap();
 
+    // TODO : revers as:
     // reverse order to make sure, dependent task names cannot
     // be resolved immediately. this is to trigger the name
     // resolution code path
-    let _sink_id = sched.add_task(sink_task);
-    let _filter_id = sched.add_task(filter_task);
+
     let source_id = sched.add_task(source_task).unwrap();
+    let _filter_id = sched.add_task(filter_task);
+    let _sink_id = sched.add_task(sink_task);
 
     MeasuredPipeline {
       sched:              sched,
-      sink_msg_evt:       sink_msg_evt,
       source_id:          source_id,
       wait_ticket:        0,
       sent:               0,
@@ -70,33 +68,12 @@ impl MeasuredPipeline {
   }
 
   pub fn wait(&mut self) {
-    /*
-    use std::thread;
-    let mut c = 0;
-    loop {
-      //let (_ready, res) = self.sink_msg_evt.ready(self.wait_ticket);
-      let res = self.sink_msg_evt.wait(self.wait_ticket, 1_00);
-      if res > self.wait_ticket {
-        self.wait_ticket = res;
-        break;
-      } else {
-        thread::yield_now();
-        c += 1;
-        if c > 10 {
-          break;
-        }
-      }
-    }
-    */
-    use std::thread;
-    thread::yield_now();
   }
 }
 
 impl Drop for MeasuredPipeline {
   fn drop(&mut self) {
-    let (_r, recvd_count) = self.sink_msg_evt.ready(0);
-    println!(" @drop MeasuredPipeline recvd_count:{} tkt:{} sent:{}",
-      recvd_count, self.wait_ticket, self.sent);
+    println!(" @drop MeasuredPipeline tkt:{} sent:{}",
+      self.wait_ticket, self.sent);
   }
 }

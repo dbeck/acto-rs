@@ -5,12 +5,22 @@ use super::super::elem::{source, /*, filter, sink, ymerge, ysplit*/ };
 use super::super::{Task};
 use super::super::sample::dummy_source::{DummySource};
 use super::super::scheduler::event::{Event};
+use super::spinner;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 
 fn time_baseline() {
   bench_200ms("time-baseline", |_v| {} );
+}
+
+fn spinner() {
+  let sp = spinner::Spinner::new();
+  let counter = sp.get();
+  bench_200ms("spinner", |_v| {
+    let _x = counter.load(Ordering::Acquire);
+  });
+  sp.stop();
 }
 
 fn atomic_ops() {
@@ -240,6 +250,7 @@ fn event_mt_notify() {
 
 pub fn run() {
   time_baseline();
+  spinner();
   atomic_ops();
   hash_map_10();
   lossyq_send();

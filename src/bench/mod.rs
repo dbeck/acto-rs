@@ -1,5 +1,6 @@
 pub mod basics;
 pub mod ext_pipeline_latency;
+pub mod spinner;
 
 use std::time::{Instant};
 

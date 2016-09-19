@@ -1,33 +1,34 @@
 
 use super::super::elem::sink;
 use super::super::{ChannelWrapper, Schedule, Message};
-use super::super::scheduler::event;
-use super::tick::{Tick};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use super::tick::Tick;
 
 pub struct MeasuredPipelineSink {
-  on_exec:  event::Event,
-  on_msg:   event::Event,
   latency:  u64,
   count:    u64,
+  spinned:  Arc<AtomicUsize>,
+  elapsed:  Tick,
 }
 
 impl sink::Sink for MeasuredPipelineSink {
-  type InputType = Tick;
+  type InputType = usize;
 
   fn process(&mut self, input: &mut ChannelWrapper<Self::InputType>) -> Schedule {
-    self.on_exec.notify();
     if let &mut ChannelWrapper::ConnectedReceiver(ref mut channel_id,
                                                   ref mut receiver,
                                                   ref mut _sender_name) = input {
       for m in receiver.iter() {
         if let Message::Value(tick) = m {
-          self.latency  += tick.elapsed_ns();
+          let now = self.spinned.load(Ordering::Acquire);
+          self.latency  += (now - tick as usize) as u64;
           self.count    += 1;
         }
-        self.on_msg.notify();
       }
       // only execute when there is a new message on the input channel
       Schedule::OnMessage(*channel_id)
+      //Schedule::Loop
     } else {
       Schedule::Stop
     }
@@ -35,29 +36,28 @@ impl sink::Sink for MeasuredPipelineSink {
 }
 
 impl MeasuredPipelineSink {
-  pub fn new(on_exec: event::Event, on_msg: event::Event) -> MeasuredPipelineSink {
+  pub fn new(spinned:  Arc<AtomicUsize>) -> MeasuredPipelineSink {
     MeasuredPipelineSink{
-      on_exec:  on_exec,
-      on_msg:   on_msg,
       latency:  0,
       count:    0,
+      spinned:  spinned,
+      elapsed:  Tick::new(),
     }
   }
 }
 
-pub fn new(on_exec: event::Event, on_msg: event::Event) -> MeasuredPipelineSink {
-  MeasuredPipelineSink::new(on_exec, on_msg)
+pub fn new(spinned:  Arc<AtomicUsize>) -> MeasuredPipelineSink {
+  MeasuredPipelineSink::new(spinned)
 }
 
 impl Drop for MeasuredPipelineSink {
   fn drop(&mut self) {
-    let (_r, exec_count) = self.on_exec.ready(0);
-    let (_r, msg_count)  = self.on_msg.ready(0);
-    println!(" @drop MeasuredPipelineSink exec_count:{} msg_count:{} avg latency:{} count:{}",
-      exec_count,
-      msg_count,
+    let ns = self.elapsed.elapsed_ns();
+    println!(" @drop MeasuredPipelineSink avg latency {} spins, count:{} ns/count:{} spin/count:{}",
       self.latency/self.count,
-      self.count
+      self.count,
+      ns/self.count,
+      self.spinned.load(Ordering::Acquire) as u64/self.count
     );
   }
 }

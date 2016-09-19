@@ -2,38 +2,40 @@
 use lossyq::spsc::Sender;
 use super::super::elem::source;
 use super::super::{Schedule, Message};
-use super::super::scheduler::event;
-use super::tick::{Tick};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 pub struct MeasuredPipelineSource {
-  on_exec:  event::Event,
+  on_exec:  u64,
+  spinned:  Arc<AtomicUsize>,
 }
 
 impl source::Source for MeasuredPipelineSource {
-  type OutputType = Tick;
+  type OutputType = usize;
 
   fn process(&mut self, output: &mut Sender<Message<Self::OutputType>>) -> Schedule {
-    output.put(|v| *v = Some(Message::Value(Tick::new())));
-    self.on_exec.notify();
+    self.on_exec += 1;
+    output.put(|v| *v = Some(Message::Value(self.spinned.load(Ordering::Acquire))));
     Schedule::OnExternalEvent
   }
 }
 
 impl MeasuredPipelineSource {
-  pub fn new(on_exec: event::Event) -> MeasuredPipelineSource {
+  pub fn new(spinned: Arc<AtomicUsize>) -> MeasuredPipelineSource {
     MeasuredPipelineSource{
-      on_exec: on_exec,
+      on_exec: 0,
+      spinned: spinned,
     }
   }
 }
 
-pub fn new(on_exec: event::Event) -> MeasuredPipelineSource {
-  MeasuredPipelineSource::new(on_exec)
+pub fn new(spinned: Arc<AtomicUsize>) -> MeasuredPipelineSource {
+  MeasuredPipelineSource::new(spinned)
 }
 
 impl Drop for MeasuredPipelineSource {
   fn drop(&mut self) {
-    let (_r, exec_count) = self.on_exec.ready(0);
-    println!(" @drop MeasuredPipelineSource exec_count:{}",exec_count);
+    println!(" @drop MeasuredPipelineSource exec_count:{} spinned:{}",
+      self.on_exec, self.spinned.load(Ordering::Acquire));
   }
 }
