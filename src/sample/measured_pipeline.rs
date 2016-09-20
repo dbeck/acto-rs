@@ -33,11 +33,6 @@ impl MeasuredPipeline {
     filter_task.connect(&mut source_out).unwrap();
     sink_task.connect(&mut filter_out).unwrap();
 
-    // TODO : revers as:
-    // reverse order to make sure, dependent task names cannot
-    // be resolved immediately. this is to trigger the name
-    // resolution code path
-
     let source_id = sched.add_task(source_task).unwrap();
     let _filter_id = sched.add_task(filter_task);
     let _sink_id = sched.add_task(sink_task);

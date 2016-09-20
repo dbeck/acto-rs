@@ -127,15 +127,10 @@ impl SchedulerData {
         remove = true;
         for (dep_id, channels) in dependents.iter() {
           for ch in channels.iter() {
-            //self.resolve_dependent_task_id(&dep_id, &TaskId(ret_id), &ch);
-            let (l1, l2) = page::position(dep_id.0);
-            //
-            unsafe {
-              let l1_ptr = self.l1.get_unchecked(l1).load(Ordering::Acquire);
-              if l1_ptr.is_null() == false {
-                (*l1_ptr).resolve_input_task_id(l2, &TaskId(ret_id), &ch);
-              }
-            }
+            // resolve input id
+            self.apply_page(dep_id.0, |idx, page| {
+              unsafe { (*page).resolve_input_task_id(idx, &TaskId(ret_id), &ch) };
+            });
           }
         }
       }
@@ -166,22 +161,16 @@ impl SchedulerData {
     }
   }
 
-  fn post_process_tasks(&mut self, observer: TaskObserver) {
-
+  fn post_process_tasks(&mut self, observer: &TaskObserver) {
     // process msg wait dependencies
     for w in observer.msg_waits() {
       let &(task_id, state) = w;
       match state {
         TaskState::MessageWait(sender_id, channel_id) => {
           // register dependencies
-          let (l1, l2) = page::position(sender_id.0);
-          //
-          unsafe {
-            let l1_ptr = self.l1.get_unchecked(l1).load(Ordering::Acquire);
-            if l1_ptr.is_null() == false {
-              (*l1_ptr).register_dependent(l2, channel_id, task_id);
-            }
-          }
+          self.apply_page(sender_id.0, |idx, page| {
+            unsafe { (*page).register_dependent(idx, channel_id, task_id) };
+          });
         }
         _ => {},
       }
@@ -198,11 +187,13 @@ impl SchedulerData {
   }
 
   pub fn entry(&mut self, id: usize) {
-    //use std::ops::Sub;
     //let mut pp_time = 0u64;
     //let mut pp_count = 0u64;
-    //let mut no_exec = 0u64;
-    //let start = Instant::now();
+
+    let start = Instant::now();
+    let mut no_exec = 0u64;
+    let mut exec = 0u64;
+    let mut iter = 0u64;
 
     let l2_max = page::max_idx();
     loop {
@@ -231,39 +222,39 @@ impl SchedulerData {
         }
       }
 
-      self.post_process_tasks(reporter);
+      self.post_process_tasks(&reporter);
 
-      /*
       if reporter.exec_count() == 0 {
         no_exec += 1;
+      } else {
+        exec += 1;
       }
 
-      let pp_start = start.elapsed();
-      self.post_process_tasks(reporter);
-      let pp_end = start.elapsed();
-      let pp_diff = pp_end.sub(pp_start);
-      pp_time += pp_diff.subsec_nanos() as u64;
-      pp_count += 1;
-      */
+      iter += 1;
 
       // check stop state
       if self.stop.load(Ordering::Acquire) {
         break;
       }
     }
-    //println!("pp_count: {} pp_ns: {} ns/pp: {} no_exec: {}",
-      //pp_count, pp_time, pp_time/pp_count, no_exec);
+
+    let diff = start.elapsed();
+    let diff_ns = diff.as_secs() * 1_000_000_000 + diff.subsec_nanos() as u64;
+    let ns_iter = diff_ns/iter;
+
+    println!("loop_count: {} {} ns/iter :: no_exec: {}  exec_loop: {}",
+      iter,
+      ns_iter,
+      no_exec,
+      exec
+    );
   }
 
   fn msg_trigger(&self, task_id: TaskId)  {
     if task_id.0 < self.max_id.load(Ordering::Acquire) {
-      let (l1, l2) = page::position(task_id.0);
-      unsafe {
-        let l1_ptr = self.l1.get_unchecked(l1).load(Ordering::Acquire);
-        if l1_ptr.is_null() == false {
-          (*l1_ptr).msg_trigger(l2);
-        }
-      }
+      self.apply_page(task_id.0, |idx, page| {
+        unsafe { (*page).msg_trigger(idx) };
+      });
     }
   }
 
@@ -286,6 +277,18 @@ impl SchedulerData {
 
   pub fn stop(&mut self) {
     self.stop.store(true, Ordering::Release);
+  }
+
+  fn apply_page<F>(&self, task_id: usize, mut fun: F)
+    where F : FnMut(usize, *mut page::TaskPage)
+  {
+    let (l1, l2) = page::position(task_id);
+    let l1_slice = self.l1.as_slice();
+    let l1_ptr = l1_slice[l1].load(Ordering::Acquire);
+    //let l1_ptr = self.l1.get_unchecked(l1).load(Ordering::Acquire);
+    if l1_ptr.is_null() == false {
+      fun(l2, l1_ptr);
+    }
   }
 }
 
