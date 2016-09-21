@@ -7,7 +7,6 @@ extern crate libc;
 fn main() {
   use actors::bench;
   bench::run();
-  println!("hello from bench");
 }
 
 #[cfg(not(feature = "bench"))]

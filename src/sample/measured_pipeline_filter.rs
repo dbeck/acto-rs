@@ -5,6 +5,7 @@ use super::super::{ChannelWrapper, Message, Schedule};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
+#[allow(dead_code)]
 pub struct MeasuredPipelineFilter {
   on_exec:  u64,
   on_msg:   u64,
@@ -51,6 +52,18 @@ impl MeasuredPipelineFilter {
       spinned: spinned,
     }
   }
+
+  #[cfg(feature = "printstats")]
+  fn print_stats(&self) {
+    println!(" @drop MeasuredPipelineFilter exec_count:{} msg_count:{} avg latency {} spins",
+      self.on_exec,
+      self.on_msg,
+      self.latency/self.on_msg
+    );
+  }
+
+  #[cfg(not(feature = "printstats"))]
+  fn print_stats(&self) {}
 }
 
 pub fn new(spinned: Arc<AtomicUsize>) -> MeasuredPipelineFilter {
@@ -59,10 +72,6 @@ pub fn new(spinned: Arc<AtomicUsize>) -> MeasuredPipelineFilter {
 
 impl Drop for MeasuredPipelineFilter {
   fn drop(&mut self) {
-    println!(" @drop MeasuredPipelineFilter exec_count:{} msg_count:{} avg latency {} spins",
-      self.on_exec,
-      self.on_msg,
-      self.latency/self.on_msg
-    );
+    self.print_stats();
   }
 }

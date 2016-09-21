@@ -199,6 +199,19 @@ impl TaskWrap {
       }
     }
   }
+
+  #[cfg(feature = "printstats")]
+  fn print_stats(&self) {
+    println!(" @drop TaskWrap task_id:{:?} exec_count:{} delay_count:{} eval_id:{} ext_evt:{}",
+     self.id,
+     self.exec_count,
+     self.delay_count,
+     self.eval_id,
+     self.ext_evt_count);
+  }
+
+  #[cfg(not(feature = "printstats"))]
+  fn print_stats(&self) {}
 }
 
 pub fn new(task: Box<Task+Send>, id: TaskId, input_task_ids: Vec<Option<usize>>) -> TaskWrap {
@@ -224,11 +237,6 @@ pub fn new(task: Box<Task+Send>, id: TaskId, input_task_ids: Vec<Option<usize>>)
 
 impl Drop for TaskWrap {
   fn drop(&mut self) {
-    println!(" @drop TaskWrap task_id:{:?} exec_count:{} delay_count:{} eval_id:{} ext_evt:{}",
-     self.id,
-     self.exec_count,
-     self.delay_count,
-     self.eval_id,
-     self.ext_evt_count);
+    self.print_stats();
   }
 }

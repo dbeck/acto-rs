@@ -154,7 +154,6 @@ impl SchedulerData {
       }
       // tick evt every second
       if diff_us - last_event_at > 1_000_000 {
-        println!("tick evt at: {}",diff_us);
         last_event_at = diff_us;
         self.evt.notify();
       }
@@ -290,6 +289,12 @@ impl SchedulerData {
       fun(l2, l1_ptr);
     }
   }
+
+  #[cfg(feature = "printstats")]
+  fn print_stats(&self) {}
+
+  #[cfg(not(feature = "printstats"))]
+  fn print_stats(&self) {}
 }
 
 pub fn new() -> SchedulerData {
@@ -302,6 +307,7 @@ pub fn initial_capacity() -> usize {
 
 impl Drop for SchedulerData {
   fn drop(&mut self) {
+    self.print_stats();
     let len = self.l1.len();
     let l1_slice = self.l1.as_mut_slice();
     for i in 0..len {

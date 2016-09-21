@@ -5,6 +5,7 @@ use super::super::{Schedule, Message};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
+#[allow(dead_code)]
 pub struct MeasuredPipelineSource {
   on_exec:  u64,
   spinned:  Arc<AtomicUsize>,
@@ -27,6 +28,15 @@ impl MeasuredPipelineSource {
       spinned: spinned,
     }
   }
+
+  #[cfg(feature = "printstats")]
+  fn print_stats(&self) {
+    println!(" @drop MeasuredPipelineSource exec_count:{} spinned:{}",
+      self.on_exec, self.spinned.load(Ordering::Acquire));
+  }
+
+  #[cfg(not(feature = "printstats"))]
+  fn print_stats(&self) {}
 }
 
 pub fn new(spinned: Arc<AtomicUsize>) -> MeasuredPipelineSource {
@@ -35,7 +45,6 @@ pub fn new(spinned: Arc<AtomicUsize>) -> MeasuredPipelineSource {
 
 impl Drop for MeasuredPipelineSource {
   fn drop(&mut self) {
-    println!(" @drop MeasuredPipelineSource exec_count:{} spinned:{}",
-      self.on_exec, self.spinned.load(Ordering::Acquire));
+    self.print_stats();
   }
 }

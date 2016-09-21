@@ -5,15 +5,6 @@ use super::observer::{Observer};
 use super::{wrap};
 use std::ptr;
 
-pub fn max_idx() -> usize {
-  4095
-}
-
-pub fn position(idx: usize) -> (usize, usize) {
-  // note: this depends on max_idx !!!
-  (idx>>12, idx&0xfff)
-}
-
 struct Notification {
   pending:   AtomicUsize,
   delivered: AtomicUsize,
@@ -23,6 +14,15 @@ pub struct TaskPage {
   l2:           Vec<AtomicPtr<wrap::TaskWrap>>,
   ext_notif:    Vec<Notification>,
   msg_trigger:  Vec<Notification>,
+}
+
+pub fn max_idx() -> usize {
+  4095
+}
+
+pub fn position(idx: usize) -> (usize, usize) {
+  // note: this depends on max_idx !!!
+  (idx>>12, idx&0xfff)
 }
 
 impl TaskPage {
@@ -118,6 +118,12 @@ impl TaskPage {
       unsafe { (*task_wrapper).register_dependent(ch, dep_task_id) };
     });
   }
+
+  #[cfg(feature = "printstats")]
+  fn print_stats(&self) {}
+
+  #[cfg(not(feature = "printstats"))]
+  fn print_stats(&self) {}
 }
 
 pub fn new() -> TaskPage {
@@ -147,6 +153,7 @@ pub fn new() -> TaskPage {
 
 impl Drop for TaskPage {
   fn drop(&mut self) {
+    self.print_stats();
     let l2_slice = self.l2.as_mut_slice();
     for i in 0..(1+max_idx()) {
       let l2_atomic_ptr = &mut l2_slice[i];

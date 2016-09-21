@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use super::tick::Tick;
 
+#[allow(dead_code)]
 pub struct MeasuredPipelineSink {
   latency:       u64,
   count:         u64,
@@ -58,14 +59,9 @@ impl MeasuredPipelineSink {
       last_spin:    0,
     }
   }
-}
 
-pub fn new(spinned:  Arc<AtomicUsize>) -> MeasuredPipelineSink {
-  MeasuredPipelineSink::new(spinned)
-}
-
-impl Drop for MeasuredPipelineSink {
-  fn drop(&mut self) {
+  #[cfg(feature = "printstats")]
+  fn print_stats(&self) {
     let ns = self.elapsed.elapsed_ns();
     let now = self.spinned.load(Ordering::Acquire);
     println!(" @drop MeasuredPipelineSink avg latency {} spins, count:{} ns/count:{} spin/count:{} exec:{} others_spins:{}",
@@ -76,5 +72,18 @@ impl Drop for MeasuredPipelineSink {
       self.exec,
       self.others_spins/self.exec
     );
+  }
+
+  #[cfg(not(feature = "printstats"))]
+  fn print_stats(&self) {}
+}
+
+pub fn new(spinned:  Arc<AtomicUsize>) -> MeasuredPipelineSink {
+  MeasuredPipelineSink::new(spinned)
+}
+
+impl Drop for MeasuredPipelineSink {
+  fn drop(&mut self) {
+    self.print_stats();
   }
 }

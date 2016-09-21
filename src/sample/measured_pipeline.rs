@@ -9,7 +9,7 @@ use super::super::{TaskId};
 use std::sync::atomic::{AtomicUsize};
 use std::sync::Arc;
 
-
+#[allow(dead_code)]
 pub struct MeasuredPipeline {
   sched:              Scheduler,
   source_id:          TaskId,
@@ -22,10 +22,10 @@ impl MeasuredPipeline {
     let mut sched        = Scheduler::new();
 
     let (source_task, mut source_out) =
-      source::new( "Source", 20000000, Box::new(MeasuredPipelineSource::new(spinned.clone())));
+      source::new( "Source", 2_000, Box::new(MeasuredPipelineSource::new(spinned.clone())));
 
     let (mut filter_task, mut filter_out) =
-      filter::new( "Filter", 20000000, Box::new(MeasuredPipelineFilter::new(spinned.clone())));
+      filter::new( "Filter", 2_000, Box::new(MeasuredPipelineFilter::new(spinned.clone())));
 
     let mut sink_task =
       sink::new( "Sink", Box::new(MeasuredPipelineSink::new(spinned.clone())));
@@ -64,11 +64,19 @@ impl MeasuredPipeline {
 
   pub fn wait(&mut self) {
   }
+
+  #[cfg(feature = "printstats")]
+  fn print_stats(&self) {
+    println!(" @drop MeasuredPipeline tkt:{} sent:{}",
+      self.wait_ticket, self.sent);
+  }
+
+  #[cfg(not(feature = "printstats"))]
+  fn print_stats(&self) {}
 }
 
 impl Drop for MeasuredPipeline {
   fn drop(&mut self) {
-    println!(" @drop MeasuredPipeline tkt:{} sent:{}",
-      self.wait_ticket, self.sent);
+    self.print_stats();
   }
 }
