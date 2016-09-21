@@ -5,7 +5,10 @@ extern crate libc;
 pub mod scheduler;
 pub mod elem;
 
-use lossyq::spsc::Receiver;
+// re-exports
+pub use lossyq::spsc::{Sender,Receiver};
+pub use elem::{source, sink, filter, scatter, gather, ymerge, ysplit, connectable};
+pub use scheduler::Scheduler;
 
 #[derive(Copy,Clone,Debug)]
 pub enum Error {
@@ -27,10 +30,10 @@ pub struct ChannelPosition (usize);
 #[derive(Copy,Clone,Debug)]
 pub enum Message<T: Send>
 {
-  Empty,                                   //
-  Value(T),                                //
-  Ack(InclusiveMessageRange),              // from-to
-  Error(ChannelPosition, &'static str),    // error at
+  Empty,
+  Value(T),
+  Ack(InclusiveMessageRange),
+  Error(ChannelPosition, &'static str),
 }
 
 #[derive(Copy,Clone,Debug,PartialEq)]
