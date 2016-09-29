@@ -13,7 +13,7 @@ pub trait Scatter {
   fn process(
     &mut self,
     input:   &mut ChannelWrapper<Self::InputType>,
-    output:  &mut Vec<Sender<Message<Self::OutputType>>>) -> Schedule;
+    output:  &mut Vec<Sender<Message<Self::OutputType>>>) -> Result<(), &'static str>;
 }
 
 pub struct ScatterWrap<Input: Send, Output: Send> {
@@ -72,7 +72,7 @@ impl<Input: Send, Output: Send> Connectable for ScatterWrap<Input,Output> {
 }
 
 impl<Input: Send, Output: Send> Task for ScatterWrap<Input,Output> {
-  fn execute(&mut self) -> Schedule {
+  fn execute(&mut self) -> Result<(), &'static str> {
     self.state.process(&mut self.input_rx,
                        &mut self.output_tx_vec)
   }

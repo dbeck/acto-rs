@@ -15,7 +15,7 @@ pub trait YSplit {
     &mut self,
     input:     &mut ChannelWrapper<Self::InputType>,
     output_a:  &mut Sender<Message<Self::OutputTypeA>>,
-    output_b:  &mut Sender<Message<Self::OutputTypeB>>) -> Schedule;
+    output_b:  &mut Sender<Message<Self::OutputTypeB>>) -> Result<(), &'static str>;
 }
 
 pub struct YSplitWrap<Input: Send, OutputA: Send, OutputB: Send> {
@@ -76,7 +76,7 @@ impl<Input: Send, OutputA: Send, OutputB: Send> Connectable for YSplitWrap<Input
 }
 
 impl<Input: Send, OutputA: Send, OutputB: Send> Task for YSplitWrap<Input, OutputA, OutputB> {
-  fn execute(&mut self) -> Schedule {
+  fn execute(&mut self) -> Result<(), &'static str> {
     self.state.process(&mut self.input_rx,
                        &mut self.output_a_tx,
                        &mut self.output_b_tx)

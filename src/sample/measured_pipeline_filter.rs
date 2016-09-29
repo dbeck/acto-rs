@@ -20,7 +20,8 @@ impl filter::Filter for MeasuredPipelineFilter {
   fn process(
     &mut self,
     input:   &mut ChannelWrapper<Self::InputType>,
-    output:  &mut Sender<Message<Self::OutputType>>) -> Schedule
+    output:  &mut Sender<Message<Self::OutputType>>)
+      -> Result<(), &'static str>
   {
     self.on_exec += 1;
     if let &mut ChannelWrapper::ConnectedReceiver(ref mut channel_id,
@@ -34,11 +35,9 @@ impl filter::Filter for MeasuredPipelineFilter {
         }
         output.put(|v| *v = Some(m));
       }
-      // only execute when there is a new message on the input channel
-      Schedule::OnMessage(*channel_id)
-      //Schedule::Loop
+      Ok(())
     } else {
-      Schedule::Stop
+      Err("the channel is not connected")
     }
   }
 }

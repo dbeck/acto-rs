@@ -9,7 +9,8 @@ pub struct DummySource {}
 impl source::Source for DummySource {
   type OutputType = usize;
 
-  fn process(&mut self, _output: &mut Sender<Message<Self::OutputType>>) -> Schedule {
-    Schedule::Loop
+  fn process(&mut self, _output: &mut Sender<Message<Self::OutputType>>)
+      -> Result<(), &'static str> {
+    Ok(())
   }
 }

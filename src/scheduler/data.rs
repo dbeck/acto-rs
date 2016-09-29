@@ -2,7 +2,7 @@
 use std::collections::{HashMap};
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
 use super::super::{Task, Error, TaskState, TaskId,
-  ReceiverChannelId, ChannelId
+  ReceiverChannelId, ChannelId, SchedulingRule
 };
 use super::{page};
 use super::observer::{TaskObserver};
@@ -63,7 +63,7 @@ impl SchedulerData {
     data
   }
 
-  pub fn add_task(&mut self, task: Box<Task+Send>) -> Result<TaskId, Error> {
+  pub fn add_task(&mut self, task: Box<Task+Send>, _rule: SchedulingRule) -> Result<TaskId, Error> {
     let ret_id : usize;
     let input_count = task.input_count();
     let mut input_task_ids : Vec<Option<usize>> = Vec::with_capacity(input_count);

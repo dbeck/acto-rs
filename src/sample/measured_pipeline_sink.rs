@@ -20,7 +20,9 @@ pub struct MeasuredPipelineSink {
 impl sink::Sink for MeasuredPipelineSink {
   type InputType = usize;
 
-  fn process(&mut self, input: &mut ChannelWrapper<Self::InputType>) -> Schedule {
+  fn process(&mut self, input: &mut ChannelWrapper<Self::InputType>)
+      -> Result<(), &'static str>
+  {
     if let &mut ChannelWrapper::ConnectedReceiver(ref mut channel_id,
                                                   ref mut receiver,
                                                   ref mut _sender_name) = input {
@@ -38,10 +40,9 @@ impl sink::Sink for MeasuredPipelineSink {
         self.others_spins += (now - self.last_spin) as u64;
       }
       self.last_spin = end;
-      Schedule::OnMessage(*channel_id)
-      //Schedule::Loop
+      Ok(())
     } else {
-      Schedule::Stop
+      Err("The channel is not connected")
     }
   }
 }

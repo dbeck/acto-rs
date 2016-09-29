@@ -1,16 +1,13 @@
 
 use std::time::Instant;
 
-#[derive(Copy, Clone)]
 pub struct Tick {
-  id:   u64,
   time: Instant,
 }
 
 impl Tick {
   pub fn new() -> Tick {
     Tick {
-      id:   0,
       time: Instant::now(),
     }
   }

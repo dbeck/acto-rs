@@ -60,6 +60,14 @@ pub enum Schedule {
   Stop,
 }
 
+#[derive(Copy,Clone,Debug)]
+pub enum SchedulingRule {
+  Loop,
+  OnMessage,
+  DelayUsec(DelayFromNowInUsec),
+  OnExternalEvent,
+}
+
 #[derive(Copy,Clone,Debug,PartialEq)]
 pub struct AbsSchedulerTimeInUsec (usize);
 
@@ -98,7 +106,7 @@ pub enum Event {
 }
 
 pub trait Task {
-  fn execute(&mut self) -> Schedule;
+  fn execute(&mut self) -> Result<(), &'static str>;
   fn name(&self) -> &String;
   fn input_count(&self) -> usize;
   fn output_count(&self) -> usize;

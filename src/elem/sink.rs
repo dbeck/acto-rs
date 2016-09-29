@@ -10,7 +10,7 @@ pub trait Sink {
 
   fn process(
     &mut self,
-    input: &mut ChannelWrapper<Self::InputType>) -> Schedule;
+    input: &mut ChannelWrapper<Self::InputType>) -> Result<(), &'static str>;
 }
 
 pub struct SinkWrap<Input: Send> {
@@ -57,7 +57,7 @@ impl<Input: Send> Connectable for SinkWrap<Input> {
 }
 
 impl<Input: Send> Task for SinkWrap<Input> {
-  fn execute(&mut self) -> Schedule {
+  fn execute(&mut self) -> Result<(), &'static str> {
     self.state.process(&mut self.input_rx)
   }
 

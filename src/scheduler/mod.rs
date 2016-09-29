@@ -3,9 +3,11 @@ mod page;
 mod data;
 mod handle;
 mod observer;
+mod state;
+mod notification;
 pub mod event;
 
-use super::{Task, Error, TaskId};
+use super::{Task, Error, TaskId, SchedulingRule};
 use std::thread::{spawn, JoinHandle};
 
 #[allow(dead_code)]
@@ -16,8 +18,8 @@ pub struct Scheduler {
 
 impl Scheduler {
 
-  pub fn add_task(&mut self, task: Box<Task+Send>) -> Result<TaskId, Error> {
-    (*self.data.get()).add_task(task)
+  pub fn add_task(&mut self, task: Box<Task+Send>, rule: SchedulingRule) -> Result<TaskId, Error> {
+    (*self.data.get()).add_task(task, rule)
   }
 
   pub fn start(&mut self) {

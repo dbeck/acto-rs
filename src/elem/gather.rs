@@ -13,7 +13,7 @@ pub trait Gather {
   fn process(
     &mut self,
     input:   &mut Vec<ChannelWrapper<Self::InputType>>,
-    output:  &mut Sender<Message<Self::OutputType>>) -> Schedule;
+    output:  &mut Sender<Message<Self::OutputType>>) -> Result<(), &'static str>;
 }
 
 pub struct GatherWrap<Input: Send, Output: Send> {
@@ -75,7 +75,7 @@ impl<Input: Send, Output: Send> ConnectableN for GatherWrap<Input,Output> {
 }
 
 impl<Input: Send, Output: Send> Task for GatherWrap<Input,Output> {
-  fn execute(&mut self) -> Schedule {
+  fn execute(&mut self) -> Result<(), &'static str> {
     self.state.process(&mut self.input_rx_vec, &mut self.output_tx)
   }
   fn name(&self) -> &String { &self.name }

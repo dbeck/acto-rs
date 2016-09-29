@@ -15,7 +15,7 @@ pub trait YMerge {
     &mut self,
     input_a:  &mut ChannelWrapper<Self::InputTypeA>,
     input_b:  &mut ChannelWrapper<Self::InputTypeB>,
-    output:   &mut Sender<Message<Self::OutputType>>) -> Schedule;
+    output:   &mut Sender<Message<Self::OutputType>>) -> Result<(), &'static str>;
 }
 
 pub struct YMergeWrap<InputA: Send, InputB: Send, Output: Send> {
@@ -94,7 +94,7 @@ impl<InputA: Send, InputB: Send, Output: Send> ConnectableY for YMergeWrap<Input
 }
 
 impl<InputA: Send, InputB: Send, Output: Send> Task for YMergeWrap<InputA, InputB, Output> {
-  fn execute(&mut self) -> Schedule {
+  fn execute(&mut self) -> Result<(), &'static str> {
     self.state.process(&mut self.input_a_rx,
                        &mut self.input_b_rx,
                        &mut self.output_tx)
