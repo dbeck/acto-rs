@@ -75,17 +75,24 @@ impl TaskPage {
         unsafe {
           // deliver external notifications
           if ext_notif_diff > 0 {
+            /* XXX
             (*wrk).ext_notify(ext_notif_diff, observer, &time_us);
+            */
             ext_notif_ref.delivered.fetch_add(ext_notif_diff, Ordering::AcqRel);
           }
 
           // deliver message triggers
           if msg_trig_diff > 0 {
+            /* XXX
             (*wrk).msg_trigger(observer, &time_us);
+            */
             msg_trig_ref.delivered.fetch_add(msg_trig_diff, Ordering::AcqRel);
           }
 
+          /* XXX
           (*wrk).eval(observer, &time_us);
+          */
+          (*wrk).eval(&time_us);
         }
         wrk_ref.store(wrk, Ordering::Release);
       } else {
@@ -102,22 +109,28 @@ impl TaskPage {
     res + 1
   }
 
+  /* XXX !!!
   pub fn msg_trigger(&mut self, l2_idx: usize) {
     let trig_slice = self.msg_trigger.as_mut_slice();
     trig_slice[l2_idx].pending.fetch_add(1, Ordering::AcqRel);
   }
+  */
 
+  /* XXX
   pub fn resolve_input_task_id(&mut self, l2_idx: usize, sender: &TaskId, channel: &ChannelId) {
     self.blocking_apply(l2_idx, |task_wrapper| {
       unsafe { (*task_wrapper).resolve_input_task_id(*channel, *sender) };
     });
   }
+  */
 
+  /* XXX
   pub fn register_dependent(&mut self, l2_idx: usize, ch: ChannelId, dep_task_id: TaskId) {
     self.blocking_apply(l2_idx, |task_wrapper| {
       unsafe { (*task_wrapper).register_dependent(ch, dep_task_id) };
     });
   }
+  */
 
   #[cfg(feature = "printstats")]
   fn print_stats(&self) {}

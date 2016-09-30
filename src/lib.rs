@@ -60,11 +60,14 @@ pub enum Schedule {
   Stop,
 }
 
+#[derive(Copy,Clone,Debug,PartialEq)]
+pub struct PeriodLengthInUsec (usize);
+
 #[derive(Copy,Clone,Debug)]
 pub enum SchedulingRule {
   Loop,
   OnMessage,
-  DelayUsec(DelayFromNowInUsec),
+  Periodic(PeriodLengthInUsec),
   OnExternalEvent,
 }
 

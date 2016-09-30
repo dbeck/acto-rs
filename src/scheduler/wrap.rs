@@ -6,19 +6,26 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub struct TaskWrap {
   task:             Box<Task+Send>,
+  /* XXX
   ext_evt_count:    usize,
   state:            TaskState,
+  */
   id:               TaskId,
+  /* XXX
   eval_id:          usize,
   input_ids:        Vec<Option<usize>>,
   dependents:       Vec<Option<TaskId>>,
   n_dependents:     usize,
+  */
   exec_count:       u64,
+  /* XXX
   delay_count:      u64,
+  */
 }
 
 impl TaskWrap {
 
+  /* XXX
   fn process(&mut self, event: &Event, observer: &mut Observer, time_us: &AtomicUsize, info: &mut EvalInfo) {
     let old_state     = self.state;
     let mut executed  = false;
@@ -105,7 +112,10 @@ impl TaskWrap {
       self.delay_count += 1;
     }
   }
+  XXX
+  */
 
+  /* XXX
   pub fn eval(&mut self,
               observer: &mut Observer,
               time_us: &AtomicUsize) {
@@ -128,7 +138,16 @@ impl TaskWrap {
 
     observer.eval_finished(&info);
   }
+  */
 
+  pub fn eval(&mut self,
+              // observer: &mut Observer,
+              _time_us: &AtomicUsize) {
+    let _res = self.task.execute();
+    self.exec_count += 1;
+  }
+
+  /* XXX
   pub fn ext_notify(&mut self,
                     incr: usize,
                     observer: &mut Observer,
@@ -148,7 +167,9 @@ impl TaskWrap {
       observer.transition(&old_state, &event, &self.state, &info);
     }
   }
+  */
 
+  /* XXX
   pub fn msg_trigger(&mut self,
                      observer: &mut Observer,
                      time_us: &AtomicUsize)
@@ -161,7 +182,9 @@ impl TaskWrap {
       observer.transition(&old_state, &Event::MessageArrived, &self.state, &info);
     }
   }
+  */
 
+  /* XXX
   pub fn register_dependent(&mut self, ch: ChannelId, dep_task_id: TaskId)
   {
     use std::mem;
@@ -178,7 +201,9 @@ impl TaskWrap {
       }
     }
   }
+  */
 
+  /* XXX
   pub fn resolve_input_task_id(&mut self, ch: ChannelId, task_id: TaskId) {
     println!("resolve_input_task_id: {:?} -> {:?}/{:?}",
       self.id,
@@ -199,6 +224,7 @@ impl TaskWrap {
       }
     }
   }
+  */
 
   #[cfg(feature = "printstats")]
   fn print_stats(&self) {
@@ -215,23 +241,25 @@ impl TaskWrap {
 }
 
 pub fn new(task: Box<Task+Send>, id: TaskId, input_task_ids: Vec<Option<usize>>) -> TaskWrap {
+  /*
   let n_outputs = task.output_count();
   let mut dependents = Vec::with_capacity(n_outputs);
-  for _i in 0..n_outputs {
-    dependents.push(None);
+   for _i in 0..n_outputs {
+     dependents.push(None);
   }
+  */
 
   TaskWrap{
     task:            task,
-    ext_evt_count:   0,
-    state:           TaskState::Execute,
+    // ext_evt_count:   0,
+    // state:           TaskState::Execute,
     id:              id,
-    eval_id:         0,
-    input_ids:       input_task_ids,
-    dependents:      dependents,
-    n_dependents:    0,
+    // eval_id:         0,
+    // input_ids:       input_task_ids,
+    // dependents:      dependents,
+    // n_dependents:    0,
     exec_count:      0,
-    delay_count:     0,
+    // delay_count:     0,
   }
 }
 

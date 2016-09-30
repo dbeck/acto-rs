@@ -128,9 +128,11 @@ impl SchedulerData {
         for (dep_id, channels) in dependents.iter() {
           for ch in channels.iter() {
             // resolve input id
+            /* XXX
             self.apply_page(dep_id.0, |idx, page| {
               unsafe { (*page).resolve_input_task_id(idx, &TaskId(ret_id), &ch) };
             });
+            */
           }
         }
       }
@@ -162,6 +164,7 @@ impl SchedulerData {
 
   fn post_process_tasks(&mut self, observer: &TaskObserver) {
     // process msg wait dependencies
+    /* XXX
     for w in observer.msg_waits() {
       let &(task_id, state) = w;
       match state {
@@ -174,7 +177,9 @@ impl SchedulerData {
         _ => {},
       }
     }
+    */
 
+    /* XXX
     {
       let to_trigger : &Vec<TaskId> = observer.msg_triggers();
       if to_trigger.len() > 0 {
@@ -183,6 +188,7 @@ impl SchedulerData {
         }
       }
     }
+    */
   }
 
   pub fn entry(&mut self, id: usize) {
@@ -249,6 +255,7 @@ impl SchedulerData {
     );
   }
 
+  /* XXX !!!
   fn msg_trigger(&self, task_id: TaskId)  {
     if task_id.0 < self.max_id.load(Ordering::Acquire) {
       self.apply_page(task_id.0, |idx, page| {
@@ -256,6 +263,7 @@ impl SchedulerData {
       });
     }
   }
+  */
 
   pub fn notify(&mut self, id: &TaskId) -> Result<usize, Error> {
     if self.stop.load(Ordering::Acquire) {
