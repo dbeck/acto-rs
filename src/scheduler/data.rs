@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
 use super::super::{Task, Error, TaskState, TaskId,
   ReceiverChannelId, ChannelId, SchedulingRule
 };
-use super::{page};
+use super::{page, prv};
 use super::observer::{TaskObserver};
 use super::event;
 use parking_lot::{Mutex};
@@ -200,9 +200,13 @@ impl SchedulerData {
     let mut exec = 0u64;
     let mut iter = 0u64;
 
+    let mut private_data = prv::Private::new();
+
     let l2_max = page::max_idx();
     loop {
       let max_id = self.max_id.load(Ordering::Acquire);
+      private_data.ensure_size(max_id);
+      
       let mut reporter = TaskObserver::new(max_id);
       let (l1, l2) = page::position(max_id);
       {
@@ -298,10 +302,10 @@ impl SchedulerData {
     }
   }
 
-  #[cfg(feature = "printstats")]
+  #[cfg(any(test,feature = "printstats"))]
   fn print_stats(&self) {}
 
-  #[cfg(not(feature = "printstats"))]
+  #[cfg(not(any(test,feature = "printstats")))]
   fn print_stats(&self) {}
 }
 

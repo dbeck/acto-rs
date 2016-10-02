@@ -2,18 +2,14 @@
 use std::sync::atomic::{AtomicPtr, Ordering, AtomicUsize};
 use super::super::{Task, TaskId, ChannelId};
 use super::observer::{Observer};
+use super::notification::{Notification};
+use super::exec_info::{ExecInfo};
 use super::{wrap};
 use std::ptr;
 
-struct Notification {
-  pending:   AtomicUsize,
-  delivered: AtomicUsize,
-}
-
 pub struct TaskPage {
   l2:           Vec<AtomicPtr<wrap::TaskWrap>>,
-  ext_notif:    Vec<Notification>,
-  msg_trigger:  Vec<Notification>,
+  info:         Vec<ExecInfo>,
 }
 
 pub fn max_idx() -> usize {
@@ -38,19 +34,6 @@ impl TaskPage {
     }
   }
 
-  pub fn blocking_apply<F>(&self, l2_idx: usize, f: F) where F : FnMut(*mut wrap::TaskWrap) {
-    let slice = self.l2.as_slice();
-    loop {
-      let wrk = slice[l2_idx].swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
-      if wrk.is_null() == false {
-        let mut f = f;
-        f(wrk);
-        slice[l2_idx].store(wrk, Ordering::Release);
-        break;
-      }
-    }
-  }
-
   pub fn eval(&mut self,
                  l2_max_idx: usize,
                  id: usize,
@@ -64,35 +47,23 @@ impl TaskPage {
       let wrk = wrk_ref.swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
       if wrk.is_null() == false {
 
-        let ext_notif_slice = self.ext_notif.as_mut_slice();
-        let ext_notif_ref = &mut ext_notif_slice[l2_idx];
-        let ext_notif_diff = ext_notif_ref.pending.load(Ordering::Acquire) - ext_notif_ref.delivered.load(Ordering::Acquire);
-
-        let msg_trig_slice = self.msg_trigger.as_mut_slice();
-        let msg_trig_ref = &mut msg_trig_slice[l2_idx];
-        let msg_trig_diff = msg_trig_ref.pending.load(Ordering::Acquire) - msg_trig_ref.delivered.load(Ordering::Acquire);
+        let info_slice      = self.info.as_mut_slice();
+        let info_ref        = &mut info_slice[l2_idx];
+        let ext_notif_diff  = info_ref.ext_flush();
+        let msg_trig_diff   = info_ref.msg_flush();
 
         unsafe {
           // deliver external notifications
           if ext_notif_diff > 0 {
-            /* XXX
-            (*wrk).ext_notify(ext_notif_diff, observer, &time_us);
-            */
-            ext_notif_ref.delivered.fetch_add(ext_notif_diff, Ordering::AcqRel);
           }
 
           // deliver message triggers
           if msg_trig_diff > 0 {
-            /* XXX
-            (*wrk).msg_trigger(observer, &time_us);
-            */
-            msg_trig_ref.delivered.fetch_add(msg_trig_diff, Ordering::AcqRel);
           }
 
-          /* XXX
-          (*wrk).eval(observer, &time_us);
-          */
-          (*wrk).eval(&time_us);
+          let start = time_us.load(Ordering::Acquire);
+          let _result = (*wrk).execute();
+          let _took = time_us.load(Ordering::Acquire) - start;
         }
         wrk_ref.store(wrk, Ordering::Release);
       } else {
@@ -104,38 +75,14 @@ impl TaskPage {
   }
 
   pub fn notify(&mut self, l2_idx: usize) -> usize {
-    let not_slice = self.ext_notif.as_mut_slice();
-    let res = not_slice[l2_idx].pending.fetch_add(1, Ordering::AcqRel);
-    res + 1
+    let info_slice = self.info.as_mut_slice();
+    info_slice[l2_idx].ext_notify()
   }
 
-  /* XXX !!!
-  pub fn msg_trigger(&mut self, l2_idx: usize) {
-    let trig_slice = self.msg_trigger.as_mut_slice();
-    trig_slice[l2_idx].pending.fetch_add(1, Ordering::AcqRel);
-  }
-  */
-
-  /* XXX
-  pub fn resolve_input_task_id(&mut self, l2_idx: usize, sender: &TaskId, channel: &ChannelId) {
-    self.blocking_apply(l2_idx, |task_wrapper| {
-      unsafe { (*task_wrapper).resolve_input_task_id(*channel, *sender) };
-    });
-  }
-  */
-
-  /* XXX
-  pub fn register_dependent(&mut self, l2_idx: usize, ch: ChannelId, dep_task_id: TaskId) {
-    self.blocking_apply(l2_idx, |task_wrapper| {
-      unsafe { (*task_wrapper).register_dependent(ch, dep_task_id) };
-    });
-  }
-  */
-
-  #[cfg(feature = "printstats")]
+  #[cfg(any(test,feature = "printstats"))]
   fn print_stats(&self) {}
 
-  #[cfg(not(feature = "printstats"))]
+  #[cfg(not(any(test,feature = "printstats")))]
   fn print_stats(&self) {}
 }
 
@@ -144,23 +91,18 @@ pub fn new() -> TaskPage {
   let mut l2           = Vec::with_capacity(sz);
   let mut ext_notif    = Vec::with_capacity(sz);
   let mut msg_trigger  = Vec::with_capacity(sz);
+  let mut info         = Vec::with_capacity(sz);
 
   for _i in 0..sz {
     l2.push(AtomicPtr::default());
-    ext_notif.push(Notification{
-      pending: AtomicUsize::new(0),
-      delivered: AtomicUsize::new(0)}
-    );
-    msg_trigger.push(Notification{
-      pending: AtomicUsize::new(0),
-      delivered: AtomicUsize::new(0)}
-    );
+    ext_notif.push(Notification::new());
+    msg_trigger.push(Notification::new());
+    info.push(ExecInfo::new());
   }
 
   TaskPage{
-    l2: l2,
-    ext_notif: ext_notif,
-    msg_trigger: msg_trigger,
+    l2:           l2,
+    info:         info,
   }
 }
 
