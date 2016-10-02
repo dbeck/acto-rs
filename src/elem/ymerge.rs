@@ -1,5 +1,5 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::{Task, Message, Schedule, ChannelWrapper, ChannelId, SenderName,
+use super::super::{Task, Message, ChannelWrapper, ChannelId, SenderName,
   ReceiverChannelId, ReceiverName, SenderChannelId, ChannelPosition
 };
 use super::connectable::{ConnectableY};

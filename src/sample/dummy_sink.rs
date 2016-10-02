@@ -1,6 +1,6 @@
 
 use super::super::elem::sink;
-use super::super::{ChannelWrapper, Schedule};
+use super::super::{ChannelWrapper};
 
 pub struct DummySink {}
 

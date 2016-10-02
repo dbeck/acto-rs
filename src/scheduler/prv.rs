@@ -8,6 +8,6 @@ impl Private {
     }
   }
 
-  pub fn ensure_size(&mut self, size: usize) {
+  pub fn ensure_size(&mut self, _size: usize) {
   }
 }

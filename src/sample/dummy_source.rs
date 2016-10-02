@@ -1,7 +1,7 @@
 
 use lossyq::spsc::Sender;
 use super::super::elem::source;
-use super::super::{Schedule, Message};
+use super::super::{Message};
 
 #[allow(dead_code)]
 pub struct DummySource {}

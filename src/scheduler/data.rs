@@ -1,9 +1,7 @@
 
 use std::collections::{HashMap};
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
-use super::super::{Task, Error, TaskState, TaskId,
-  ReceiverChannelId, ChannelId, SchedulingRule
-};
+use super::super::{Task, Error, TaskId, ReceiverChannelId, ChannelId, SchedulingRule};
 use super::{page, prv};
 use super::observer::{TaskObserver};
 use super::event;
@@ -125,8 +123,8 @@ impl SchedulerData {
       let mut remove = false;
       if let Some(dependents) = unresolved.get(&task_name) {
         remove = true;
-        for (dep_id, channels) in dependents.iter() {
-          for ch in channels.iter() {
+        for (_dep_id, channels) in dependents.iter() {
+          for _ch in channels.iter() {
             // resolve input id
             /* XXX
             self.apply_page(dep_id.0, |idx, page| {
@@ -162,7 +160,8 @@ impl SchedulerData {
     }
   }
 
-  fn post_process_tasks(&mut self, observer: &TaskObserver) {
+  #[allow(dead_code)]
+  fn post_process_tasks(&mut self, _observer: &TaskObserver) {
     // process msg wait dependencies
     /* XXX
     for w in observer.msg_waits() {
@@ -206,7 +205,7 @@ impl SchedulerData {
     loop {
       let max_id = self.max_id.load(Ordering::Acquire);
       private_data.ensure_size(max_id);
-      
+
       let mut reporter = TaskObserver::new(max_id);
       let (l1, l2) = page::position(max_id);
       {
@@ -290,6 +289,7 @@ impl SchedulerData {
     self.stop.store(true, Ordering::Release);
   }
 
+  /* XXX
   fn apply_page<F>(&self, task_id: usize, mut fun: F)
     where F : FnMut(usize, *mut page::TaskPage)
   {
@@ -301,6 +301,7 @@ impl SchedulerData {
       fun(l2, l1_ptr);
     }
   }
+  */
 
   #[cfg(any(test,feature = "printstats"))]
   fn print_stats(&self) {}

@@ -1,6 +1,6 @@
 
 use super::super::elem::sink;
-use super::super::{ChannelWrapper, Schedule, Message};
+use super::super::{ChannelWrapper, Message};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use super::tick::Tick;
@@ -23,7 +23,7 @@ impl sink::Sink for MeasuredPipelineSink {
   fn process(&mut self, input: &mut ChannelWrapper<Self::InputType>)
       -> Result<(), &'static str>
   {
-    if let &mut ChannelWrapper::ConnectedReceiver(ref mut channel_id,
+    if let &mut ChannelWrapper::ConnectedReceiver(ref mut _channel_id,
                                                   ref mut receiver,
                                                   ref mut _sender_name) = input {
       let now = self.spinned.load(Ordering::Acquire);

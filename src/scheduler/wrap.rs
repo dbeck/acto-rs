@@ -1,9 +1,4 @@
-use super::super::{Task, Schedule, TaskState, Event, AbsSchedulerTimeInUsec,
-  ExtEventSeqno, ChannelId, SenderId, TaskId, ChannelPosition,
-  SenderChannelId
-};
-use super::observer::{Observer, EvalInfo};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use super::super::{Task, TaskId, ChannelPosition, SenderChannelId};
 
 pub struct TaskWrap {
   task:              Box<Task+Send>,
@@ -24,6 +19,7 @@ impl TaskWrap {
     result
   }
 
+  #[allow(dead_code)]
   pub fn output_positions(&self) -> &Vec<ChannelPosition> {
     &self.output_positions
   }
@@ -39,7 +35,7 @@ impl TaskWrap {
   fn print_stats(&self) {}
 }
 
-pub fn new(task: Box<Task+Send>, id: TaskId, input_task_ids: Vec<Option<usize>>) -> TaskWrap {
+pub fn new(task: Box<Task+Send>, id: TaskId) -> TaskWrap {
   let n_outputs = task.output_count();
   TaskWrap{
     task:              task,

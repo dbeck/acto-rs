@@ -1,6 +1,6 @@
 
 use std::sync::atomic::{AtomicPtr, Ordering, AtomicUsize};
-use super::super::{Task, TaskId, ChannelId};
+use super::super::{Task, TaskId};
 use super::observer::{Observer};
 use super::notification::{Notification};
 use super::exec_info::{ExecInfo};
@@ -22,8 +22,12 @@ pub fn position(idx: usize) -> (usize, usize) {
 }
 
 impl TaskPage {
-  pub fn store(&mut self, idx: usize, task: Box<Task+Send>, id: TaskId, input_task_ids: Vec<Option<usize>>) {
-    let wrap = Box::new(wrap::new(task, id, input_task_ids));
+  pub fn store(&mut self,
+               idx: usize,
+               task: Box<Task+Send>,
+               id: TaskId,
+               _input_task_ids: Vec<Option<usize>>) {
+    let wrap = Box::new(wrap::new(task, id));
     let slice = self.l2.as_mut_slice();
     let old = slice[idx].swap(Box::into_raw(wrap), Ordering::AcqRel);
     if old.is_null() == false {
@@ -37,7 +41,7 @@ impl TaskPage {
   pub fn eval(&mut self,
                  l2_max_idx: usize,
                  id: usize,
-                 observer: &mut Observer,
+                 _observer: &mut Observer,
                  time_us: &AtomicUsize) {
     let mut skip = id;
     let mut l2_idx = 0;

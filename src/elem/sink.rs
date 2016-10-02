@@ -1,4 +1,4 @@
-use super::super::{Task, Schedule, ChannelWrapper, ChannelId, SenderName,
+use super::super::{Task, ChannelWrapper, ChannelId, SenderName,
   ReceiverChannelId, ReceiverName, SenderChannelId, ChannelPosition
 };
 use super::connectable::{Connectable};

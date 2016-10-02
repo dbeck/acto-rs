@@ -176,7 +176,7 @@ fn source_execute() {
     source::new( "Source", 2, Box::new(DummySource{}));
 
   bench_200ms("source-execute", |_i| {
-    source_task.execute();
+    source_task.execute().unwrap();
   });
 }
 
@@ -190,7 +190,7 @@ fn source_execute_with_swap() {
 
   bench_200ms("source-execute-w-swap", |_i| {
     let old_ptr = source_ptr.swap(ptr::null_mut(), Ordering::AcqRel);
-    unsafe { (*old_ptr).execute(); }
+    unsafe { (*old_ptr).execute().unwrap(); }
     source_ptr.swap(old_ptr,  Ordering::AcqRel);
   });
 

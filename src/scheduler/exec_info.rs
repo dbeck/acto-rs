@@ -3,6 +3,7 @@ use super::notification::Notification;
 use super::super::SchedulingRule;
 use std::sync::atomic::AtomicUsize;
 
+#[allow(dead_code)]
 pub struct ExecInfo {
   rule:           SchedulingRule,
   ext_notif:      Notification,
@@ -24,6 +25,7 @@ impl ExecInfo {
     }
   }
 
+  #[allow(dead_code)]
   pub fn init(&mut self, rule: SchedulingRule) {
     self.rule = rule;
   }
@@ -32,6 +34,7 @@ impl ExecInfo {
     self.ext_notif.notify()
   }
 
+  #[allow(dead_code)]
   pub fn msg_notify(&mut self) -> usize {
     self.msg_trigger.notify()
   }

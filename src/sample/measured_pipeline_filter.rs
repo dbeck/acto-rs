@@ -1,7 +1,7 @@
 
 use lossyq::spsc::Sender;
 use super::super::elem::filter;
-use super::super::{ChannelWrapper, Message, Schedule};
+use super::super::{ChannelWrapper, Message};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -24,7 +24,7 @@ impl filter::Filter for MeasuredPipelineFilter {
       -> Result<(), &'static str>
   {
     self.on_exec += 1;
-    if let &mut ChannelWrapper::ConnectedReceiver(ref mut channel_id,
+    if let &mut ChannelWrapper::ConnectedReceiver(ref mut _channel_id,
                                                   ref mut receiver,
                                                   ref mut _sender_name) = input {
       for m in receiver.iter() {

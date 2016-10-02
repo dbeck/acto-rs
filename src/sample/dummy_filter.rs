@@ -1,7 +1,7 @@
 
 use lossyq::spsc::Sender;
 use super::super::elem::filter;
-use super::super::{ChannelWrapper, Message, Schedule};
+use super::super::{ChannelWrapper, Message};
 
 #[allow(dead_code)]
 struct DummyFilter {}

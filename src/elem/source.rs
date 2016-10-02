@@ -1,5 +1,5 @@
 use lossyq::spsc::{Sender, channel};
-use super::super::{Task, Message, Schedule, ChannelId, SenderName,
+use super::super::{Task, Message, ChannelId, SenderName,
   ChannelWrapper, SenderChannelId, ReceiverChannelId, ChannelPosition
 };
 use super::counter::{OutputCounter};

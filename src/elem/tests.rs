@@ -1,5 +1,3 @@
-use lossyq::spsc::*;
-use super::super::{Message, Schedule, ChannelWrapper};
 use super::{source, sink};
 use super::connectable::{Connectable};
 use super::super::sample::{dummy_source, dummy_sink};
