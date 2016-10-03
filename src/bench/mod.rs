@@ -1,6 +1,7 @@
 pub mod basics;
 pub mod ext_pipeline_latency;
 pub mod spinner;
+pub mod bitset;
 
 use std::time::{Instant};
 
@@ -53,6 +54,7 @@ fn bench_200ms<F>(name: &str, fun: F) where F : FnMut(u64) {
 }
 
 pub fn run() {
+  bitset::run();
   basics::run();
   ext_pipeline_latency::run();
 }

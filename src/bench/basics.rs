@@ -6,7 +6,7 @@ use super::super::{Task};
 use super::super::sample::dummy_source::{DummySource};
 use super::super::scheduler::event::{Event};
 use super::spinner;
-use std::collections::HashMap;
+use std::collections::{HashMap, BinaryHeap};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 
@@ -33,6 +33,17 @@ fn atomic_ops() {
   });
   bench_200ms("fetch-add-acqrel", |_v| {
     val.fetch_add(1, Ordering::AcqRel);
+  });
+}
+
+fn bin_heap_4096() {
+  let mut h = BinaryHeap::with_capacity(4096);
+  for i in 0..4096u64 {
+    h.push(i);
+  }
+  bench_200ms("binheap_4k_add_remove", |v| {
+    let _popped = h.pop();
+    h.push(v%4096);
   });
 }
 
@@ -253,6 +264,7 @@ pub fn run() {
   spinner();
   atomic_ops();
   hash_map_10();
+  bin_heap_4096();
   lossyq_send();
   lossyq_recv();
   lossyq_send_recv();
