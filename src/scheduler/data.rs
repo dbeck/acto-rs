@@ -112,7 +112,7 @@ impl SchedulerData {
       unsafe {
         let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
         if l1_ptr.is_null() == false {
-          (*l1_ptr).store(l2, task, TaskId(ret_id), input_task_ids);
+          (*l1_ptr).store(l2, task, input_task_ids);
         }
       }
     }

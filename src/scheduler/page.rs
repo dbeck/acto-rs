@@ -25,9 +25,8 @@ impl TaskPage {
   pub fn store(&mut self,
                idx: usize,
                task: Box<Task+Send>,
-               id: TaskId,
                _input_task_ids: Vec<Option<usize>>) {
-    let wrap = Box::new(wrap::new(task, id));
+    let wrap = Box::new(wrap::new(task));
     let slice = self.l2.as_mut_slice();
     let old = slice[idx].swap(Box::into_raw(wrap), Ordering::AcqRel);
     if old.is_null() == false {

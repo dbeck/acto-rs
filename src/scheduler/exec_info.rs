@@ -5,23 +5,27 @@ use std::sync::atomic::AtomicUsize;
 
 #[allow(dead_code)]
 pub struct ExecInfo {
-  rule:           SchedulingRule,
-  ext_notif:      Notification,
-  msg_trigger:    Notification,
-  last_at:        AtomicUsize,
-  next_at:        AtomicUsize,
-  last_duration:  AtomicUsize,
+  rule:             SchedulingRule,
+  ext_notif:        Notification,
+  msg_trigger:      Notification,
+  last_at:          AtomicUsize,
+  next_at:          AtomicUsize,
+  last_duration:    AtomicUsize,
+  exec_count:       AtomicUsize,
+  total_duration:   AtomicUsize,
 }
 
 impl ExecInfo {
   pub fn new() -> ExecInfo {
     ExecInfo{
-      rule:           SchedulingRule::Loop,
-      ext_notif:      Notification::new(),
-      msg_trigger:    Notification::new(),
-      last_at:        AtomicUsize::new(0),
-      next_at:        AtomicUsize::new(0),
-      last_duration:  AtomicUsize::new(0),
+      rule:             SchedulingRule::Loop,
+      ext_notif:        Notification::new(),
+      msg_trigger:      Notification::new(),
+      last_at:          AtomicUsize::new(0),
+      next_at:          AtomicUsize::new(0),
+      last_duration:    AtomicUsize::new(0),
+      exec_count:       AtomicUsize::new(0),
+      total_duration:   AtomicUsize::new(0),
     }
   }
 
