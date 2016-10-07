@@ -1,7 +1,7 @@
 
 use super::notification::Notification;
-use super::super::SchedulingRule;
-use std::sync::atomic::AtomicUsize;
+use super::super::{SchedulingRule, ChannelId, TaskId};
+use std::sync::atomic::{AtomicUsize, AtomicPtr};
 
 #[allow(dead_code)]
 pub struct ExecInfo {
@@ -13,6 +13,9 @@ pub struct ExecInfo {
   last_duration:    AtomicUsize,
   exec_count:       AtomicUsize,
   total_duration:   AtomicUsize,
+  output_count:     AtomicUsize,
+  dependent_count:  AtomicUsize,
+  dependents:       AtomicPtr<Vec<AtomicUsize>>,
 }
 
 impl ExecInfo {
@@ -26,12 +29,21 @@ impl ExecInfo {
       last_duration:    AtomicUsize::new(0),
       exec_count:       AtomicUsize::new(0),
       total_duration:   AtomicUsize::new(0),
+      output_count:     AtomicUsize::new(0),
+      dependent_count:  AtomicUsize::new(0),
+      dependents:       AtomicPtr::default(),
     }
   }
 
   #[allow(dead_code)]
-  pub fn init(&mut self, rule: SchedulingRule) {
+  pub fn init(&mut self, _output_count: usize, rule: SchedulingRule) {
+    // TODO : output count
     self.rule = rule;
+  }
+
+  #[allow(dead_code)]
+  pub fn register_dependent(&mut self, _channel: ChannelId, _dep_id: TaskId) {
+    // TODO : register dependent
   }
 
   pub fn ext_notify(&mut self) -> usize {

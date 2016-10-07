@@ -61,43 +61,62 @@ impl SchedulerData {
     data
   }
 
-  pub fn add_task(&mut self, task: Box<Task+Send>, _rule: SchedulingRule) -> Result<TaskId, Error> {
+  pub fn add_task(&mut self, task: Box<Task+Send>, rule: SchedulingRule) -> Result<TaskId, Error> {
     let ret_id : usize;
-    let input_count = task.input_count();
-    let mut input_task_ids : Vec<Option<usize>> = Vec::with_capacity(input_count);
 
     // check if name exists, and register if not. also register
     // unresolved sender ids if any.
     {
       let mut ids = self.ids.lock();
       if ids.contains_key(task.name()) {
+        // another task with the same name already exists
         return Result::Err(Error::AlreadyExists);
       } else {
+        // generate a task ID and add it to the global task hash
         ret_id = self.max_id.fetch_add(1, Ordering::AcqRel);
         ids.insert(task.name().clone(), ret_id);
 
-        // resolve input task ids
-        for i in 0..input_count {
-          match task.input_id(ReceiverChannelId(i)) {
-            Some(ref ch_id_sender_name) => {
-              let ref ch_id_id   = ch_id_sender_name.0;
-              let ref ch_id_name = ch_id_sender_name.1;
-              match ids.get(&ch_id_name.0) {
-                Some(&id)  => input_task_ids.push(Some(id)),
-                None       => {
-                  let mut unresolved = self.unresolved.lock();
-                  // register that this task needs the task id of the sender
-                  // - based on the sender name and chanel id
-                  let dependents = unresolved.entry(ch_id_name.0.clone()).or_insert(HashMap::new());
-                  let channels = dependents.entry(TaskId(ret_id)).or_insert(Vec::new());
-                  channels.push(*ch_id_id);
-                  input_task_ids.push(None)
+        match rule {
+          SchedulingRule::OnMessage => {
+            let input_count = task.input_count();
+
+            // resolve input task ids
+            for i in 0..input_count {
+              if let Some(ref ch_id_sender_name) = task.input_id(ReceiverChannelId(i)) {
+                let ref sender_channel_id  = ch_id_sender_name.0;
+                let ref sender_name        = ch_id_sender_name.1;
+                // lookup sender id based on the name
+                match ids.get(&sender_name.0) {
+                  Some(&_id) => {
+                    // the other task that the current one depends
+                    //  on is already registered.
+                    // TODO: need to register the dependency at this
+                    //  sender task
+                  }
+                  None => {
+                    // the other task that the current one depends
+                    //  on is not registered yet.
+                    // TODO: need to save this fact and when the
+                    //  the missing task gets registered, then we need
+                    //  to tell it about its dependents.
+
+                    let mut unresolved = self.unresolved.lock();
+                    // register that this task needs the task id of the sender
+                    // - based on the sender name and chanel id
+                    let dependents = unresolved.entry(sender_name.0.clone()).or_insert(HashMap::new());
+                    let channels = dependents.entry(TaskId(ret_id)).or_insert(Vec::new());
+                    channels.push(*sender_channel_id);
+                  }
                 }
               }
-            },
-            _ => input_task_ids.push(None)
-          }
+            }
+
+          },
+          // only care about message channel dependencies here
+          _ => {}
         }
+
+        // TODO : chek the unresolved entries when a new task is added
       }
     }
 
@@ -112,17 +131,18 @@ impl SchedulerData {
       unsafe {
         let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
         if l1_ptr.is_null() == false {
-          (*l1_ptr).store(l2, task, input_task_ids);
+          (*l1_ptr).store(l2, task);
         }
       }
     }
 
     {
-      // resolved ids if any, for other tasks
+      // unresolved ids if any, for other tasks
       let mut unresolved = self.unresolved.lock();
       let mut remove = false;
       if let Some(dependents) = unresolved.get(&task_name) {
         remove = true;
+        // TODO : implement this
         for (_dep_id, channels) in dependents.iter() {
           for _ch in channels.iter() {
             // resolve input id

@@ -1,6 +1,6 @@
 
 use std::sync::atomic::{AtomicPtr, Ordering, AtomicUsize};
-use super::super::{Task, TaskId};
+use super::super::{Task};
 use super::observer::{Observer};
 use super::notification::{Notification};
 use super::exec_info::{ExecInfo};
@@ -24,8 +24,7 @@ pub fn position(idx: usize) -> (usize, usize) {
 impl TaskPage {
   pub fn store(&mut self,
                idx: usize,
-               task: Box<Task+Send>,
-               _input_task_ids: Vec<Option<usize>>) {
+               task: Box<Task+Send>) {
     let wrap = Box::new(wrap::new(task));
     let slice = self.l2.as_mut_slice();
     let old = slice[idx].swap(Box::into_raw(wrap), Ordering::AcqRel);
