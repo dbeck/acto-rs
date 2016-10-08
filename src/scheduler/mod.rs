@@ -7,7 +7,6 @@ mod state;
 mod notification;
 mod exec_info;
 mod prv;
-pub mod event;
 
 use super::{Task, Error, TaskId, SchedulingRule};
 use std::thread::{spawn, JoinHandle};

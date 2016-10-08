@@ -4,11 +4,9 @@ use lossyq::spsc::{channel, Sender};
 use super::super::elem::{source, /*, filter, sink, ymerge, ysplit*/ };
 use super::super::{Task};
 use super::super::sample::dummy_source::{DummySource};
-use super::super::scheduler::event::{Event};
 use super::spinner;
 use std::collections::{HashMap, BinaryHeap};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::thread;
 
 fn time_baseline() {
   bench_200ms("time-baseline", |_v| {} );
@@ -162,26 +160,6 @@ fn locked_send_data() {
   });
 }
 
-fn lotted_data() {
-  use std::sync::{Arc};
-  use parking_lot::Mutex;
-  let locked = Arc::new(Mutex::new(0u64));
-  bench_200ms("parking_lot", |_i| {
-    let mut _x = locked.lock();
-  });
-}
-
-fn lotted_send_data() {
-  use std::sync::{Arc};
-  use parking_lot::Mutex;
-  let (tx, _rx) = channel(100);
-  let locked = Arc::new(Mutex::new(tx));
-  bench_200ms("parking_lot+send", |i| {
-    let mut x = locked.lock();
-    x.put(|v| *v = Some(i));
-  });
-}
-
 fn source_execute() {
   let (mut source_task, mut _source_out) =
     source::new( "Source", 2, Box::new(DummySource{}));
@@ -208,57 +186,6 @@ fn source_execute_with_swap() {
   let _bx = unsafe { Box::from_raw(source_ptr.swap(ptr::null_mut(), Ordering::AcqRel)) };
 }
 
-fn event_notify() {
-  let mut evt = Event::new();
-  bench_200ms("event-notify", |_i| {
-    evt.notify();
-  });
-}
-
-fn event_notify_wait() {
-  let mut evt = Event::new();
-  let mut ticket = 0u64;
-  bench_200ms("event-notify-wait", |_i| {
-    evt.notify();
-    ticket = evt.wait(ticket, 10_000_000_000);
-  });
-}
-
-fn event_mt_notify() {
-  let mut wait_us = 10_000_000;
-  let mut ticket = 0u64;
-  // event to measure
-  let mut evt = Event::new();
-  let mut evt_reader = evt.clone();
-  // synchronize start
-  let mut start_evt = Event::new();
-  let mut start_sig = start_evt.clone();
-  // synchronize end
-  let mut end_evt = Event::new();
-  let mut end_sig = end_evt.clone();
-
-  let notifier = thread::spawn(move|| {
-    start_sig.wait(0, 10_000_000);
-    bench_200ms("event-mt-notify", |_i| {
-      evt.notify();
-    });
-    end_evt.notify();
-  });
-
-  start_evt.notify();
-  loop {
-    let res = evt_reader.wait(ticket, wait_us);
-    if ticket == res {
-      if end_sig.wait(0, 1) > 0 {
-        break;
-      }
-    }
-    ticket = res;
-    wait_us = 1;
-  }
-  notifier.join().unwrap();
-}
-
 pub fn run() {
   time_baseline();
   spinner();
@@ -276,11 +203,6 @@ pub fn run() {
   indirect_send_data();
   locked_data();
   locked_send_data();
-  lotted_data();
-  lotted_send_data();
   source_execute();
   source_execute_with_swap();
-  event_notify();
-  event_notify_wait();
-  event_mt_notify();
 }

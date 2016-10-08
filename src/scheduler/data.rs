@@ -4,8 +4,7 @@ use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
 use super::super::{Task, Error, TaskId, ReceiverChannelId, ChannelId, SchedulingRule};
 use super::{page, prv};
 use super::observer::{TaskObserver};
-use super::event;
-use parking_lot::{Mutex};
+use std::sync::{Mutex};
 use std::ptr;
 use std::time::{Instant};
 use libc;
@@ -19,9 +18,8 @@ pub struct SchedulerData {
   l1:          Vec<AtomicPtr<page::TaskPage>>,
   stop:        AtomicBool,
   time_us:     AtomicUsize,
-  ids:         Mutex<HashMap<String, usize>>,
+  ids:         Mutex<HashMap<String, TaskId>>,
   unresolved:  Mutex<HashMap<String, HashMap<TaskId,Vec<ChannelId>>>>,
-  evt:         event::Event,
 }
 
 impl SchedulerData {
@@ -48,7 +46,6 @@ impl SchedulerData {
       time_us:     AtomicUsize::new(0),
       ids:         Mutex::new(HashMap::new()),
       unresolved:  Mutex::new(HashMap::new()),
-      evt:         event::new(),
     };
 
     // fill the l1 bucket
@@ -61,108 +58,130 @@ impl SchedulerData {
     data
   }
 
-  pub fn add_task(&mut self, task: Box<Task+Send>, rule: SchedulingRule) -> Result<TaskId, Error> {
-    let ret_id : usize;
+  fn register_dependents(&mut self,
+                         id: TaskId,
+                         deps: Vec<(ChannelId, TaskId)>)
+  {
+    if deps.is_empty() { return; }
+    let (l1, l2) = page::position(id.0);
+    unsafe {
+      let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
+      if l1_ptr.is_null() == false {
+        (*l1_ptr).register_dependents(l2, deps);
+      }
+    }
+  }
 
-    // check if name exists, and register if not. also register
-    // unresolved sender ids if any.
+  fn allocate_id_for_task(&mut self, task: &Box<Task+Send>) -> Result<TaskId, Error> {
+    let mut ids = self.ids.lock().unwrap();
+    if ids.contains_key(task.name()) {
+      Result::Err(Error::AlreadyExists)
+    } else {
+      let task_id = TaskId(self.max_id.fetch_add(1, Ordering::AcqRel));
+      ids.insert(task.name().clone(), task_id);
+      Result::Ok(task_id)
+    }
+  }
+
+  fn resolve_task_id(&self, name: &String) -> Option<TaskId> {
+    let ids = self.ids.lock().unwrap();
+    match ids.get(name) {
+      Some(&id)  => Some(id),
+      None       => None
+    }
+  }
+
+  pub fn add_task(&mut self,
+                  task: Box<Task+Send>,
+                  rule: SchedulingRule)
+      -> Result<TaskId, Error>
+  {
+    let result : Result<TaskId, Error>;
+
     {
-      let mut ids = self.ids.lock();
-      if ids.contains_key(task.name()) {
-        // another task with the same name already exists
-        return Result::Err(Error::AlreadyExists);
-      } else {
-        // generate a task ID and add it to the global task hash
-        ret_id = self.max_id.fetch_add(1, Ordering::AcqRel);
-        ids.insert(task.name().clone(), ret_id);
+      // limit the scope of the global task name hash's lock
+      result = self.allocate_id_for_task(&task);
+      if result.is_err() { return result; }
+    }
 
-        match rule {
-          SchedulingRule::OnMessage => {
-            let input_count = task.input_count();
+    if let Ok(task_id) = result {
+      // check if name exists, and register if not. also register
+      // unresolved sender ids if any.
 
-            // resolve input task ids
-            for i in 0..input_count {
-              if let Some(ref ch_id_sender_name) = task.input_id(ReceiverChannelId(i)) {
-                let ref sender_channel_id  = ch_id_sender_name.0;
-                let ref sender_name        = ch_id_sender_name.1;
-                // lookup sender id based on the name
-                match ids.get(&sender_name.0) {
-                  Some(&_id) => {
-                    // the other task that the current one depends
-                    //  on is already registered.
-                    // TODO: need to register the dependency at this
-                    //  sender task
-                  }
-                  None => {
-                    // the other task that the current one depends
-                    //  on is not registered yet.
-                    // TODO: need to save this fact and when the
-                    //  the missing task gets registered, then we need
-                    //  to tell it about its dependents.
+      match rule {
+        SchedulingRule::OnMessage => {
+          let input_count = task.input_count();
 
-                    let mut unresolved = self.unresolved.lock();
-                    // register that this task needs the task id of the sender
-                    // - based on the sender name and chanel id
-                    let dependents = unresolved.entry(sender_name.0.clone()).or_insert(HashMap::new());
-                    let channels = dependents.entry(TaskId(ret_id)).or_insert(Vec::new());
-                    channels.push(*sender_channel_id);
-                  }
+          // resolve input task ids
+          for i in 0..input_count {
+            if let Some(ref ch_id_sender_name) = task.input_id(ReceiverChannelId(i)) {
+              let ref sender_ch_id  = ch_id_sender_name.0;
+              let ref sender_name   = ch_id_sender_name.1;
+              // lookup sender id based on the name
+              match self.resolve_task_id(&sender_name.0) {
+                Some(sender_id) => {
+                  // the other task that the current one depends
+                  //  on is already registered.
+                  self.register_dependents(sender_id, vec![(*sender_ch_id, task_id)]);
+                }
+                None => {
+                  // the other task that the current one depends
+                  //  on is not added yet. record it as unresolved:
+                  let mut unresolved = self.unresolved.lock().unwrap();
+                  // register that this task needs the task id of the sender
+                  // - based on the sender name and chanel id
+                  let dependents = unresolved.entry(sender_name.0.clone()).or_insert(HashMap::new());
+                  let channels = dependents.entry(task_id).or_insert(Vec::new());
+                  channels.push(*sender_ch_id);
                 }
               }
             }
-
-          },
-          // only care about message channel dependencies here
-          _ => {}
-        }
-
-        // TODO : chek the unresolved entries when a new task is added
+          }
+        },
+        // only care about message channel dependencies here
+        // other scheduling rule types are currently ignored
+        _ => {}
       }
-    }
 
-    let task_name = task.name().clone();
-    {
-      // store task
-      let (l1, l2) = page::position(ret_id);
-      if l2 == 0 {
+      let output_count = task.output_count();
+      let task_name    = task.name().clone();
+      {
         // make sure the next bucket exists when needed
-        self.add_l2_page(l1+1);
-      }
-      unsafe {
-        let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
-        if l1_ptr.is_null() == false {
-          (*l1_ptr).store(l2, task);
+        let (l1, l2) = page::position(task_id.0);
+        if l2 == 0 {
+          self.add_l2_page(l1+1);
         }
-      }
-    }
 
-    {
-      // unresolved ids if any, for other tasks
-      let mut unresolved = self.unresolved.lock();
-      let mut remove = false;
-      if let Some(dependents) = unresolved.get(&task_name) {
-        remove = true;
-        // TODO : implement this
-        for (_dep_id, channels) in dependents.iter() {
-          for _ch in channels.iter() {
-            // resolve input id
-            /* XXX
-            self.apply_page(dep_id.0, |idx, page| {
-              unsafe { (*page).resolve_input_task_id(idx, &TaskId(ret_id), &ch) };
-            });
-            */
+        unsafe {
+          let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
+          if l1_ptr.is_null() == false {
+            (*l1_ptr).init_info(l2, output_count, rule);
+            (*l1_ptr).store(l2, task);
           }
         }
       }
-      if remove {
-        unresolved.remove(&task_name);
+
+      {
+        // unresolved ids if any, for other tasks
+        let mut register_these : Vec<(ChannelId, TaskId)> = Vec::with_capacity(output_count);
+        {
+          let mut unresolved = self.unresolved.lock().unwrap();
+          if let Some(dependents) = unresolved.get(&task_name) {
+            for (dep_id, channels) in dependents.iter() {
+              for ch in channels.iter() {
+                register_these.push((*ch, *dep_id))
+              }
+            }
+          }
+          unresolved.remove(&task_name);
+        }
+        self.register_dependents(task_id, register_these);
       }
     }
-    Result::Ok(TaskId(ret_id))
+    result
   }
 
   pub fn ticker(&mut self) {
-    let mut last_event_at = 0;
     loop {
       unsafe { libc::usleep(10); }
       let diff = self.start.elapsed();
@@ -171,11 +190,6 @@ impl SchedulerData {
       // check stop state
       if self.stop.load(Ordering::Acquire) {
         break;
-      }
-      // tick evt every second
-      if diff_us - last_event_at > 1_000_000 {
-        last_event_at = diff_us;
-        self.evt.notify();
       }
     }
   }

@@ -1,6 +1,6 @@
 
 use std::sync::atomic::{AtomicPtr, Ordering, AtomicUsize};
-use super::super::{Task};
+use super::super::{Task, SchedulingRule, TaskId, ChannelId};
 use super::observer::{Observer};
 use super::notification::{Notification};
 use super::exec_info::{ExecInfo};
@@ -24,7 +24,8 @@ pub fn position(idx: usize) -> (usize, usize) {
 impl TaskPage {
   pub fn store(&mut self,
                idx: usize,
-               task: Box<Task+Send>) {
+               task: Box<Task+Send>)
+  {
     let wrap = Box::new(wrap::new(task));
     let slice = self.l2.as_mut_slice();
     let old = slice[idx].swap(Box::into_raw(wrap), Ordering::AcqRel);
@@ -34,6 +35,23 @@ impl TaskPage {
       // of atomically increasing indices
       let _b = unsafe { Box::from_raw(old) };
     }
+  }
+
+  pub fn init_info(&mut self,
+                   idx: usize,
+                   output_count: usize,
+                   rule: SchedulingRule)
+  {
+    let slice = self.info.as_mut_slice();
+    slice[idx].init(output_count, rule);
+  }
+
+  pub fn register_dependents(&mut self,
+                             idx: usize,
+                             deps: Vec<(ChannelId, TaskId)>)
+  {
+    let slice = self.info.as_mut_slice();
+    slice[idx].register_dependents(deps);
   }
 
   pub fn eval(&mut self,

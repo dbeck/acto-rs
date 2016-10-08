@@ -1,6 +1,5 @@
 extern crate acto_rs as actors;
 extern crate lossyq;
-extern crate parking_lot;
 extern crate libc;
 
 #[cfg(feature = "bench")]

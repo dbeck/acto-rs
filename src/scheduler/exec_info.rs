@@ -1,7 +1,8 @@
 
 use super::notification::Notification;
 use super::super::{SchedulingRule, ChannelId, TaskId};
-use std::sync::atomic::{AtomicUsize, AtomicPtr};
+use std::sync::atomic::{AtomicUsize, AtomicPtr, Ordering};
+use std::ptr;
 
 #[allow(dead_code)]
 pub struct ExecInfo {
@@ -35,15 +36,40 @@ impl ExecInfo {
     }
   }
 
-  #[allow(dead_code)]
-  pub fn init(&mut self, _output_count: usize, rule: SchedulingRule) {
-    // TODO : output count
+  pub fn init(&mut self,
+              output_count: usize,
+              rule: SchedulingRule)
+  {
     self.rule = rule;
+    let mut boxed = Box::new(Vec::new());
+    for _i in 0..output_count {
+      boxed.push(AtomicUsize::new(0));
+    }
+    let old = self.dependents.swap(Box::into_raw(boxed), Ordering::AcqRel);
+    if old.is_null() == false {
+      // make sure we drop old pointers when swapped, although
+      // this shouldn't happen since the SchedulerData must take care
+      // of atomically increasing indices
+      let _b = unsafe { Box::from_raw(old) };
+    }
   }
 
-  #[allow(dead_code)]
-  pub fn register_dependent(&mut self, _channel: ChannelId, _dep_id: TaskId) {
+  pub fn register_dependents(&mut self,
+                             deps: Vec<(ChannelId, TaskId)>)
+  {
     // TODO : register dependent
+    let ptr = self.dependents.load(Ordering::Acquire);
+    if ptr.is_null() == false {
+      let sz = unsafe { (*ptr).len() };
+      for dep in deps {
+        if sz >= dep.0.sender_id.0 {
+          self.dependent_count.fetch_add(1, Ordering::AcqRel);
+          let slice = unsafe { (*ptr).as_mut_slice() };
+          let dep_task_id = dep.1;
+          slice[dep.0.sender_id.0].store(dep_task_id.0, Ordering::Release);
+        }
+      }
+    }
   }
 
   pub fn ext_notify(&mut self) -> usize {
@@ -61,5 +87,15 @@ impl ExecInfo {
 
   pub fn msg_flush(&mut self) -> usize {
     self.msg_trigger.flush()
+  }
+}
+
+impl Drop for ExecInfo {
+  fn drop(&mut self) {
+    let ptr = self.dependents.swap(ptr::null_mut::<Vec<AtomicUsize>>(), Ordering::AcqRel);
+    if ptr.is_null() == false {
+      // make sure we drop the content of dependents
+      let _b = unsafe { Box::from_raw(ptr) };
+    }
   }
 }
