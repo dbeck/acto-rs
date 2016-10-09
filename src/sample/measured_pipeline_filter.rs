@@ -27,12 +27,12 @@ impl filter::Filter for MeasuredPipelineFilter {
     if let &mut ChannelWrapper::ConnectedReceiver(ref mut _channel_id,
                                                   ref mut receiver,
                                                   ref mut _sender_name) = input {
+      let now = self.spinned.load(Ordering::Acquire);
       for m in receiver.iter() {
-        self.on_msg += 1;
         if let Message::Value(tick) = m {
-          let now = self.spinned.load(Ordering::Acquire);
           self.latency += (now - tick as usize) as u64;
         }
+        self.on_msg += 1;
         output.put(|v| *v = Some(m));
       }
       Ok(())

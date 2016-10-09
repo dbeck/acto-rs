@@ -105,13 +105,9 @@ impl SchedulerData {
     }
 
     if let Ok(task_id) = result {
-      // check if name exists, and register if not. also register
-      // unresolved sender ids if any.
-
       match rule {
         SchedulingRule::OnMessage => {
           let input_count = task.input_count();
-
           // resolve input task ids
           for i in 0..input_count {
             if let Some(ref ch_id_sender_name) = task.input_id(ReceiverChannelId(i)) {

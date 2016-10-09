@@ -13,6 +13,7 @@ pub struct TaskPage {
 }
 
 pub fn max_idx() -> usize {
+  // note: this must be aligned with position(idx)
   4095
 }
 

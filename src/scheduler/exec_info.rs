@@ -57,7 +57,6 @@ impl ExecInfo {
   pub fn register_dependents(&mut self,
                              deps: Vec<(ChannelId, TaskId)>)
   {
-    // TODO : register dependent
     let ptr = self.dependents.load(Ordering::Acquire);
     if ptr.is_null() == false {
       let sz = unsafe { (*ptr).len() };
