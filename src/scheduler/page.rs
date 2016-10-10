@@ -1,7 +1,6 @@
 
 use std::sync::atomic::{AtomicPtr, Ordering, AtomicUsize};
-use super::super::{Task, SchedulingRule, TaskId, ChannelId, PeriodLengthInUsec};
-use super::observer::{Observer};
+use super::super::{Task, SchedulingRule, TaskId, ChannelId};
 use super::exec_info::{ExecInfo};
 use super::{wrap};
 use std::ptr;

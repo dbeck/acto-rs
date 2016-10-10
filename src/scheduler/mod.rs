@@ -2,7 +2,6 @@ mod wrap;
 mod page;
 mod data;
 mod handle;
-mod observer;
 mod exec_info;
 mod prv;
 
