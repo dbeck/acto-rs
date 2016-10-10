@@ -3,7 +3,6 @@ use std::collections::{HashMap};
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
 use super::super::{Task, Error, TaskId, ReceiverChannelId, ChannelId, SchedulingRule};
 use super::{page, prv};
-use super::observer::{TaskObserver};
 use std::sync::{Mutex};
 use std::ptr;
 use std::time::{Instant};
@@ -190,53 +189,17 @@ impl SchedulerData {
     }
   }
 
-  #[allow(dead_code)]
-  fn post_process_tasks(&mut self, _observer: &TaskObserver) {
-    // process msg wait dependencies
-    /* XXX
-    for w in observer.msg_waits() {
-      let &(task_id, state) = w;
-      match state {
-        TaskState::MessageWait(sender_id, channel_id) => {
-          // register dependencies
-          self.apply_page(sender_id.0, |idx, page| {
-            unsafe { (*page).register_dependent(idx, channel_id, task_id) };
-          });
-        }
-        _ => {},
-      }
-    }
-    */
-
-    /* XXX
-    {
-      let to_trigger : &Vec<TaskId> = observer.msg_triggers();
-      if to_trigger.len() > 0 {
-        for &t_task_id in observer.msg_triggers() {
-          self.msg_trigger(t_task_id);
-        }
-      }
-    }
-    */
-  }
-
   pub fn entry(&mut self, id: usize) {
-    //let mut pp_time = 0u64;
-    //let mut pp_count = 0u64;
-
     let start = Instant::now();
-    let mut no_exec = 0u64;
-    let mut exec = 0u64;
     let mut iter = 0u64;
-
     let mut private_data = prv::Private::new();
 
     let l2_max = page::max_idx();
     loop {
       let max_id = self.max_id.load(Ordering::Acquire);
-      private_data.ensure_size(max_id);
+      // private_data.ensure_size(max_id);
 
-      let mut reporter = TaskObserver::new(max_id);
+      // let mut reporter = TaskObserver::new(max_id);
       let (l1, l2) = page::position(max_id);
       {
         let l1_slice = self.l1.as_mut_slice();
@@ -246,7 +209,7 @@ impl SchedulerData {
         for l1_idx in 0..l1 {
           let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);
           unsafe {
-            (*l1_ptr).eval(l2_max_idx, id, &mut reporter, &self.time_us);
+            (*l1_ptr).eval(l2_max_idx, id, /*&mut reporter,*/ &self.time_us);
           }
         }
 
@@ -255,17 +218,9 @@ impl SchedulerData {
         for l1_idx in l1..(l1+1) {
           let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);
           unsafe {
-            (*l1_ptr).eval(l2_max_idx, id, &mut reporter, &self.time_us);
+            (*l1_ptr).eval(l2_max_idx, id, /*&mut reporter,*/ &self.time_us);
           }
         }
-      }
-
-      self.post_process_tasks(&reporter);
-
-      if reporter.exec_count() == 0 {
-        no_exec += 1;
-      } else {
-        exec += 1;
       }
 
       iter += 1;
@@ -280,12 +235,7 @@ impl SchedulerData {
     let diff_ns = diff.as_secs() * 1_000_000_000 + diff.subsec_nanos() as u64;
     let ns_iter = diff_ns/iter;
 
-    println!("loop_count: {} {} ns/iter :: no_exec: {}  exec_loop: {}",
-      iter,
-      ns_iter,
-      no_exec,
-      exec
-    );
+    println!("#{} loop_count: {} {} ns/iter",id,iter,ns_iter);
   }
 
   /* XXX !!!
@@ -298,7 +248,7 @@ impl SchedulerData {
   }
   */
 
-  pub fn notify(&mut self, id: &TaskId) -> Result<usize, Error> {
+  pub fn notify(&mut self, id: &TaskId) -> Result<(), Error> {
     if self.stop.load(Ordering::Acquire) {
       return Result::Err(Error::Stopping);
     }

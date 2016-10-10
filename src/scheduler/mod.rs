@@ -3,8 +3,6 @@ mod page;
 mod data;
 mod handle;
 mod observer;
-mod state;
-mod notification;
 mod exec_info;
 mod prv;
 
@@ -27,7 +25,7 @@ impl Scheduler {
     self.start_with_threads(1);
   }
 
-  pub fn notify(&mut self, id: &TaskId) -> Result<usize, Error> {
+  pub fn notify(&mut self, id: &TaskId) -> Result<(), Error> {
     (*self.data.get()).notify(id)
   }
 

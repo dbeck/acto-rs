@@ -43,7 +43,7 @@ impl EvalInfo {
   }
 }
 
-pub trait Observer {
+pub trait Observer {  
   fn eval_started(&mut self, info: &EvalInfo);
   fn executed(&mut self, info: &EvalInfo);
   fn msg_trigger(&mut self, target_task: TaskId, info: &EvalInfo);

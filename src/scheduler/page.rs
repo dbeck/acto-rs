@@ -1,8 +1,7 @@
 
 use std::sync::atomic::{AtomicPtr, Ordering, AtomicUsize};
-use super::super::{Task, SchedulingRule, TaskId, ChannelId};
+use super::super::{Task, SchedulingRule, TaskId, ChannelId, PeriodLengthInUsec};
 use super::observer::{Observer};
-use super::notification::{Notification};
 use super::exec_info::{ExecInfo};
 use super::{wrap};
 use std::ptr;
@@ -58,46 +57,50 @@ impl TaskPage {
   pub fn eval(&mut self,
                  l2_max_idx: usize,
                  id: usize,
-                 _observer: &mut Observer,
+                 // _observer: &mut Observer,
                  time_us: &AtomicUsize) {
-    let mut skip = id;
-    let mut l2_idx = 0;
+    let mut skip    = id;
+    let mut l2_idx  = 0;
+    let info_slice  = self.info.as_mut_slice();
     loop {
       if l2_idx >= l2_max_idx { break; }
-      let wrk_ref = unsafe { self.l2.get_unchecked_mut(l2_idx) };
-      let wrk = wrk_ref.swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
-      if wrk.is_null() == false {
 
-        let info_slice      = self.info.as_mut_slice();
-        let info_ref        = &mut info_slice[l2_idx];
-        let ext_notif_diff  = info_ref.ext_flush();
-        let msg_trig_diff   = info_ref.msg_flush();
+      let info_ref    = &mut info_slice[l2_idx];
+      let next_at     = info_ref.next_execution_at();
+      let now         = time_us.load(Ordering::Acquire);
 
-        unsafe {
-          // deliver external notifications
-          if ext_notif_diff > 0 {
+      if next_at <= now {
+        let wrk_ref = unsafe { self.l2.get_unchecked_mut(l2_idx) };
+        let wrk = wrk_ref.swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
+        if wrk.is_null() == false {
+
+          unsafe {
+            let start = time_us.load(Ordering::Acquire);
+            let _result = (*wrk).execute();
+            let _took = time_us.load(Ordering::Acquire) - start;
           }
-
-          // deliver message triggers
-          if msg_trig_diff > 0 {
-          }
-
-          let start = time_us.load(Ordering::Acquire);
-          let _result = (*wrk).execute();
-          let _took = time_us.load(Ordering::Acquire) - start;
+          wrk_ref.store(wrk, Ordering::Release);
+        } else {
+          l2_idx += skip;
+          skip += id;
         }
-        wrk_ref.store(wrk, Ordering::Release);
-      } else {
-        l2_idx += skip;
-        skip += id;
       }
+
+      /*
+      match info_ref.rule() {
+        SchedulingRule::Loop => {},
+        SchedulingRule::OnMessage => {},
+        SchedulingRule::Periodic(_period_length_us) => {},
+        SchedulingRule::OnExternalEvent => {},
+      }
+      */
+
       l2_idx += 1;
     }
   }
 
-  pub fn notify(&mut self, l2_idx: usize) -> usize {
+  pub fn notify(&mut self, l2_idx: usize) {
     let info_slice = self.info.as_mut_slice();
-    info_slice[l2_idx].ext_notify()
   }
 
   #[cfg(any(test,feature = "printstats"))]
@@ -110,14 +113,10 @@ impl TaskPage {
 pub fn new() -> TaskPage {
   let sz               = max_idx()+1;
   let mut l2           = Vec::with_capacity(sz);
-  let mut ext_notif    = Vec::with_capacity(sz);
-  let mut msg_trigger  = Vec::with_capacity(sz);
   let mut info         = Vec::with_capacity(sz);
 
   for _i in 0..sz {
     l2.push(AtomicPtr::default());
-    ext_notif.push(Notification::new());
-    msg_trigger.push(Notification::new());
     info.push(ExecInfo::new());
   }
 

@@ -1,5 +1,4 @@
 
-use super::notification::Notification;
 use super::super::{SchedulingRule, ChannelId, TaskId};
 use std::sync::atomic::{AtomicUsize, AtomicPtr, Ordering};
 use std::ptr;
@@ -7,8 +6,6 @@ use std::ptr;
 #[allow(dead_code)]
 pub struct ExecInfo {
   rule:             SchedulingRule,
-  ext_notif:        Notification,
-  msg_trigger:      Notification,
   last_at:          AtomicUsize,
   next_at:          AtomicUsize,
   last_duration:    AtomicUsize,
@@ -20,11 +17,13 @@ pub struct ExecInfo {
 }
 
 impl ExecInfo {
+  // accessors
+  pub fn rule(&self) -> SchedulingRule { self.rule }
+  pub fn next_execution_at(&self) -> usize { self.next_at.load(Ordering::Acquire) }
+
   pub fn new() -> ExecInfo {
     ExecInfo{
       rule:             SchedulingRule::Loop,
-      ext_notif:        Notification::new(),
-      msg_trigger:      Notification::new(),
       last_at:          AtomicUsize::new(0),
       next_at:          AtomicUsize::new(0),
       last_duration:    AtomicUsize::new(0),
@@ -71,21 +70,26 @@ impl ExecInfo {
     }
   }
 
-  pub fn ext_notify(&mut self) -> usize {
-    self.ext_notif.notify()
+  pub fn ext_notify(&mut self) {
+    match self.rule {
+      SchedulingRule::OnExternalEvent => {
+        // set next exec time to 0 to schedule the task
+        // for immediate execution
+        self.next_at.store(0, Ordering::Release);
+      },
+      _ => {},
+    }
   }
 
-  #[allow(dead_code)]
-  pub fn msg_notify(&mut self) -> usize {
-    self.msg_trigger.notify()
-  }
-
-  pub fn ext_flush(&mut self) -> usize {
-    self.ext_notif.flush()
-  }
-
-  pub fn msg_flush(&mut self) -> usize {
-    self.msg_trigger.flush()
+  pub fn msg_notify(&mut self) {
+    match self.rule {
+      SchedulingRule::OnMessage => {
+        // set next exec time to 0 to schedule the task
+        // for immediate execution
+        self.next_at.store(0, Ordering::Release);
+      },
+      _ => {},
+    }
   }
 }
 
