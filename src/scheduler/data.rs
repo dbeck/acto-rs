@@ -23,7 +23,7 @@ pub struct SchedulerData {
 
 impl SchedulerData {
   fn add_l2_page(&mut self, idx: usize) {
-    let array = Box::new(page::new());
+    let array = Box::new(page::new(idx));
     let len = self.l1.len();
     if idx >= len-1 {
       // extend slice
@@ -196,11 +196,12 @@ impl SchedulerData {
 
     let l2_max = page::max_idx();
     loop {
-      let max_id = self.max_id.load(Ordering::Acquire);
-      // private_data.ensure_size(max_id);
 
-      // let mut reporter = TaskObserver::new(max_id);
+      let max_id = self.max_id.load(Ordering::Acquire);
+      private_data.ensure_size(max_id);
+
       let (l1, l2) = page::position(max_id);
+
       {
         let l1_slice = self.l1.as_mut_slice();
 
@@ -209,7 +210,7 @@ impl SchedulerData {
         for l1_idx in 0..l1 {
           let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);
           unsafe {
-            (*l1_ptr).eval(l2_max_idx, id, /*&mut reporter,*/ &self.time_us);
+            (*l1_ptr).eval(l2_max_idx, id, &mut private_data, &self.time_us);
           }
         }
 
@@ -218,7 +219,7 @@ impl SchedulerData {
         for l1_idx in l1..(l1+1) {
           let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);
           unsafe {
-            (*l1_ptr).eval(l2_max_idx, id, /*&mut reporter,*/ &self.time_us);
+            (*l1_ptr).eval(l2_max_idx, id, &mut private_data, &self.time_us);
           }
         }
       }
@@ -237,16 +238,6 @@ impl SchedulerData {
 
     println!("#{} loop_count: {} {} ns/iter",id,iter,ns_iter);
   }
-
-  /* XXX !!!
-  fn msg_trigger(&self, task_id: TaskId)  {
-    if task_id.0 < self.max_id.load(Ordering::Acquire) {
-      self.apply_page(task_id.0, |idx, page| {
-        unsafe { (*page).msg_trigger(idx) };
-      });
-    }
-  }
-  */
 
   pub fn notify(&mut self, id: &TaskId) -> Result<(), Error> {
     if self.stop.load(Ordering::Acquire) {
@@ -268,20 +259,6 @@ impl SchedulerData {
   pub fn stop(&mut self) {
     self.stop.store(true, Ordering::Release);
   }
-
-  /* XXX
-  fn apply_page<F>(&self, task_id: usize, mut fun: F)
-    where F : FnMut(usize, *mut page::TaskPage)
-  {
-    let (l1, l2) = page::position(task_id);
-    let l1_slice = self.l1.as_slice();
-    let l1_ptr = l1_slice[l1].load(Ordering::Acquire);
-    //let l1_ptr = self.l1.get_unchecked(l1).load(Ordering::Acquire);
-    if l1_ptr.is_null() == false {
-      fun(l2, l1_ptr);
-    }
-  }
-  */
 
   #[cfg(any(test,feature = "printstats"))]
   fn print_stats(&self) {}

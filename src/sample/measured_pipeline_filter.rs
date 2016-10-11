@@ -23,14 +23,14 @@ impl filter::Filter for MeasuredPipelineFilter {
     output:  &mut Sender<Message<Self::OutputType>>)
       -> Result<(), &'static str>
   {
-    self.on_exec += 1;
+    //self.on_exec += 1;
     if let &mut ChannelWrapper::ConnectedReceiver(ref mut _channel_id,
                                                   ref mut receiver,
                                                   ref mut _sender_name) = input {
-      let now = self.spinned.load(Ordering::Acquire);
+      //let now = self.spinned.load(Ordering::Acquire);
       for m in receiver.iter() {
         if let Message::Value(tick) = m {
-          self.latency += (now - tick as usize) as u64;
+          //self.latency += (now - tick as usize) as u64;
         }
         self.on_msg += 1;
         output.put(|v| *v = Some(m));
@@ -57,7 +57,7 @@ impl MeasuredPipelineFilter {
     println!(" @drop MeasuredPipelineFilter exec_count:{} msg_count:{} avg latency {} spins",
       self.on_exec,
       self.on_msg,
-      self.latency/self.on_msg
+      self.latency/(1+self.on_msg)
     );
   }
 

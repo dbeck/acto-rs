@@ -17,8 +17,8 @@ impl source::Source for MeasuredPipelineSource {
   fn process(&mut self, output: &mut Sender<Message<Self::OutputType>>)
       -> Result<(), &'static str>
   {
-    self.on_exec += 1;
-    output.put(|v| *v = Some(Message::Value(self.spinned.load(Ordering::Acquire))));
+    //self.on_exec += 1;
+    //output.put(|v| *v = Some(Message::Value(self.spinned.load(Ordering::Acquire))));
     Ok(())
   }
 }

@@ -18,8 +18,13 @@ pub struct ExecInfo {
 
 impl ExecInfo {
   // accessors
-  pub fn rule(&self) -> SchedulingRule { self.rule }
-  pub fn next_execution_at(&self) -> usize { self.next_at.load(Ordering::Acquire) }
+  pub fn rule(&self) -> SchedulingRule {
+    self.rule
+  }
+  
+  pub fn next_execution_at(&self) -> usize {
+    self.next_at.load(Ordering::Acquire)
+  }
 
   pub fn new() -> ExecInfo {
     ExecInfo{

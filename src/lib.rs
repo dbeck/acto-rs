@@ -26,6 +26,9 @@ pub struct InclusiveMessageRange {
 #[derive(Copy,Clone,Debug,PartialEq)]
 pub struct ChannelPosition (usize);
 
+#[derive(Copy,Clone,Debug,PartialEq)]
+pub struct ChannelPositionDiff (usize);
+
 #[derive(Copy,Clone,Debug)]
 pub enum Message<T: Send>
 {
