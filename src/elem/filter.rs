@@ -13,7 +13,8 @@ pub trait Filter {
   fn process(
     &mut self,
     input:   &mut ChannelWrapper<Self::InputType>,
-    output:  &mut Sender<Message<Self::OutputType>>) -> Result<(), &'static str>;
+    output:  &mut Sender<Message<Self::OutputType>>,
+    stop: &mut bool);
 }
 
 pub struct FilterWrap<Input: Send, Output: Send> {
@@ -71,8 +72,8 @@ impl<Input: Send, Output: Send> Connectable for FilterWrap<Input,Output> {
 }
 
 impl<Input: Send, Output: Send> Task for FilterWrap<Input,Output> {
-  fn execute(&mut self) -> Result<(), &'static str> {
-    self.state.process(&mut self.input_rx, &mut self.output_tx)
+  fn execute(&mut self, stop: &mut bool) {
+    self.state.process(&mut self.input_rx, &mut self.output_tx, stop);
   }
   fn name(&self) -> &String { &self.name }
   fn input_count(&self) -> usize { 1 }

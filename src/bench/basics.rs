@@ -163,9 +163,9 @@ fn locked_send_data() {
 fn source_execute() {
   let (mut source_task, mut _source_out) =
     source::new( "Source", 2, Box::new(DummySource{}));
-
+  let mut stop = false;
   bench_200ms("source-execute", |_i| {
-    source_task.execute().unwrap();
+    source_task.execute(&mut stop);
   });
 }
 
@@ -179,7 +179,8 @@ fn source_execute_with_swap() {
 
   bench_200ms("source-execute-w-swap", |_i| {
     let old_ptr = source_ptr.swap(ptr::null_mut(), Ordering::AcqRel);
-    unsafe { (*old_ptr).execute().unwrap(); }
+    let mut stop = false;
+    unsafe { (*old_ptr).execute(&mut stop); }
     source_ptr.swap(old_ptr,  Ordering::AcqRel);
   });
 

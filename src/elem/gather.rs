@@ -13,7 +13,8 @@ pub trait Gather {
   fn process(
     &mut self,
     input:   &mut Vec<ChannelWrapper<Self::InputType>>,
-    output:  &mut Sender<Message<Self::OutputType>>) -> Result<(), &'static str>;
+    output:  &mut Sender<Message<Self::OutputType>>,
+    stop:    &mut bool);
 }
 
 pub struct GatherWrap<Input: Send, Output: Send> {
@@ -75,8 +76,10 @@ impl<Input: Send, Output: Send> ConnectableN for GatherWrap<Input,Output> {
 }
 
 impl<Input: Send, Output: Send> Task for GatherWrap<Input,Output> {
-  fn execute(&mut self) -> Result<(), &'static str> {
-    self.state.process(&mut self.input_rx_vec, &mut self.output_tx)
+  fn execute(&mut self, stop: &mut bool) {
+    self.state.process(&mut self.input_rx_vec,
+                       &mut self.output_tx,
+                       stop);
   }
   fn name(&self) -> &String { &self.name }
   fn input_count(&self) -> usize { self.input_rx_vec.len() }

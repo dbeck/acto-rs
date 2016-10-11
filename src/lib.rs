@@ -111,7 +111,7 @@ pub enum Event {
 }
 
 pub trait Task {
-  fn execute(&mut self) -> Result<(), &'static str>;
+  fn execute(&mut self, stop: &mut bool);
   fn name(&self) -> &String;
   fn input_count(&self) -> usize;
   fn output_count(&self) -> usize;

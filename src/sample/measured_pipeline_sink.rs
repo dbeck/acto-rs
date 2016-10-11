@@ -20,29 +20,29 @@ pub struct MeasuredPipelineSink {
 impl sink::Sink for MeasuredPipelineSink {
   type InputType = usize;
 
-  fn process(&mut self, input: &mut ChannelWrapper<Self::InputType>)
-      -> Result<(), &'static str>
+  fn process(&mut self,
+             input: &mut ChannelWrapper<Self::InputType>,
+             stop:  &mut bool)
   {
     if let &mut ChannelWrapper::ConnectedReceiver(ref mut _channel_id,
                                                   ref mut receiver,
                                                   ref mut _sender_name) = input {
-      //let now = self.spinned.load(Ordering::Acquire);
-      //self.exec += 1;
+      let now = self.spinned.load(Ordering::Acquire);
+      self.exec += 1;
       for m in receiver.iter() {
         if let Message::Value(tick) = m {
-          //self.latency  += (now - tick as usize) as u64;
+          self.latency  += (now - tick as usize) as u64;
           self.count    += 1;
         }
       }
       // only execute when there is a new message on the input channel
-      //let end = self.spinned.load(Ordering::Acquire);
+      let end = self.spinned.load(Ordering::Acquire);
       if self.last_spin != 0 {
-        //self.others_spins += (now - self.last_spin) as u64;
+        self.others_spins += (now - self.last_spin) as u64;
       }
-      //self.last_spin = end;
-      Ok(())
+      self.last_spin = end;
     } else {
-      Err("The channel is not connected")
+      *stop = true;
     }
   }
 }

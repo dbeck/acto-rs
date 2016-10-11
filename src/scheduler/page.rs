@@ -6,8 +6,10 @@ use super::prv::{Private};
 use super::{wrap};
 use std::ptr;
 
+struct ExecFlags (AtomicUsize);
+
 pub struct TaskPage {
-  data:    Vec<(AtomicPtr<wrap::TaskWrap>, ExecInfo)>,
+  data:    Vec<(AtomicPtr<wrap::TaskWrap>, ExecFlags)>,
   id:      usize,
 }
 
@@ -45,7 +47,8 @@ impl TaskPage {
   {
     let slice = self.data.as_mut_slice();
     let data_ref = &mut slice[idx];
-    data_ref.1.init(output_count, rule);
+    // TODO :
+    //data_ref.1.init(output_count, rule);
   }
 
   pub fn register_dependents(&mut self,
@@ -54,7 +57,7 @@ impl TaskPage {
   {
     let slice = self.data.as_mut_slice();
     let data_ref = &mut slice[idx];
-    data_ref.1.register_dependents(deps);
+    // data_ref.1.register_dependents(deps);
   }
 
   pub fn eval(&mut self,
@@ -70,21 +73,21 @@ impl TaskPage {
 
     for i in &mut self.data {
       if l2_idx >= l2_max_idx { break; }
-      if i.1.next_execution_at() <= now {
-        //let wrk_ref = unsafe { self.l2.get_unchecked_mut(l2_idx) };
+      //if i.1.next_execution_at() <= now {
         let wrk = i.0.swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
-        if wrk.is_null() == false {
+        if !wrk.is_null() {
           unsafe {
-            //let _result = (*wrk).execute();
-          //  let end = time_us.load(Ordering::Acquire);
-          //  now = end;
+            let mut stop = false;
+            (*wrk).execute(false, &mut stop);
+            let end = time_us.load(Ordering::Acquire);
+            now = end;
           }
           i.0.store(wrk, Ordering::Release);
-        } /* else {
+        } else {
           l2_idx += skip;
-          skip += id;
-        }*/
-      }
+          skip += exec_id;
+        }
+      //}
       l2_idx += 1;
     }
 
@@ -123,7 +126,8 @@ impl TaskPage {
   pub fn notify(&mut self, l2_idx: usize) {
     let slice = self.data.as_mut_slice();
     let data_ref = &mut slice[l2_idx];
-    data_ref.1.ext_notify();
+    // TODO
+    // data_ref.1.ext_notify();
   }
 
   #[cfg(any(test,feature = "printstats"))]
@@ -138,7 +142,8 @@ pub fn new(id: usize) -> TaskPage {
   let mut data         = Vec::with_capacity(sz);
 
   for _i in 0..sz {
-    data.push((AtomicPtr::default(), ExecInfo::new()));
+    let f = ExecFlags(AtomicUsize::default());
+    data.push( (AtomicPtr::default(), f) );
   }
 
   TaskPage{

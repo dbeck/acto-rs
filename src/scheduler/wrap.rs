@@ -6,17 +6,19 @@ pub struct TaskWrap {
 }
 
 impl TaskWrap {
-  pub fn execute(&mut self) -> Result<(), &'static str> {
-    let result = self.task.execute();
-    let n_outputs = self.output_positions.len();
-    let mut slice = self.output_positions.as_mut_slice();
-    for i in 0..n_outputs {
-      let old_position = slice[i].0;
-      let new_position = self.task.output_channel_pos(SenderChannelId(i));
-      let diff = new_position.0 - old_position.0;
-      slice[i] = (new_position, ChannelPositionDiff(diff));
+  pub fn execute(&mut self, has_dependents: bool, stop: &mut bool)
+  {
+    self.task.execute(stop);
+    if has_dependents {
+      let n_outputs = self.output_positions.len();
+      let mut slice = self.output_positions.as_mut_slice();
+      for i in 0..n_outputs {
+        let old_position = slice[i].0;
+        let new_position = self.task.output_channel_pos(SenderChannelId(i));
+        let diff = new_position.0 - old_position.0;
+        slice[i] = (new_position, ChannelPositionDiff(diff));
+      }
     }
-    result
   }
 
   #[allow(dead_code)]

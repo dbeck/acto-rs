@@ -13,8 +13,8 @@ impl filter::Filter for DummyFilter {
   fn process(
     &mut self,
     _input:   &mut ChannelWrapper<Self::InputType>,
-    _output:  &mut Sender<Message<Self::OutputType>>) -> Result<(), &'static str>
+    _output:  &mut Sender<Message<Self::OutputType>>,
+    _stop:    &mut bool)
   {
-    Ok(())
   }
 }

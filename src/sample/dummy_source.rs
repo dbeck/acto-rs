@@ -9,8 +9,9 @@ pub struct DummySource {}
 impl source::Source for DummySource {
   type OutputType = usize;
 
-  fn process(&mut self, _output: &mut Sender<Message<Self::OutputType>>)
-      -> Result<(), &'static str> {
-    Ok(())
+  fn process(&mut self,
+             _output: &mut Sender<Message<Self::OutputType>>,
+             _stop: &mut bool)
+  {
   }
 }

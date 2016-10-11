@@ -9,7 +9,8 @@ pub trait Source {
 
   fn process(
     &mut self,
-    output: &mut Sender<Message<Self::OutputType>>) -> Result<(), &'static str>;
+    output: &mut Sender<Message<Self::OutputType>>,
+    stop: &mut bool);
 }
 
 pub struct SourceWrap<Output: Send> {
@@ -29,8 +30,8 @@ impl<Output: 'static+Send> OutputCounter for SourceWrap<Output> {
 }
 
 impl<Output: 'static+Send> Task for SourceWrap<Output> {
-  fn execute(&mut self) -> Result<(), &'static str> {
-    self.state.process(&mut self.output_tx)
+  fn execute(&mut self, stop: &mut bool) {
+    self.state.process(&mut self.output_tx, stop);
   }
   fn name(&self) -> &String { &self.name }
   fn input_count(&self) -> usize { 0 }
