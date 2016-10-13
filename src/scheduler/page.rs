@@ -51,13 +51,31 @@ impl TaskPage {
     //data_ref.1.init(output_count, rule);
   }
 
-  pub fn register_dependents(&mut self,
-                             idx: usize,
-                             deps: Vec<(ChannelId, TaskId)>)
-  {
+  pub fn set_dependents_flag(&mut self, idx: usize) {
     let slice = self.data.as_mut_slice();
     let data_ref = &mut slice[idx];
-    // data_ref.1.register_dependents(deps);
+    let flags = &mut data_ref.1;
+    flags.0.fetch_or(1, Ordering::Release);
+  }
+
+  pub fn notify(&mut self, idx: usize) {
+    let slice = self.data.as_mut_slice();
+    let data_ref = &mut slice[idx];
+    let flags = &(data_ref.1).0.load(Ordering::Acquire);
+    // clear next_exec_time and set notified flag
+    let new_flags = (flags&31) | 2;
+    let mut_flags = &mut data_ref.1;
+    mut_flags.0.store(new_flags, Ordering::Release);
+  }
+
+  pub fn trigger(&mut self, idx: usize) {
+    let slice = self.data.as_mut_slice();
+    let data_ref = &mut slice[idx];
+    let flags = &(data_ref.1).0.load(Ordering::Acquire);
+    // clear next_exec_time and set triggered flag
+    let new_flags = (flags&31) | 4;
+    let mut_flags = &mut data_ref.1;
+    mut_flags.0.store(new_flags, Ordering::Release);
   }
 
   pub fn eval(&mut self,
@@ -73,12 +91,15 @@ impl TaskPage {
 
     for i in &mut self.data {
       if l2_idx >= l2_max_idx { break; }
-      //if i.1.next_execution_at() <= now {
+      let flags = &(i.1).0.load(Ordering::Acquire);
+      let has_dependents = flags&1 == 1;
+      let next_execution_at = flags >> 5;
+      if next_execution_at <= now {
         let wrk = i.0.swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
         if !wrk.is_null() {
           unsafe {
             let mut stop = false;
-            (*wrk).execute(false, &mut stop);
+            (*wrk).execute(has_dependents, &mut stop);
             let end = time_us.load(Ordering::Acquire);
             now = end;
           }
@@ -87,51 +108,28 @@ impl TaskPage {
           l2_idx += skip;
           skip += exec_id;
         }
-      //}
-      l2_idx += 1;
-    }
-
-          /*
-    loop {
-      if l2_idx >= l2_max_idx { break; }
-
-
-      let info_ref    = &mut info_slice[l2_idx];
-
-      let next_at     = info_ref.next_execution_at();
-
-
-      if next_at <= now {
-        let wrk_ref = unsafe { self.l2.get_unchecked_mut(l2_idx) };
-        let wrk = wrk_ref.swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
-        if wrk.is_null() == false {
-          unsafe {
-            let _result = (*wrk).execute();
-            let end = time_us.load(Ordering::Acquire);
-            now = end;
-          }
-          wrk_ref.store(wrk, Ordering::Release);
-        } else {
-          l2_idx += skip;
-          skip += id;
-        }
       }
-
-
       l2_idx += 1;
     }
-          */
-  }
-
-  pub fn notify(&mut self, l2_idx: usize) {
-    let slice = self.data.as_mut_slice();
-    let data_ref = &mut slice[l2_idx];
-    // TODO
-    // data_ref.1.ext_notify();
   }
 
   #[cfg(any(test,feature = "printstats"))]
-  fn print_stats(&self) {}
+  fn print_stats(&self) {
+    let mut pos = 0;
+    for i in &self.data {
+      let ptr = i.0.load(Ordering::Acquire);
+      if !ptr.is_null() {
+        let flags = (i.1).0.load(Ordering::Acquire);
+        let has_dependents = flags&1 == 1;
+        let notified = flags&2 == 2;
+        let triggered = flags&4 == 4;
+        let next_execution_at = flags>>5;
+        println!("#{}:{} dep:{:?} not:{:?} trg:{:?} next:{}",
+          self.id, pos, has_dependents, notified, triggered, next_execution_at);
+      }
+      pos += 1;
+    }
+  }
 
   #[cfg(not(any(test,feature = "printstats")))]
   fn print_stats(&self) {}

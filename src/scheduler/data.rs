@@ -66,7 +66,9 @@ impl SchedulerData {
     unsafe {
       let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
       if l1_ptr.is_null() == false {
-        (*l1_ptr).register_dependents(l2, deps);
+        // TODO: register in global structure
+        //(*l1_ptr).register_dependents(l2, deps);
+        (*l1_ptr).set_dependents_flag(l2);
       }
     }
   }
