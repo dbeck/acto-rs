@@ -21,7 +21,6 @@ impl TaskWrap {
     }
   }
 
-  #[allow(dead_code)]
   pub fn output_positions(&self) -> &Vec<(ChannelPosition, ChannelPositionDiff)> {
     &self.output_positions
   }

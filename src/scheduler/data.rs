@@ -68,7 +68,19 @@ impl SchedulerData {
       if l1_ptr.is_null() == false {
         // TODO: register in global structure
         //(*l1_ptr).register_dependents(l2, deps);
-        (*l1_ptr).set_dependents_flag(l2);
+        (*l1_ptr).set_dependents_flag(l2, deps.len());
+      }
+    }
+  }
+
+  fn mark_conditional_task(&mut self,
+                           id: TaskId)
+  {
+    let (l1, l2) = page::position(id.0);
+    unsafe {
+      let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
+      if l1_ptr.is_null() == false {
+        (*l1_ptr).set_conditional_exec_flag(l2);
       }
     }
   }
@@ -152,7 +164,8 @@ impl SchedulerData {
         unsafe {
           let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
           if l1_ptr.is_null() == false {
-            (*l1_ptr).init_info(l2, output_count, rule);
+            // TODO : store scheduling rule somewhere ????
+            //(*l1_ptr).init_info(l2, output_count, rule);
             (*l1_ptr).store(l2, task);
           }
         }
@@ -174,7 +187,19 @@ impl SchedulerData {
         }
         self.register_dependents(task_id, register_these);
       }
+
+      {
+        // mark task conditional if it depends on an event to run
+        // like external notification or message to arrive
+        match rule {
+          SchedulingRule::OnExternalEvent | SchedulingRule::OnMessage => {
+            self.mark_conditional_task(task_id);
+          }
+          _ => {}
+        }
+      }
     }
+
     result
   }
 

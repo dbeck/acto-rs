@@ -2,7 +2,6 @@ mod wrap;
 mod page;
 mod data;
 mod handle;
-mod exec_info;
 mod prv;
 
 use super::{Task, Error, TaskId, SchedulingRule};

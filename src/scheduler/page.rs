@@ -39,22 +39,22 @@ impl TaskPage {
     }
   }
 
-  pub fn init_info(&mut self,
-                   idx: usize,
-                   output_count: usize,
-                   rule: SchedulingRule)
-  {
-    let slice = self.data.as_mut_slice();
-    let data_ref = &mut slice[idx];
-    // TODO :
-    //data_ref.1.init(output_count, rule);
-  }
-
-  pub fn set_dependents_flag(&mut self, idx: usize) {
+  pub fn set_dependents_flag(&mut self, idx: usize, n_deps: usize) {
     let slice = self.data.as_mut_slice();
     let data_ref = &mut slice[idx];
     let flags = &mut data_ref.1;
-    flags.0.fetch_or(1, Ordering::Release);
+    if n_deps > 1 {
+      flags.0.fetch_or(3, Ordering::Release);
+    } else {
+      flags.0.fetch_or(1, Ordering::Release);
+    }
+  }
+
+  pub fn set_conditional_exec_flag(&mut self, idx: usize) {
+    let slice = self.data.as_mut_slice();
+    let data_ref = &mut slice[idx];
+    let flags = &mut data_ref.1;
+    flags.0.fetch_or(32, Ordering::Release);
   }
 
   pub fn notify(&mut self, idx: usize) {
@@ -62,7 +62,7 @@ impl TaskPage {
     let data_ref = &mut slice[idx];
     let flags = &(data_ref.1).0.load(Ordering::Acquire);
     // clear next_exec_time and set notified flag
-    let new_flags = (flags&31) | 2;
+    let new_flags = (flags&63) | 4;
     let mut_flags = &mut data_ref.1;
     mut_flags.0.store(new_flags, Ordering::Release);
   }
@@ -72,34 +72,54 @@ impl TaskPage {
     let data_ref = &mut slice[idx];
     let flags = &(data_ref.1).0.load(Ordering::Acquire);
     // clear next_exec_time and set triggered flag
-    let new_flags = (flags&31) | 4;
+    let new_flags = (flags&63) | 8;
     let mut_flags = &mut data_ref.1;
     mut_flags.0.store(new_flags, Ordering::Release);
   }
 
   pub fn eval(&mut self,
-                 l2_max_idx: usize,
-                 exec_id: usize,
-                 private_data: &mut Private,
-                 time_us: &AtomicUsize)
+              l2_max_idx: usize,
+              exec_id: usize,
+              private_data: &mut Private,
+              time_us: &AtomicUsize)
   {
     let mut skip    = exec_id;
     let mut l2_idx  = 0;
-    //let info_slice  = self.info.as_mut_slice();
     let mut now     = time_us.load(Ordering::Acquire);
 
     for i in &mut self.data {
       if l2_idx >= l2_max_idx { break; }
       let flags = &(i.1).0.load(Ordering::Acquire);
-      let has_dependents = flags&1 == 1;
-      let next_execution_at = flags >> 5;
-      if next_execution_at <= now {
+      let stopped = flags&16;
+      let next_execution_at = flags >> 6;
+      // execute if not stopped and time is OK
+      if stopped == 0 && next_execution_at <= now {
         let wrk = i.0.swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
         if !wrk.is_null() {
           unsafe {
+            let has_dependents = flags&1 == 1;
+            let is_conditional = flags&32 == 32;
             let mut stop = false;
             (*wrk).execute(has_dependents, &mut stop);
+            let mut_flags = &mut i.1;
             let end = time_us.load(Ordering::Acquire);
+            if stop {
+              // the task said to be stopped, so set the stop bit
+              mut_flags.0.fetch_or(16, Ordering::Release);
+            }
+            if is_conditional {
+              // for conditionally executed tasks that:
+              // 1, wait for external notification
+              // 2, wait for message
+              // -> set exec time to 10s ahead
+              // -> add back original dependent and conditional flags
+              let new_flags : usize = (end+10_000_000)<<6 | (flags&3) | 32;
+              mut_flags.0.store(new_flags, Ordering::Release);
+            }
+            if has_dependents {
+              private_data.output_positions(
+                self.id, l2_idx, (*wrk).output_positions());
+            }
             now = end;
           }
           i.0.store(wrk, Ordering::Release);
@@ -120,11 +140,16 @@ impl TaskPage {
       if !ptr.is_null() {
         let flags = (i.1).0.load(Ordering::Acquire);
         let has_dependents = flags&1 == 1;
-        let notified = flags&2 == 2;
-        let triggered = flags&4 == 4;
-        let next_execution_at = flags>>5;
-        println!("#{}:{} dep:{:?} not:{:?} trg:{:?} next:{}",
-          self.id, pos, has_dependents, notified, triggered, next_execution_at);
+        let multi_deps = flags&2 == 2;
+        let notified = flags&4 == 4;
+        let triggered = flags&8 == 8;
+        let stopped = flags&16 == 16;
+        let conditional = flags&32 == 32;
+        let next_execution_at = flags>>6;
+        println!("#{}:{} dep:{:?}/m:{:?} not:{:?} trg:{:?} stop:{:?} cond:{:?} next:{}",
+          self.id, pos, has_dependents, multi_deps, notified, triggered,
+          stopped, conditional,
+          next_execution_at);
       }
       pos += 1;
     }
