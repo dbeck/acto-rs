@@ -39,7 +39,8 @@ impl SchedulerData {
     let l1_size = initial_capacity();
     let mut data = SchedulerData{
       start:       Instant::now(),
-      max_id:      AtomicUsize::new(0),
+      // zero ID is skipped
+      max_id:      AtomicUsize::new(1),
       l1:          Vec::with_capacity(l1_size),
       stop:        AtomicBool::new(false),
       time_us:     AtomicUsize::new(0),
@@ -52,25 +53,10 @@ impl SchedulerData {
       data.l1.push(AtomicPtr::default());
     }
 
-    // add an initial l2 page
+    // add two initial l2 pages
     data.add_l2_page(0);
+    data.add_l2_page(1);
     data
-  }
-
-  fn register_dependents(&mut self,
-                         id: TaskId,
-                         deps: Vec<(ChannelId, TaskId)>)
-  {
-    if deps.is_empty() { return; }
-    let (l1, l2) = page::position(id.0);
-    unsafe {
-      let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
-      if l1_ptr.is_null() == false {
-        // TODO: register in global structure
-        //(*l1_ptr).register_dependents(l2, deps);
-        (*l1_ptr).set_dependents_flag(l2, deps.len());
-      }
-    }
   }
 
   fn mark_conditional_task(&mut self,
@@ -101,6 +87,21 @@ impl SchedulerData {
     match ids.get(name) {
       Some(&id)  => Some(id),
       None       => None
+    }
+  }
+
+  fn register_dependents(&mut self,
+                         id: TaskId,
+                         deps: Vec<(ChannelId, TaskId)>)
+  {
+    if deps.is_empty() { return; }
+    let (l1, l2) = page::position(id.0);
+    unsafe {
+      let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
+      if l1_ptr.is_null() == false {
+        (*l1_ptr).set_dependents_flag(l2, deps.len() > 1);
+        (*l1_ptr).register_dependents(l2, deps);
+      }
     }
   }
 
@@ -237,7 +238,12 @@ impl SchedulerData {
         for l1_idx in 0..l1 {
           let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);
           unsafe {
-            (*l1_ptr).eval(l2_max_idx, id, &mut private_data, &self.time_us);
+            (*l1_ptr).eval(
+              l2_max_idx,         // the max ID on the task page
+              id,                 // the ID of the executor thread
+              &mut private_data,  // thread private data
+              &self.time_us       // current time
+            );
           }
         }
 
@@ -246,7 +252,12 @@ impl SchedulerData {
         for l1_idx in l1..(l1+1) {
           let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);
           unsafe {
-            (*l1_ptr).eval(l2_max_idx, id, &mut private_data, &self.time_us);
+            (*l1_ptr).eval(
+              l2_max_idx,         // the max ID on the task page
+              id,                 // the ID of the executor thread
+              &mut private_data,  // thread private data
+              &self.time_us       // current time
+            );
           }
         }
       }
@@ -264,6 +275,10 @@ impl SchedulerData {
     let ns_iter = diff_ns/iter;
 
     println!("#{} loop_count: {} {} ns/iter",id,iter,ns_iter);
+  }
+
+  #[allow(dead_code)]
+  pub fn trigger(&mut self, _id: &TaskId) {
   }
 
   pub fn notify(&mut self, id: &TaskId) -> Result<(), Error> {

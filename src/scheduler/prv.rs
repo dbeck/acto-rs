@@ -1,5 +1,5 @@
 
-use super::super::{ChannelPosition, ChannelPositionDiff};
+use super::super::{TaskId};
 
 pub struct Private {
 }
@@ -13,11 +13,8 @@ impl Private {
   pub fn ensure_size(&mut self, _size: usize) {
   }
 
-  #[allow(dead_code)]
-  pub fn output_positions(&mut self,
-                          _l1: usize,
-                          _l2: usize,
-                          _output_pos: &Vec<(ChannelPosition, ChannelPositionDiff)>)
+  pub fn save_notification(&mut self,
+                           _to: TaskId)
   {
   }
 }
