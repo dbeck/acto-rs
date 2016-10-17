@@ -45,7 +45,11 @@ impl TaskPage {
                              idx: usize,
                              deps: Vec<(ChannelId, TaskId)>)
   {
+    let slice = self.data.as_mut_slice();
+    let data_ref = &mut slice[idx];
+    let atomic_flags = &mut data_ref.1;
     // TODO
+    let flags = atomic_flags.load(Ordering::Acquire); 
   }
 
   pub fn set_dependents_flag(&mut self, idx: usize, multi_deps: bool) {
