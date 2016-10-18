@@ -20,7 +20,7 @@ impl TaskWrap {
         let old_position = slice[i].0;
         let new_position = self.task.output_channel_pos(SenderChannelId(i));
         if old_position.0 < new_position.0 {
-          private_data.save_notification(slice[i].1);
+          private_data.save_trigger(slice[i].1);
         }
         slice[i].0 = self.task.output_channel_pos(SenderChannelId(i));
       }

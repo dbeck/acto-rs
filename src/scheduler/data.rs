@@ -262,6 +262,14 @@ impl SchedulerData {
         }
       }
 
+      {
+        let to_trigger = private_data.to_trigger();
+        for t in to_trigger {
+          self.trigger(t);
+        }
+      }
+      private_data.clear();
+
       iter += 1;
 
       // check stop state
@@ -277,8 +285,14 @@ impl SchedulerData {
     println!("#{} loop_count: {} {} ns/iter",id,iter,ns_iter);
   }
 
-  #[allow(dead_code)]
-  pub fn trigger(&mut self, _id: &TaskId) {
+  pub fn trigger(&mut self, id: &TaskId) {
+    let (l1, l2) = page::position(id.0);
+    unsafe {
+      let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
+      if l1_ptr.is_null() == false {
+        (*l1_ptr).trigger(l2);
+      }
+    }
   }
 
   pub fn notify(&mut self, id: &TaskId) -> Result<(), Error> {

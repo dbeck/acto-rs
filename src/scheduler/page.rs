@@ -41,17 +41,6 @@ impl TaskPage {
     (data_ref.1).0.store(0, Ordering::Release);
   }
 
-  pub fn register_dependents(&mut self,
-                             idx: usize,
-                             deps: Vec<(ChannelId, TaskId)>)
-  {
-    let slice = self.data.as_mut_slice();
-    let data_ref = &mut slice[idx];
-    let atomic_flags = &mut data_ref.1;
-    // TODO
-    let flags = atomic_flags.load(Ordering::Acquire); 
-  }
-
   pub fn set_dependents_flag(&mut self, idx: usize, multi_deps: bool) {
     let slice = self.data.as_mut_slice();
     let data_ref = &mut slice[idx];
@@ -83,7 +72,6 @@ impl TaskPage {
     mut_flags.0.store(new_flags, Ordering::Release);
   }
 
-  #[allow(dead_code)]
   pub fn trigger(&mut self, idx: usize) {
     let slice = self.data.as_mut_slice();
     let data_ref = &mut slice[idx];
@@ -92,6 +80,27 @@ impl TaskPage {
     let new_flags = (flags&63) | 8;
     let mut_flags = &mut data_ref.1;
     mut_flags.0.store(new_flags, Ordering::Release);
+  }
+
+  pub fn register_dependents(&mut self,
+                             idx: usize,
+                             deps: Vec<(ChannelId, TaskId)>)
+  {
+    let slice = self.data.as_mut_slice();
+    let data_ref = &mut slice[idx];
+    let atomic_flags = &mut data_ref.1;
+    let delay_exec : u64 = 0xffffffffffffff << 6;
+    let flags = atomic_flags.0.fetch_or(delay_exec as usize, Ordering::Acquire);
+    loop {
+      let wrk = data_ref.0.swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
+      if !wrk.is_null() {
+        unsafe { (*wrk).register_dependents(deps); }
+        data_ref.0.store(wrk, Ordering::Release);
+        atomic_flags.0.store(flags, Ordering::Release);
+        break;
+      }
+      atomic_flags.0.fetch_or(delay_exec as usize, Ordering::Acquire);
+    }
   }
 
   pub fn eval(&mut self,
