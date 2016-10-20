@@ -15,6 +15,7 @@ impl Private {
   pub fn ensure_size(&mut self, _size: usize) {
   }
 
+  #[inline]
   pub fn save_trigger(&mut self,
                       to: TaskId)
   {

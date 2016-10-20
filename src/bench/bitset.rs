@@ -1,7 +1,7 @@
 use super::bench_200ms;
 
 struct BitSet {
-  bits:     Vec<u64>,
+  bits:  Vec<u64>,
 }
 
 impl BitSet {

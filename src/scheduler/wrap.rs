@@ -7,6 +7,7 @@ pub struct TaskWrap {
 }
 
 impl TaskWrap {
+  #[inline(always)]
   pub fn execute(&mut self,
                  has_dependents: bool,
                  stop: &mut bool,

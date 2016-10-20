@@ -94,6 +94,7 @@ impl TaskPage {
     }
   }
 
+  #[inline(always)]
   pub fn eval(&mut self,
               l2_max_idx: usize,
               exec_thread_id: usize,
@@ -104,33 +105,30 @@ impl TaskPage {
     let mut l2_idx  = 0;
     let mut now     = time_us.load(Ordering::Acquire);
 
-    for i in &mut self.data {
+    for act_data in &mut self.data {
       if l2_idx >= l2_max_idx { break; }
-      let flags = (i.1).0.load(Ordering::Acquire);
+      let flags = (act_data.1).0.load(Ordering::Acquire);
       let stopped = flags&16;
       // execute if not stopped and time is OK
       if stopped == 0 {
         let next_execution_at = flags >> 6;
         if next_execution_at <= now {
-          let wrk = i.0.swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
+          let wrk = act_data.0.swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
           if !wrk.is_null() {
 
-            let has_dependents  = flags&1 == 1;
-            let is_delayed      = flags&4 == 4;
-            let is_conditional  = flags&32 == 32;
-            let mut stop        = false;
-
+            let mut stop = false;
             unsafe {
-              (*wrk).execute(has_dependents, &mut stop, private_data);
+              // flags&1 is the dependents flag
+              (*wrk).execute(flags&1 == 1, &mut stop, private_data);
             }
 
-            let atomic_flags = &mut (i.1).0;
+            let atomic_flags = &mut (act_data.1).0;
             let end = time_us.load(Ordering::Acquire);
 
             if stop {
-              // the task said to be stopped, so set the stop bit
+              // the task said to be stopped, so set the stop bit 
               atomic_flags.fetch_or(16, Ordering::Release);
-            } else if is_conditional {
+            } else if flags&32 == 32 {
               // for conditionally executed tasks that:
               // 1, wait for external notification
               // 2, wait for message
@@ -138,13 +136,14 @@ impl TaskPage {
               // -> add back original flags
               let new_flags : usize = (end+10_000_000)<<6 | (flags&63);
               atomic_flags.store(new_flags, Ordering::Release);
-            } else if is_delayed {
-              let new_flags : usize = (now+(i.2).0)<<6 | (flags&63);
+            } else if flags&4 == 4 {
+              // flags&4 is the delay flag. the third component of the
+              // data/act_data is the delay amount: i.e. i.2
+              let new_flags : usize = (now+(act_data.2).0)<<6 | (flags&63);
               atomic_flags.store(new_flags, Ordering::Release);
             }
             now = end;
-
-            i.0.store(wrk, Ordering::Release);
+            act_data.0.store(wrk, Ordering::Release);
           } else {
             l2_idx += skip;
             skip += exec_thread_id;
@@ -157,6 +156,7 @@ impl TaskPage {
 
   #[cfg(any(test,feature = "printstats"))]
   fn print_stats(&self) {
+    /*
     let mut pos = 0;
     for i in &self.data {
       let ptr = i.0.load(Ordering::Acquire);
@@ -174,6 +174,7 @@ impl TaskPage {
       }
       pos += 1;
     }
+    */
   }
 
   #[cfg(not(any(test,feature = "printstats")))]

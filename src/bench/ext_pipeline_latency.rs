@@ -1,19 +1,26 @@
 use super::bench_200ms;
 use super::super::sample::measured_pipeline::MeasuredPipeline;
 use super::spinner::Spinner;
+use libc;
 
-fn latency_1() {
+fn latency(stop_delay: u32, dummies: usize) {
   let spinner = Spinner::new();
-  let mut pipe = MeasuredPipeline::new(spinner.get());
+  let mut pipe = MeasuredPipeline::new(spinner.get(), dummies);
   pipe.start();
-  bench_200ms("pipe-latency", |_v| {
+  let printout = format!("pipe-latency-{}-{}",stop_delay,dummies);
+  bench_200ms(printout.as_str(), |_v| {
     pipe.notify();
     pipe.wait();
   });
+  unsafe { libc::usleep(stop_delay); }
   pipe.stop();
   spinner.stop();
 }
 
 pub fn run() {
-  latency_1();
+  for i in 1..10 {
+    latency(1,20*i);
+    latency(100000,20*i);
+    latency(5000000,20*i);
+  }
 }
