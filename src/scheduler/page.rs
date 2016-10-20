@@ -1,6 +1,6 @@
 
 use std::sync::atomic::{AtomicPtr, Ordering, AtomicUsize};
-use super::super::{Task, ChannelId, TaskId};
+use super::super::{Task, ChannelId, TaskId, PeriodLengthInUsec};
 use super::prv::{Private};
 use super::{wrap};
 use std::ptr;
@@ -8,8 +8,7 @@ use std::ptr;
 struct ExecFlags (AtomicUsize);
 
 pub struct TaskPage {
-  data:    Vec<(AtomicPtr<wrap::TaskWrap>, ExecFlags)>,
-  id:      usize,
+  data:    Vec<(AtomicPtr<wrap::TaskWrap>, ExecFlags, PeriodLengthInUsec)>,
 }
 
 pub fn max_idx() -> usize {
@@ -37,50 +36,42 @@ impl TaskPage {
       // of atomically increasing indices
       let _b = unsafe { Box::from_raw(old) };
     }
-    // zero the flags too
-    (data_ref.1).0.store(0, Ordering::Release);
+    // clear the stopped flag too
+    (data_ref.1).0.fetch_and(63-16, Ordering::AcqRel);
   }
 
-  pub fn set_dependents_flag(&mut self, idx: usize, multi_deps: bool) {
+  pub fn set_dependents_flag(&mut self, idx: usize) {
     let slice = self.data.as_mut_slice();
     let data_ref = &mut slice[idx];
-    let flags = &mut data_ref.1;
-    if multi_deps {
-      flags.0.fetch_or(3, Ordering::Release);
-    } else {
-      let old = flags.0.fetch_or(1, Ordering::AcqRel);
-      if old&1 == 1 {
-        flags.0.fetch_or(3, Ordering::Release);
-      }
-    }
+    (data_ref.1).0.fetch_or(1, Ordering::Release);
+  }
+
+  pub fn set_delayed_exec(&mut self, idx: usize, period: PeriodLengthInUsec) {
+    let slice = self.data.as_mut_slice();
+    let mut data_ref = &mut slice[idx];
+    (data_ref.1).0.fetch_or(4, Ordering::Release);
+    data_ref.2 = period;
   }
 
   pub fn set_conditional_exec_flag(&mut self, idx: usize) {
     let slice = self.data.as_mut_slice();
     let data_ref = &mut slice[idx];
-    let flags = &mut data_ref.1;
-    flags.0.fetch_or(32, Ordering::Release);
+    (data_ref.1).0.fetch_or(32, Ordering::Release);
   }
 
-  pub fn notify(&mut self, idx: usize) {
+  pub fn schedule_exec(&mut self, idx: usize) {
     let slice = self.data.as_mut_slice();
     let data_ref = &mut slice[idx];
-    let flags = &(data_ref.1).0.load(Ordering::Acquire);
-    // clear next_exec_time and set notified flag
-    let new_flags = (flags&63) | 4;
-    let mut_flags = &mut data_ref.1;
-    mut_flags.0.store(new_flags, Ordering::Release);
+    // clear exec time
+    (data_ref.1).0.fetch_and(63, Ordering::Acquire);
   }
 
-  pub fn trigger(&mut self, idx: usize) {
-    let slice = self.data.as_mut_slice();
-    let data_ref = &mut slice[idx];
-    let flags = &(data_ref.1).0.load(Ordering::Acquire);
-    // clear next_exec_time and set triggered flag
-    let new_flags = (flags&63) | 8;
-    let mut_flags = &mut data_ref.1;
-    mut_flags.0.store(new_flags, Ordering::Release);
-  }
+  // has_dependents: 1
+  // ???: 2
+  // delayed: 4
+  // ???: 8
+  // stopped-flag: 16
+  // conditiona: 32
 
   pub fn register_dependents(&mut self,
                              idx: usize,
@@ -115,7 +106,7 @@ impl TaskPage {
 
     for i in &mut self.data {
       if l2_idx >= l2_max_idx { break; }
-      let flags = &(i.1).0.load(Ordering::Acquire);
+      let flags = (i.1).0.load(Ordering::Acquire);
       let stopped = flags&16;
       // execute if not stopped and time is OK
       if stopped == 0 {
@@ -123,28 +114,36 @@ impl TaskPage {
         if next_execution_at <= now {
           let wrk = i.0.swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
           if !wrk.is_null() {
+
+            let has_dependents  = flags&1 == 1;
+            let is_delayed      = flags&4 == 4;
+            let is_conditional  = flags&32 == 32;
+            let mut stop        = false;
+
             unsafe {
-              let has_dependents = flags&1 == 1;
-              let is_conditional = flags&32 == 32;
-              let mut stop = false;
               (*wrk).execute(has_dependents, &mut stop, private_data);
-              let mut_flags = &mut i.1;
-              let end = time_us.load(Ordering::Acquire);
-              if stop {
-                // the task said to be stopped, so set the stop bit
-                mut_flags.0.fetch_or(16, Ordering::Release);
-              }
-              if is_conditional {
-                // for conditionally executed tasks that:
-                // 1, wait for external notification
-                // 2, wait for message
-                // -> set exec time to 10s ahead
-                // -> add back original dependent and conditional flags
-                let new_flags : usize = (end+10_000_000)<<6 | (flags&3) | 32;
-                mut_flags.0.store(new_flags, Ordering::Release);
-              }
-              now = end;
             }
+
+            let atomic_flags = &mut (i.1).0;
+            let end = time_us.load(Ordering::Acquire);
+
+            if stop {
+              // the task said to be stopped, so set the stop bit
+              atomic_flags.fetch_or(16, Ordering::Release);
+            } else if is_conditional {
+              // for conditionally executed tasks that:
+              // 1, wait for external notification
+              // 2, wait for message
+              // -> set exec time to 10s ahead
+              // -> add back original flags
+              let new_flags : usize = (end+10_000_000)<<6 | (flags&63);
+              atomic_flags.store(new_flags, Ordering::Release);
+            } else if is_delayed {
+              let new_flags : usize = (now+(i.2).0)<<6 | (flags&63);
+              atomic_flags.store(new_flags, Ordering::Release);
+            }
+            now = end;
+
             i.0.store(wrk, Ordering::Release);
           } else {
             l2_idx += skip;
@@ -164,14 +163,12 @@ impl TaskPage {
       if !ptr.is_null() {
         let flags = (i.1).0.load(Ordering::Acquire);
         let has_dependents = flags&1 == 1;
-        let multi_deps = flags&2 == 2;
-        let notified = flags&4 == 4;
-        let triggered = flags&8 == 8;
+        let delayed = flags&4 == 4;
         let stopped = flags&16 == 16;
         let conditional = flags&32 == 32;
         let next_execution_at = flags>>6;
-        println!("#{}:{} dep:{:?}/m:{:?} not:{:?} trg:{:?} stop:{:?} cond:{:?} next:{}",
-          self.id, pos, has_dependents, multi_deps, notified, triggered,
+        println!("#{} has-dep:{:?} delayed:{:?}/{:?} stop:{:?} cond:{:?} next:{}",
+          pos, has_dependents, delayed, (i.2).0,
           stopped, conditional,
           next_execution_at);
       }
@@ -183,19 +180,18 @@ impl TaskPage {
   fn print_stats(&self) {}
 }
 
-pub fn new(id: usize) -> TaskPage {
+pub fn new(_id: usize) -> TaskPage {
   let sz               = max_idx()+1;
   let mut data         = Vec::with_capacity(sz);
 
   for _i in 0..sz {
     // default flag is stopped: 16
     let f = ExecFlags(AtomicUsize::new(16));
-    data.push( (AtomicPtr::default(), f) );
+    data.push( (AtomicPtr::default(), f, PeriodLengthInUsec(0)) );
   }
 
   TaskPage{
     data:   data,
-    id:     id,
   }
 }
 

@@ -3,7 +3,6 @@ use lossyq::spsc::Sender;
 use super::super::elem::source;
 use super::super::{Message};
 
-#[allow(dead_code)]
 pub struct DummySource {}
 
 impl source::Source for DummySource {
@@ -13,5 +12,11 @@ impl source::Source for DummySource {
              _output: &mut Sender<Message<Self::OutputType>>,
              _stop: &mut bool)
   {
+  }
+}
+
+impl DummySource {
+  pub fn new() -> DummySource {
+    DummySource{}
   }
 }

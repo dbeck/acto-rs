@@ -1,7 +1,8 @@
 
 use std::collections::{HashMap};
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
-use super::super::{Task, Error, TaskId, ReceiverChannelId, ChannelId, SchedulingRule};
+use super::super::{Task, Error, TaskId, ReceiverChannelId,
+  ChannelId, SchedulingRule, PeriodLengthInUsec};
 use super::{page, prv};
 use std::sync::{Mutex};
 use std::ptr;
@@ -71,6 +72,19 @@ impl SchedulerData {
     }
   }
 
+  fn mark_periodic_task(&mut self,
+                        id: TaskId,
+                        period: PeriodLengthInUsec)
+  {
+    let (l1, l2) = page::position(id.0);
+    unsafe {
+      let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
+      if l1_ptr.is_null() == false {
+        (*l1_ptr).set_delayed_exec(l2, period);
+      }
+    }
+  }
+
   fn allocate_id_for_task(&mut self, task: &Box<Task+Send>) -> Result<TaskId, Error> {
     let mut ids = self.ids.lock().unwrap();
     if ids.contains_key(task.name()) {
@@ -99,7 +113,7 @@ impl SchedulerData {
     unsafe {
       let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
       if l1_ptr.is_null() == false {
-        (*l1_ptr).set_dependents_flag(l2, deps.len() > 1);
+        (*l1_ptr).set_dependents_flag(l2);
         (*l1_ptr).register_dependents(l2, deps);
       }
     }
@@ -147,8 +161,14 @@ impl SchedulerData {
               }
             }
           }
+          self.mark_conditional_task(task_id);
         },
-        // only care about message channel dependencies here
+        SchedulingRule::OnExternalEvent => {
+          self.mark_conditional_task(task_id);
+        },
+        SchedulingRule::Periodic(period) => {
+          self.mark_periodic_task(task_id, period);
+        },
         // other scheduling rule types are currently ignored
         _ => {}
       }
@@ -188,17 +208,6 @@ impl SchedulerData {
         }
         self.register_dependents(task_id, register_these);
       }
-
-      {
-        // mark task conditional if it depends on an event to run
-        // like external notification or message to arrive
-        match rule {
-          SchedulingRule::OnExternalEvent | SchedulingRule::OnMessage => {
-            self.mark_conditional_task(task_id);
-          }
-          _ => {}
-        }
-      }
     }
 
     result
@@ -218,6 +227,7 @@ impl SchedulerData {
   }
 
   pub fn entry(&mut self, id: usize) {
+
     let start = Instant::now();
     let mut iter = 0u64;
     let mut private_data = prv::Private::new();
@@ -265,7 +275,7 @@ impl SchedulerData {
       {
         let to_trigger = private_data.to_trigger();
         for t in to_trigger {
-          self.trigger(t);
+          self.schedule_exec(t);
         }
       }
       private_data.clear();
@@ -285,12 +295,12 @@ impl SchedulerData {
     println!("#{} loop_count: {} {} ns/iter",id,iter,ns_iter);
   }
 
-  pub fn trigger(&mut self, id: &TaskId) {
+  pub fn schedule_exec(&mut self, id: &TaskId) {
     let (l1, l2) = page::position(id.0);
     unsafe {
       let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
       if l1_ptr.is_null() == false {
-        (*l1_ptr).trigger(l2);
+        (*l1_ptr).schedule_exec(l2);
       }
     }
   }
@@ -309,7 +319,7 @@ impl SchedulerData {
     if l1_ptr.is_null() {
       return Result::Err(Error::NonExistent);
     }
-    unsafe { Ok((*l1_ptr).notify(l2)) }
+    unsafe { Ok((*l1_ptr).schedule_exec(l2)) }
   }
 
   pub fn stop(&mut self) {

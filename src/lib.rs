@@ -26,9 +26,6 @@ pub struct InclusiveMessageRange {
 #[derive(Copy,Clone,Debug,PartialEq)]
 pub struct ChannelPosition (usize);
 
-#[derive(Copy,Clone,Debug,PartialEq)]
-pub struct ChannelPositionDiff (usize);
-
 #[derive(Copy,Clone,Debug)]
 pub enum Message<T: Send>
 {
@@ -51,18 +48,6 @@ pub struct ChannelId {
 }
 
 #[derive(Copy,Clone,Debug,PartialEq)]
-pub struct DelayFromNowInUsec (usize);
-
-#[derive(Copy,Clone,Debug)]
-pub enum Schedule {
-  Loop,
-  OnMessage(ChannelId),
-  DelayUsec(DelayFromNowInUsec),
-  OnExternalEvent,
-  Stop,
-}
-
-#[derive(Copy,Clone,Debug,PartialEq)]
 pub struct PeriodLengthInUsec (usize);
 
 #[derive(Copy,Clone,Debug)]
@@ -73,42 +58,14 @@ pub enum SchedulingRule {
   OnExternalEvent,
 }
 
-#[derive(Copy,Clone,Debug,PartialEq)]
-pub struct AbsSchedulerTimeInUsec (usize);
-
 #[derive(Copy,Clone,Debug,PartialEq,Eq,Hash)]
 pub struct TaskId (usize);
-
-#[derive(Copy,Clone,Debug,PartialEq)]
-pub struct SenderId (usize);
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct SenderName (String);
 
 #[derive(Clone,Debug,PartialEq)]
 pub struct ReceiverName (String);
-
-#[derive(Copy,Clone,Debug,PartialEq)]
-pub struct ExtEventSeqno (usize);
-
-#[derive(Copy,Clone,Debug,PartialEq)]
-pub enum TaskState {
-  Execute,
-  TimeWait(AbsSchedulerTimeInUsec),
-  MessageWait(SenderId, ChannelId),
-  ExtEventWait(ExtEventSeqno),
-  Stop,
-}
-
-#[derive(Copy,Clone,Debug)]
-pub enum Event {
-  User(Schedule),
-  Execute,
-  TimerExpired,
-  MessageArrived,
-  ExtTrigger,
-  Delay,
-}
 
 pub trait Task {
   fn execute(&mut self, stop: &mut bool);
