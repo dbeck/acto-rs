@@ -29,19 +29,36 @@ The scheduling rule determines when to run an actor:
 
 ## Usage
 
-The scheduler allows adding new tasks while it is running. The tasks themselves decide when to stop and they will tell it to the scheduler via the `stop` flag passed to them at execution.
+### The crate
+
+```
+[dependencies]
+acto-rs = "0.4.0"
+```
+
+### Overview
+
+- Implement the actors based on one of the elem traits
+- Start/stop the scheduler
+- Pass the actor instances to the scheduler
+
+### Creating the actors
+
+The actors need to implement one of the traits above. Examples:
+
+- Source: [dummy source](/src/sample/dummy_source.rs)
+- Filter: [dummy filter](/src/sample/dummy_source.rs)
+- Sink: [dummy sink](/src/sample/dummy_source.rs)
 
 ### Starting the scheduler
+
+The scheduler allows adding new tasks while it is running or before it was started. The scheduler can only be started/stoped once. The tasks themselves decide when to stop and they will tell it to the scheduler via the `stop` flag passed to them at execution.
 
 ```rust
 let mut sched = Scheduler::new();
 sched.start();
 sched.stop();
 ```
-
-### Creating the actors
-
-The actors need to implement one of the traits above.
 
 ## License
 
