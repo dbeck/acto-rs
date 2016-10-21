@@ -7,15 +7,17 @@ mod prv;
 use super::{Task, Error, TaskId, SchedulingRule};
 use std::thread::{spawn, JoinHandle};
 
-#[allow(dead_code)]
 pub struct Scheduler {
   data:     handle::SchedulerDataHandle,
   threads:  Vec<JoinHandle<()>>,
 }
 
 impl Scheduler {
-
-  pub fn add_task(&mut self, task: Box<Task+Send>, rule: SchedulingRule) -> Result<TaskId, Error> {
+  pub fn add_task(&mut self,
+                  task: Box<Task+Send>,
+                  rule: SchedulingRule)
+    -> Result<TaskId, Error>
+  {
     (*self.data.get()).add_task(task, rule)
   }
 
@@ -23,11 +25,16 @@ impl Scheduler {
     self.start_with_threads(1);
   }
 
-  pub fn notify(&mut self, id: &TaskId) -> Result<(), Error> {
+  pub fn notify(&mut self,
+                id: &TaskId)
+      -> Result<(), Error>
+  {
     (*self.data.get()).notify(id)
   }
 
-  pub fn start_with_threads(&mut self, n_threads: usize) {
+  pub fn start_with_threads(&mut self,
+                            n_threads: usize)
+  {
     if n_threads == 0 {
       return;
     }
