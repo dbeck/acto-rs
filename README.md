@@ -4,14 +4,13 @@ This library is a proof of concept, never run in any production setup and fairly
 
 ---
 
-This library is a mixture of concepts to connect independent pieces together. These
-independent pieces can have:
+This library is a mixture of concepts to connect independent pieces together. These independent pieces can have:
 
 - internal state
 - channels to talk to others
 - [scheduling rule](./src/lib.rs)
 
-These pieces (may be called actors) are managed by a [scheduler](./src/scheduler/mod.rs) which has a predefined number of threads to run them. The number of input and output channels are determined by the type of the actor. Possible types are:
+These pieces (actors) are managed by a [scheduler](./src/scheduler/mod.rs) which has a predefined number of threads to run them. The number of input and output channels are determined by the type of the actor. Possible types are:
 
 - [Source](./src/elem/source.rs): 1 output
 - [Sink](./src/elem/sink.rs): 1 input
@@ -20,6 +19,9 @@ These pieces (may be called actors) are managed by a [scheduler](./src/scheduler
 - [Y-merge](./src/elem/ymerge.rs): 2 inputs of possible different types, 1 output
 - [Scatter](./src/elem/scatter.rs): 1 input, multiple outputs of the same type
 - [Gather](./src/elem/gather.rs): multiple inputs of the same type, 1 output
+
+The scheduling rule determines when to run an actor:
+
 
 ## License
 
