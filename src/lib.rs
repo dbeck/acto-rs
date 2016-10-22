@@ -8,6 +8,7 @@ pub mod elem;
 pub use lossyq::spsc::{Sender,Receiver};
 pub use elem::{source, sink, filter, scatter, gather, ymerge, ysplit, connectable};
 pub use scheduler::Scheduler;
+pub use std::io;
 
 #[derive(Copy,Clone,Debug)]
 pub enum Error {
@@ -15,6 +16,8 @@ pub enum Error {
   NonExistent,
   Stopping,
   AlreadyExists,
+  AnyError(&'static str),
+  IoError(io::Error),
 }
 
 #[derive(Copy,Clone,Debug,PartialEq)]
@@ -32,7 +35,7 @@ pub enum Message<T: Send>
   Empty,
   Value(T),
   Ack(InclusiveMessageRange),
-  Error(ChannelPosition, &'static str),
+  Error(ChannelPosition, Error),
 }
 
 #[derive(Copy,Clone,Debug,PartialEq)]
