@@ -29,6 +29,10 @@ The scheduling rule determines when to run an actor:
 
 ## Usage
 
+You need to design the topology of the components because the connections of the components need to be made before they are passed to the scheduler. The scheduler owns the components and you cannot change them afterwards from the outside.
+
+When you pass the components to the scheduler you need to tell it how to schedule their execution based on one of the above rules. Finally you will need to start the scheduler. After you started the scheduler, you can still add new actors to it.
+
 ### The crate
 
 ```
@@ -50,14 +54,39 @@ The actors need to implement one of the traits above. Examples:
 - Filter: [dummy filter](/src/sample/dummy_source.rs)
 - Sink: [dummy sink](/src/sample/dummy_source.rs)
 
+#### Creating a source element
+
+```rust
+use actors::*;
+
+pub struct ReadBytes {
+  
+}
+
+impl source::Source for ReadBytes {
+  type OutputType = u64;
+
+  fn process(&mut self,
+             _output: &mut Sender<Message<Self::OutputType>>,
+             _stop: &mut bool)
+  {
+  }
+}
+```
+
 ### Starting the scheduler
 
 The scheduler allows adding new tasks while it is running or before it was started. The scheduler can only be started/stoped once. The tasks themselves decide when to stop and they will tell it to the scheduler via the `stop` flag passed to them at execution.
 
 ```rust
-let mut sched = Scheduler::new();
-sched.start();
-sched.stop();
+let mut sched1 = Scheduler::new();
+sched1.start(); // this uses one single execution thread
+sched1.stop();
+
+// to use more threads, do:
+let mut sched_multi = Scheduler::new();
+sched_multi.start_with_threads(12);
+sched_multi.stop();
 ```
 
 ## License
