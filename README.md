@@ -7,7 +7,7 @@ This library is a proof of concept, never run in any production setup and fairly
 This library is a mixture of concepts to connect independent pieces together. These independent pieces can have:
 
 - internal state
-- channels to talk to others
+- typed channels to talk to others
 - [scheduling rule](./src/lib.rs)
 
 These pieces (actors) are managed by a [scheduler](./src/scheduler/mod.rs) which has a predefined number of threads to run them. The number of input and output channels are determined by the type of the actor. Possible types are:
@@ -22,6 +22,72 @@ These pieces (actors) are managed by a [scheduler](./src/scheduler/mod.rs) which
 
 The scheduling rule determines when to run an actor:
 
+- Loop - continously, round-robin with the other tasks of the scheduler
+- OnMessage - when a message arrives to one of its input channels
+- OnExternalEvent - when an external event is delivered via Scheduler::notify(..) (to integrate with MIO for example)
+- Periodic(PeriodLengthInUsec) - periodically
+
+## Usage
+
+You need to design the topology of the components because the connections of the components need to be made before they are passed to the scheduler. The scheduler owns the components and you cannot change them afterwards from the outside.
+
+When you pass the components to the scheduler you need to tell it how to schedule their execution based on one of the above rules. Finally you will need to start the scheduler. After you started the scheduler, you can still add new actors to it.
+
+### The crate
+
+```
+[dependencies]
+acto-rs = "0.4.0"
+```
+
+### Overview
+
+- Implement the actors based on one of the elem traits
+- Start/stop the scheduler
+- Pass the actor instances to the scheduler
+
+### Creating the actors
+
+The actors need to implement one of the traits above. Examples:
+
+- Source: [dummy source](/src/sample/dummy_source.rs)
+- Filter: [dummy filter](/src/sample/dummy_source.rs)
+- Sink: [dummy sink](/src/sample/dummy_source.rs)
+
+#### Creating a source element
+
+```rust
+use actors::*;
+
+pub struct ReadBytes {
+  
+}
+
+impl source::Source for ReadBytes {
+  type OutputType = u64;
+
+  fn process(&mut self,
+             _output: &mut Sender<Message<Self::OutputType>>,
+             _stop: &mut bool)
+  {
+  }
+}
+```
+
+### Starting the scheduler
+
+The scheduler allows adding new tasks while it is running or before it was started. The scheduler can only be started/stoped once. The tasks themselves decide when to stop and they will tell it to the scheduler via the `stop` flag passed to them at execution.
+
+```rust
+let mut sched1 = Scheduler::new();
+sched1.start(); // this uses one single execution thread
+sched1.stop();
+
+// to use more threads, do:
+let mut sched_multi = Scheduler::new();
+sched_multi.start_with_threads(12);
+sched_multi.stop();
+```
 
 ## License
 
