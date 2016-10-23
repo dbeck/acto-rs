@@ -159,6 +159,18 @@ sched.notify(&source_id).unwrap();
 sched.stop();
 ```
 
+### Project goals
+
+The primary goal is predictable, low latency processing. I don't want to make any performance claims whatsoever. What I can tell is that I invested quite some time into measuring the latency of the components, the scheduler and the resulting pipeline.
+
+Another goal is that I want to keep the overhead of message passing to the minimum. Both the time takes from the sender to do the send operation and also the end-to-end latency, between the start of the send, to the actual reception of the message. I found that the former is under estimated in an (unnamed) actor implementations. I want to keep this overhead to the tens of nanoseconds range.
+
+I want this library to act sensibly under overload. This in practice means (possibly) dropping messages. The components talk using a bounded message queue. The sender can detect if it is about to overwrite a previous message and may act accordingly, but I do believe that this is not the right approach. If the message queue reader lags behind, then it means the system cannot cope with the load. In that case we shouldn't pile up messages, fill up all memory and let the system die.
+
+### Project non-goals
+
+I did take ideas from other actor models, but I don't want to follow them strictly. Erlang/Elixir actor model was a great source of inspiration and I admire their work.
+
 ## License
 
 [MIT](./LICENSE-MIT) or [Apache 2.0](./LICENSE-APACHE)
