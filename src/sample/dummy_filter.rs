@@ -7,13 +7,15 @@ use super::super::{ChannelWrapper, Message};
 struct DummyFilter {}
 
 impl filter::Filter for DummyFilter {
-  type InputType = usize;
-  type OutputType = usize;
+  type InputValue   = usize;
+  type InputError   = &'static str;
+  type OutputValue  = usize;
+  type OutputError  = &'static str;
 
   fn process(
     &mut self,
-    _input:   &mut ChannelWrapper<Self::InputType>,
-    _output:  &mut Sender<Message<Self::OutputType>>,
+    _input:   &mut ChannelWrapper<Self::InputValue, Self::InputError>,
+    _output:  &mut Sender<Message<Self::OutputValue, Self::OutputError>>,
     _stop:    &mut bool)
   {
   }

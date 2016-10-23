@@ -1,8 +1,11 @@
-use super::super::{ChannelWrapper, ChannelId, ReceiverChannelId};
+use super::super::{ChannelWrapper, ChannelId, ReceiverChannelId,
+  ExpectedChannelState, ActualChannelState, ChannelState
+};
+use super::super::Error as ActorError;
 
-pub fn connect_receiver_to_sender<Input: Send>(rcv : &mut ChannelWrapper<Input>,
-                                               snd : &mut ChannelWrapper<Input>)
-    -> Result<(),String>
+pub fn connect_receiver_to_sender<Value: Send, Error: Send>(rcv : &mut ChannelWrapper<Value, Error>,
+                                                            snd : &mut ChannelWrapper<Value, Error>)
+    -> Result<(), ActorError>
 {
   use std::mem;
 
@@ -11,36 +14,72 @@ pub fn connect_receiver_to_sender<Input: Send>(rcv : &mut ChannelWrapper<Input>,
       match snd {
         &mut ChannelWrapper::SenderNotConnected(ref mut sender_channel_id, ref mut _receiver, ref mut _sender_name) => {
           let channel_id = ChannelId{sender_id: *sender_channel_id, receiver_id: *receiver_channel_id};
-          (channel_id, ChannelWrapper::ConnectedSender::<Input>(channel_id.clone(), receiver_name.clone()))
-        }
-        _ => {
-          return Err(String::from("internal error: expected SenderNotConnected here"));
-        }
+          (channel_id, ChannelWrapper::ConnectedSender::<Value, Error>(channel_id.clone(), receiver_name.clone()))
+        },
+        &mut ChannelWrapper::ReceiverNotConnected(..) => {
+          return Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::SenderNotConnected),
+            ActualChannelState(ChannelState::ReceiverNotConnected)));
+        },
+        &mut ChannelWrapper::ConnectedReceiver(..) => {
+          return Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::SenderNotConnected),
+            ActualChannelState(ChannelState::ConnectedReceiver)));
+        },
+        &mut ChannelWrapper::ConnectedSender(..) => {
+          return Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::SenderNotConnected),
+            ActualChannelState(ChannelState::ConnectedSender)));
+        },
       }
     },
-    _ => {
-      return Err(String::from("internal error: expected ReceiverNotConnected here"));
-    }
+    &mut ChannelWrapper::ConnectedReceiver(..) => {
+      return Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::ReceiverNotConnected),
+        ActualChannelState(ChannelState::ConnectedReceiver)));
+    },
+    &mut ChannelWrapper::ConnectedSender(..) => {
+      return Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::ReceiverNotConnected),
+        ActualChannelState(ChannelState::ConnectedSender)));
+    },
+    &mut ChannelWrapper::SenderNotConnected(..) => {
+      return Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::ReceiverNotConnected),
+        ActualChannelState(ChannelState::SenderNotConnected)));
+    },
   };
 
   mem::swap(&mut tmp_sender, snd);
 
   match tmp_sender {
     ChannelWrapper::SenderNotConnected(_sender_channel_id, receiver, sender_name) => {
-      let mut new_receiver = ChannelWrapper::ConnectedReceiver::<Input>(channel_id, receiver, sender_name.clone());
+      let mut new_receiver = ChannelWrapper::ConnectedReceiver::<Value, Error>(channel_id, receiver, sender_name.clone());
       mem::swap(&mut new_receiver, rcv);
     },
-    _ => {
-      return Err(String::from("internal error: expected SenderNotConnected here"));
-    }
+    ChannelWrapper::ReceiverNotConnected(..) => {
+      return Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::SenderNotConnected),
+        ActualChannelState(ChannelState::ReceiverNotConnected)));
+    },
+    ChannelWrapper::ConnectedReceiver(..) => {
+      return Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::SenderNotConnected),
+        ActualChannelState(ChannelState::ConnectedReceiver)));
+    },
+    ChannelWrapper::ConnectedSender(..) => {
+      return Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::SenderNotConnected),
+        ActualChannelState(ChannelState::ConnectedSender)));
+    },
   };
 
   Ok(())
 }
 
-pub fn disconnect_receiver_from_sender<Input: Send>(rcv : &mut ChannelWrapper<Input>,
-                                                    snd : &mut ChannelWrapper<Input>)
-    -> Result<(),String>
+pub fn disconnect_receiver_from_sender<Value: Send, Error: Send>(rcv : &mut ChannelWrapper<Value, Error>,
+                                                                 snd : &mut ChannelWrapper<Value, Error>)
+    -> Result<(), ActorError>
 {
   use std::mem;
 
@@ -48,38 +87,73 @@ pub fn disconnect_receiver_from_sender<Input: Send>(rcv : &mut ChannelWrapper<In
     &mut ChannelWrapper::ConnectedSender(ref mut channel_id_rcv, ref mut receiver_name) => {
       match rcv {
         &mut ChannelWrapper::ConnectedReceiver(ref mut _channel_id_snd, ref mut _receiver, ref mut _sender_name) => {
-          ChannelWrapper::ReceiverNotConnected::<Input>(channel_id_rcv.receiver_id,receiver_name.clone())
-        }
-        _ => {
-          return Err(String::from("internal error: expected ConnectedReceiver here"));
-        }
+          ChannelWrapper::ReceiverNotConnected::<Value, Error>(channel_id_rcv.receiver_id,receiver_name.clone())
+        },
+        &mut ChannelWrapper::ReceiverNotConnected(..) => {
+          return Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::ConnectedReceiver),
+            ActualChannelState(ChannelState::ReceiverNotConnected)));
+        },
+        &mut ChannelWrapper::ConnectedSender(..) => {
+          return Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::ConnectedReceiver),
+            ActualChannelState(ChannelState::ConnectedSender)));
+        },
+        &mut ChannelWrapper::SenderNotConnected(..) => {
+          return Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::ConnectedReceiver),
+            ActualChannelState(ChannelState::SenderNotConnected)));
+        },
       }
     },
-    _ => {
-      return Err(String::from("internal error: expected ConnectedSender here"));
-    }
+    &mut ChannelWrapper::ReceiverNotConnected(..) => {
+      return Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::ConnectedSender),
+        ActualChannelState(ChannelState::ReceiverNotConnected)));
+    },
+
+    &mut ChannelWrapper::ConnectedReceiver(..) => {
+      return Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::ConnectedSender),
+        ActualChannelState(ChannelState::ConnectedReceiver)));
+    },
+    &mut ChannelWrapper::SenderNotConnected(..) => {
+      return Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::ConnectedSender),
+        ActualChannelState(ChannelState::SenderNotConnected)));
+    },
   };
 
   mem::swap(&mut tmp_receiver, rcv);
 
   match tmp_receiver {
     ChannelWrapper::ConnectedReceiver(channel_id_snd, receiver, sender_name) => {
-      let mut new_sender = ChannelWrapper::SenderNotConnected::<Input>(
+      let mut new_sender = ChannelWrapper::SenderNotConnected::<Value, Error>(
         channel_id_snd.sender_id, receiver, sender_name.clone());
       mem::swap(&mut new_sender, snd);
     },
-    _ => {
-      return Err(String::from("internal error: expected ConnectedReceiver here"));
-    }
+    ChannelWrapper::ReceiverNotConnected(..) => {
+      return Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::ConnectedReceiver),
+        ActualChannelState(ChannelState::ReceiverNotConnected)));
+    },
+    ChannelWrapper::ConnectedSender(..) => {
+      return Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::ConnectedReceiver),
+        ActualChannelState(ChannelState::ConnectedSender)));
+    },
+    ChannelWrapper::SenderNotConnected(..) => {
+      return Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::ConnectedReceiver),
+        ActualChannelState(ChannelState::SenderNotConnected)));
+    },
   };
-
   Ok(())
 }
 
-
-pub fn connect_to<Input: Send>(me : &mut ChannelWrapper<Input>,
-                               to : &mut ChannelWrapper<Input>)
-    -> Result<(),String>
+pub fn connect_to<Value: Send, Error: Send>(me : &mut ChannelWrapper<Value, Error>,
+                                            to : &mut ChannelWrapper<Value, Error>)
+    -> Result<(), ActorError>
 {
   match me {
     &mut ChannelWrapper::ReceiverNotConnected(..) => {
@@ -87,45 +161,61 @@ pub fn connect_to<Input: Send>(me : &mut ChannelWrapper<Input>,
         &mut ChannelWrapper::SenderNotConnected(..) => {
           connect_receiver_to_sender(me, to)
         },
-        &mut ChannelWrapper::ConnectedSender(ref _channel_id, ref receiver_name) => {
-          Err(format!("sender already connected to {:?}", receiver_name))
+        &mut ChannelWrapper::ConnectedSender(..) => {
+          Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::SenderNotConnected),
+            ActualChannelState(ChannelState::ConnectedSender)))
         },
         &mut ChannelWrapper::ReceiverNotConnected(..) => {
-          Err(format!("invalid state, cannot connect. - ReceiverNotConnected/ReceiverNotConnected"))
+          Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::SenderNotConnected),
+            ActualChannelState(ChannelState::ReceiverNotConnected)))
         },
         &mut ChannelWrapper::ConnectedReceiver(..) => {
-          Err(format!("invalid state, cannot connect. - ReceiverNotConnected/ConnectedReceiver"))
+          Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::SenderNotConnected),
+            ActualChannelState(ChannelState::ConnectedReceiver)))
         }
       }
     },
-    &mut ChannelWrapper::ConnectedReceiver(ref _channel_id, ref _receiver, ref sender_name) => {
-      Err(format!("receiver already connected to {:?}", sender_name))
+    &mut ChannelWrapper::ConnectedReceiver(..) => {
+      Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::ReceiverNotConnected),
+        ActualChannelState(ChannelState::ConnectedReceiver)))
     },
     &mut ChannelWrapper::SenderNotConnected(..) => {
       match to {
         &mut ChannelWrapper::ReceiverNotConnected(..) => {
           connect_receiver_to_sender(to, me)
         },
-        &mut ChannelWrapper::ConnectedSender(_channel_id, ref receiver_name) => {
-          Err(format!("sender already connected to {:?}", receiver_name))
+        &mut ChannelWrapper::ConnectedSender(..) => {
+          Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::ReceiverNotConnected),
+            ActualChannelState(ChannelState::ConnectedSender)))
         },
         &mut ChannelWrapper::SenderNotConnected(..) => {
-          Err(format!("invalid state, cannot connect. - SenderNotConnected/SenderNotConnected"))
+          Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::ReceiverNotConnected),
+            ActualChannelState(ChannelState::SenderNotConnected)))
         },
         &mut ChannelWrapper::ConnectedReceiver(..) => {
-          Err(format!("invalid state, cannot connect. - SenderNotConnected/ConnectedReceiver"))
+          Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::ReceiverNotConnected),
+            ActualChannelState(ChannelState::ConnectedReceiver)))
         }
       }
     },
     &mut ChannelWrapper::ConnectedSender(..) => {
-      Err(format!("invalid state LHS/me - ConnectedSender"))
+      Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::SenderNotConnected),
+        ActualChannelState(ChannelState::ConnectedSender)))
     },
   }
 }
 
-pub fn disconnect_from<Input: Send>(me   : &mut ChannelWrapper<Input>,
-                                    from : &mut ChannelWrapper<Input>)
-    -> Result<(),String>
+pub fn disconnect_from<Value: Send, Error: Send>(me   : &mut ChannelWrapper<Value, Error>,
+                                                 from : &mut ChannelWrapper<Value, Error>)
+    -> Result<(), ActorError>
 {
   match me {
     &mut ChannelWrapper::ConnectedReceiver(..) => {
@@ -134,13 +224,19 @@ pub fn disconnect_from<Input: Send>(me   : &mut ChannelWrapper<Input>,
           disconnect_receiver_from_sender(me, from)
         },
         &mut ChannelWrapper::ConnectedReceiver(..) => {
-          Err(format!("cannot disconnect, invalid state: from state: ConnectedReceiver/ConnectedReceiver"))
+          Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::ConnectedSender),
+            ActualChannelState(ChannelState::ConnectedReceiver)))
         },
         &mut ChannelWrapper::ReceiverNotConnected(..) => {
-          Err(format!("cannot disconnect, invalid state: from state: ConnectedReceiver/ReceiverNotConnected"))
+          Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::ConnectedSender),
+            ActualChannelState(ChannelState::ReceiverNotConnected)))
         },
         &mut ChannelWrapper::SenderNotConnected(..) => {
-          Err(format!("cannot disconnect, invalid state: from state: ConnectedReceiver/SenderNotConnected"))
+          Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::ConnectedSender),
+            ActualChannelState(ChannelState::SenderNotConnected)))
         }
       }
     },
@@ -150,109 +246,158 @@ pub fn disconnect_from<Input: Send>(me   : &mut ChannelWrapper<Input>,
           disconnect_receiver_from_sender(from, me)
         },
         &mut ChannelWrapper::ReceiverNotConnected(..) => {
-          Err(format!("cannot disconnect, invalid state: from state: ConnectedSender/ReceiverNotConnected"))
+          Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::ConnectedReceiver),
+            ActualChannelState(ChannelState::ReceiverNotConnected)))
         },
         &mut ChannelWrapper::SenderNotConnected(..) => {
-          Err(format!("cannot disconnect, invalid state: from state: ConnectedSender/SenderNotConnected"))
+          Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::ConnectedReceiver),
+            ActualChannelState(ChannelState::SenderNotConnected)))
         },
         &mut ChannelWrapper::ConnectedSender(..) => {
-          Err(format!("cannot disconnect, invalid state: from state: ConnectedSender/ConnectedSender"))
+          Err(ActorError::InvalidChannelState(
+            ExpectedChannelState(ChannelState::ConnectedSender),
+            ActualChannelState(ChannelState::SenderNotConnected)))
         }
       }
     },
     &mut ChannelWrapper::ReceiverNotConnected(..) => {
-      Err(format!("cannot disconnect from state: ReceiverNotConnected"))
+      Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::ConnectedReceiver),
+        ActualChannelState(ChannelState::ReceiverNotConnected)))
     },
     &mut ChannelWrapper::SenderNotConnected(..) => {
-      Err(format!("cannot disconnect from state: SenderNotConnected"))
+      Err(ActorError::InvalidChannelState(
+        ExpectedChannelState(ChannelState::ConnectedSender),
+        ActualChannelState(ChannelState::SenderNotConnected)))
     },
   }
 }
 
 pub trait Connectable {
-  type Input: Send;
+  type InputValue: Send;
+  type InputError: Send;
 
-  fn input(&mut self) -> &mut ChannelWrapper<Self::Input>;
+  fn input(&mut self) -> &mut ChannelWrapper<Self::InputValue, Self::InputError>;
 
-  fn connect(&mut self, other: &mut ChannelWrapper<Self::Input>)
-      -> Result<(),String> {
+  fn connect(&mut self,
+             other: &mut ChannelWrapper<Self::InputValue, Self::InputError>)
+      -> Result<(), ActorError>
+  {
     connect_to(self.input(), other)
   }
 
-  fn disconnect(&mut self, other: &mut ChannelWrapper<Self::Input>)
-      -> Result<(),String> {
+  fn disconnect(&mut self,
+                other: &mut ChannelWrapper<Self::InputValue, Self::InputError>)
+      -> Result<(), ActorError> {
     disconnect_from(self.input(), other)
   }
 }
 
 pub trait ConnectableY {
-  type InputA: Send;
-  type InputB: Send;
+  type InputValueA: Send;
+  type InputErrorA: Send;
+  type InputValueB: Send;
+  type InputErrorB: Send;
 
-  fn input_a(&mut self) -> &mut ChannelWrapper<Self::InputA>;
-  fn input_b(&mut self) -> &mut ChannelWrapper<Self::InputB>;
+  fn input_a(&mut self) -> &mut ChannelWrapper<Self::InputValueA, Self::InputErrorA>;
+  fn input_b(&mut self) -> &mut ChannelWrapper<Self::InputValueB, Self::InputErrorB>;
 
-  fn connect_a(&mut self, other: &mut ChannelWrapper<Self::InputA>)
-      -> Result<(),String> {
+  fn connect_a(&mut self,
+               other: &mut ChannelWrapper<Self::InputValueA, Self::InputErrorA>)
+      -> Result<(), ActorError>
+  {
     connect_to(self.input_a(), other)
   }
 
-  fn connect_b(&mut self, other: &mut ChannelWrapper<Self::InputB>)
-      -> Result<(),String> {
+  fn connect_b(&mut self,
+              other: &mut ChannelWrapper<Self::InputValueB, Self::InputErrorB>)
+      -> Result<(), ActorError>
+  {
     connect_to(self.input_b(), other)
   }
 
-  fn disconnect_a(&mut self, other: &mut ChannelWrapper<Self::InputA>)
-      -> Result<(),String> {
+  fn disconnect_a(&mut self,
+                  other: &mut ChannelWrapper<Self::InputValueA, Self::InputErrorA>)
+      -> Result<(), ActorError>
+  {
     disconnect_from(self.input_a(), other)
   }
 
-  fn disconnect_b(&mut self, other: &mut ChannelWrapper<Self::InputB>)
-      -> Result<(),String> {
+  fn disconnect_b(&mut self,
+                  other: &mut ChannelWrapper<Self::InputValueB, Self::InputErrorB>)
+      -> Result<(), ActorError>
+  {
     disconnect_from(self.input_b(), other)
   }
 }
 
 pub trait ConnectableN {
-  type Input: Send;
+  type InputValue: Send;
+  type InputError: Send;
 
-  fn input(&mut self, n: ReceiverChannelId) -> &mut ChannelWrapper<Self::Input>;
+  fn input(&mut self,
+           n: ReceiverChannelId) -> &mut ChannelWrapper<Self::InputValue, Self::InputError>;
 
-  fn connect(&mut self, n: ReceiverChannelId, other: &mut ChannelWrapper<Self::Input>)
-      -> Result<(),String> {
+  fn connect(&mut self,
+             n: ReceiverChannelId,
+             other: &mut ChannelWrapper<Self::InputValue, Self::InputError>)
+      -> Result<(), ActorError>
+  {
     connect_to(self.input(n), other)
   }
 
-  fn disconnect(&mut self, n: ReceiverChannelId, other: &mut ChannelWrapper<Self::Input>)
-      -> Result<(),String> {
+  fn disconnect(&mut self,
+                n: ReceiverChannelId,
+                other: &mut ChannelWrapper<Self::InputValue, Self::InputError>)
+      -> Result<(), ActorError>
+  {
     disconnect_from(self.input(n), other)
   }
 }
 
 pub trait ConnectableYN {
-  type InputA: Send;
-  type InputB: Send;
+  type InputValueA: Send;
+  type InputErrorA: Send;
+  type InputValueB: Send;
+  type InputErrorB: Send;
 
-  fn input_a(&mut self, n: ReceiverChannelId) -> &mut ChannelWrapper<Self::InputA>;
-  fn input_b(&mut self, n: ReceiverChannelId) -> &mut ChannelWrapper<Self::InputB>;
+  fn input_a(&mut self,
+             n: ReceiverChannelId) -> &mut ChannelWrapper<Self::InputValueA, Self::InputErrorA>;
 
-  fn connect_a(&mut self, n: ReceiverChannelId, other: &mut ChannelWrapper<Self::InputA>)
-      -> Result<(),String> {
+  fn input_b(&mut self,
+             n: ReceiverChannelId) -> &mut ChannelWrapper<Self::InputValueB, Self::InputErrorB>;
+
+  fn connect_a(&mut self,
+               n: ReceiverChannelId,
+               other: &mut ChannelWrapper<Self::InputValueA, Self::InputErrorA>)
+      -> Result<(), ActorError>
+  {
     connect_to(self.input_a(n), other)
   }
 
-  fn connect_b(&mut self, n: ReceiverChannelId, other: &mut ChannelWrapper<Self::InputB>)
-      -> Result<(),String> {
+  fn connect_b(&mut self,
+               n: ReceiverChannelId,
+               other: &mut ChannelWrapper<Self::InputValueB, Self::InputErrorB>)
+      -> Result<(), ActorError>
+  {
     connect_to(self.input_b(n), other)
   }
 
-  fn disconnect_a(&mut self, n: ReceiverChannelId, other: &mut ChannelWrapper<Self::InputA>)
-      -> Result<(),String> {
+  fn disconnect_a(&mut self,
+                  n: ReceiverChannelId,
+                  other: &mut ChannelWrapper<Self::InputValueA, Self::InputErrorA>)
+      -> Result<(), ActorError>
+  {
     disconnect_from(self.input_a(n), other)
   }
 
-  fn disconnect_b(&mut self, n: ReceiverChannelId, other: &mut ChannelWrapper<Self::InputB>)
-      -> Result<(),String> {
+  fn disconnect_b(&mut self,
+                  n: ReceiverChannelId,
+                  other: &mut ChannelWrapper<Self::InputValueB, Self::InputErrorB>)
+      -> Result<(), ActorError>
+  {
     disconnect_from(self.input_b(n), other)
   }
 }

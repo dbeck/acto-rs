@@ -7,24 +7,30 @@ use super::identified_input::{IdentifiedInput};
 use super::counter::{OutputCounter, InputCounter};
 
 pub trait Filter {
-  type InputType   : Send;
-  type OutputType  : Send;
+  type InputValue   : Send;
+  type InputError   : Send;
+  type OutputValue  : Send;
+  type OutputError  : Send;
 
   fn process(
     &mut self,
-    input:   &mut ChannelWrapper<Self::InputType>,
-    output:  &mut Sender<Message<Self::OutputType>>,
+    input:   &mut ChannelWrapper<Self::InputValue, Self::InputError>,
+    output:  &mut Sender<Message<Self::OutputValue, Self::OutputError>>,
     stop: &mut bool);
 }
 
-pub struct FilterWrap<Input: Send, Output: Send> {
+pub struct FilterWrap<InputValue: Send, InputError: Send,
+                      OutputValue: Send, OutputError: Send> {
   name         : String,
-  state        : Box<Filter<InputType=Input,OutputType=Output>+Send>,
-  input_rx     : ChannelWrapper<Input>,
-  output_tx    : Sender<Message<Output>>,
+  state        : Box<Filter<InputValue=InputValue, InputError=InputError,
+                            OutputValue=OutputValue, OutputError=OutputError>+Send>,
+  input_rx     : ChannelWrapper<InputValue, InputError>,
+  output_tx    : Sender<Message<OutputValue, OutputError>>,
 }
 
-impl<Input: Send, Output: Send> IdentifiedInput for FilterWrap<Input,Output> {
+impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> IdentifiedInput
+    for FilterWrap<InputValue, InputError, OutputValue, OutputError>
+{
   fn get_input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     if ch_id.0 == 0 {
       match &self.input_rx {
@@ -39,7 +45,9 @@ impl<Input: Send, Output: Send> IdentifiedInput for FilterWrap<Input,Output> {
   }
 }
 
-impl<Input: Send, Output: Send> InputCounter for FilterWrap<Input,Output> {
+impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> InputCounter
+    for FilterWrap<InputValue, InputError, OutputValue, OutputError>
+{
   fn get_rx_count(&self, ch_id: ReceiverChannelId) -> usize {
     if ch_id.0 == 0 {
       if let &ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) = &self.input_rx {
@@ -53,7 +61,9 @@ impl<Input: Send, Output: Send> InputCounter for FilterWrap<Input,Output> {
   }
 }
 
-impl<Input: Send, Output: Send> OutputCounter for FilterWrap<Input,Output> {
+impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> OutputCounter
+    for FilterWrap<InputValue, InputError, OutputValue, OutputError>
+{
   fn get_tx_count(&self, ch_id: SenderChannelId) -> usize {
     if ch_id.0 == 0 {
       self.output_tx.seqno()
@@ -63,15 +73,20 @@ impl<Input: Send, Output: Send> OutputCounter for FilterWrap<Input,Output> {
   }
 }
 
-impl<Input: Send, Output: Send> Connectable for FilterWrap<Input,Output> {
-  type Input = Input;
+impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> Connectable
+    for FilterWrap<InputValue, InputError, OutputValue, OutputError>
+{
+  type InputValue = InputValue;
+  type InputError = InputError;
 
-  fn input(&mut self) -> &mut ChannelWrapper<Input> {
+  fn input(&mut self) -> &mut ChannelWrapper<InputValue, InputError> {
     &mut self.input_rx
   }
 }
 
-impl<Input: Send, Output: Send> Task for FilterWrap<Input,Output> {
+impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> Task
+    for FilterWrap<InputValue, InputError, OutputValue, OutputError>
+{
   fn execute(&mut self, stop: &mut bool) {
     self.state.process(&mut self.input_rx, &mut self.output_tx, stop);
   }
@@ -92,11 +107,13 @@ impl<Input: Send, Output: Send> Task for FilterWrap<Input,Output> {
   }
 }
 
-pub fn new<Input: Send, Output: Send>(
+pub fn new<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send>(
     name            : &str,
     output_q_size   : usize,
-    filter          : Box<Filter<InputType=Input,OutputType=Output>+Send>)
-      -> (Box<FilterWrap<Input,Output>>, Box<ChannelWrapper<Output>>)
+    filter          : Box<Filter<InputValue=InputValue, InputError=InputError,
+                                 OutputValue=OutputValue, OutputError=OutputError>+Send>)
+      -> (Box<FilterWrap<InputValue, InputError, OutputValue, OutputError>>,
+          Box<ChannelWrapper<OutputValue, OutputError>>)
 {
   let (output_tx, output_rx) = channel(output_q_size);
   let name = String::from(name);

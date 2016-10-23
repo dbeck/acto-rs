@@ -7,27 +7,40 @@ use super::identified_input::{IdentifiedInput};
 use super::counter::{OutputCounter, InputCounter};
 
 pub trait YSplit {
-  type InputType    : Send;
-  type OutputTypeA  : Send;
-  type OutputTypeB  : Send;
+  type InputValue    : Send;
+  type InputError    : Send;
+  type OutputValueA  : Send;
+  type OutputErrorA  : Send;
+  type OutputValueB  : Send;
+  type OutputErrorB  : Send;
 
   fn process(
     &mut self,
-    input:     &mut ChannelWrapper<Self::InputType>,
-    output_a:  &mut Sender<Message<Self::OutputTypeA>>,
-    output_b:  &mut Sender<Message<Self::OutputTypeB>>,
+    input:     &mut ChannelWrapper<Self::InputValue, Self::InputError>,
+    output_a:  &mut Sender<Message<Self::OutputValueA, Self::OutputErrorA>>,
+    output_b:  &mut Sender<Message<Self::OutputValueB, Self::OutputErrorB>>,
     stop:      &mut bool);
 }
 
-pub struct YSplitWrap<Input: Send, OutputA: Send, OutputB: Send> {
+pub struct YSplitWrap<InputValue: Send,   InputError: Send,
+                      OutputValueA: Send, OutputErrorA: Send,
+                      OutputValueB: Send, OutputErrorB: Send> {
   name          : String,
-  state         : Box<YSplit<InputType=Input, OutputTypeA=OutputA, OutputTypeB=OutputB>+Send>,
-  input_rx      : ChannelWrapper<Input>,
-  output_a_tx   : Sender<Message<OutputA>>,
-  output_b_tx   : Sender<Message<OutputB>>,
+  state         : Box<YSplit<InputValue=InputValue, InputError=InputError,
+                             OutputValueA=OutputValueA, OutputErrorA=OutputErrorA,
+                             OutputValueB=OutputValueB, OutputErrorB=OutputErrorB>+Send>,
+  input_rx      : ChannelWrapper<InputValue, InputError>,
+  output_a_tx   : Sender<Message<OutputValueA, OutputErrorA>>,
+  output_b_tx   : Sender<Message<OutputValueB, OutputErrorB>>,
 }
 
-impl<Input: Send, OutputA: Send, OutputB: Send> IdentifiedInput for YSplitWrap<Input, OutputA, OutputB> {
+impl<InputValue: Send,   InputError: Send,
+     OutputValueA: Send, OutputErrorA: Send,
+     OutputValueB: Send, OutputErrorB: Send> IdentifiedInput
+    for YSplitWrap<InputValue, InputError,
+                   OutputValueA, OutputErrorA,
+                   OutputValueB, OutputErrorB>
+{
   fn get_input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     if ch_id.0 != 0 {
       None
@@ -42,7 +55,13 @@ impl<Input: Send, OutputA: Send, OutputB: Send> IdentifiedInput for YSplitWrap<I
   }
 }
 
-impl<Input: Send, OutputA: Send, OutputB: Send> InputCounter for YSplitWrap<Input, OutputA, OutputB> {
+impl<InputValue: Send,   InputError: Send,
+     OutputValueA: Send, OutputErrorA: Send,
+     OutputValueB: Send, OutputErrorB: Send> InputCounter
+    for YSplitWrap<InputValue, InputError,
+                   OutputValueA, OutputErrorA,
+                   OutputValueB, OutputErrorB>
+{
   fn get_rx_count(&self, ch_id: ReceiverChannelId) -> usize {
     if ch_id.0 == 0 {
       if let &ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) = &self.input_rx {
@@ -56,7 +75,13 @@ impl<Input: Send, OutputA: Send, OutputB: Send> InputCounter for YSplitWrap<Inpu
   }
 }
 
-impl<Input: Send, OutputA: Send, OutputB: Send> OutputCounter for  YSplitWrap<Input, OutputA, OutputB> {
+impl<InputValue: Send,   InputError: Send,
+     OutputValueA: Send, OutputErrorA: Send,
+     OutputValueB: Send, OutputErrorB: Send> OutputCounter
+    for YSplitWrap<InputValue, InputError,
+                   OutputValueA, OutputErrorA,
+                   OutputValueB, OutputErrorB>
+{
   fn get_tx_count(&self, ch_id: SenderChannelId) -> usize {
     if ch_id.0 == 0 {
       self.output_a_tx.seqno()
@@ -68,15 +93,28 @@ impl<Input: Send, OutputA: Send, OutputB: Send> OutputCounter for  YSplitWrap<In
   }
 }
 
-impl<Input: Send, OutputA: Send, OutputB: Send> Connectable for YSplitWrap<Input, OutputA, OutputB> {
-  type Input = Input;
+impl<InputValue: Send,   InputError: Send,
+     OutputValueA: Send, OutputErrorA: Send,
+     OutputValueB: Send, OutputErrorB: Send> Connectable
+    for YSplitWrap<InputValue, InputError,
+                   OutputValueA, OutputErrorA,
+                   OutputValueB, OutputErrorB>
+{
+  type InputValue = InputValue;
+  type InputError = InputError;
 
-  fn input(&mut self) -> &mut ChannelWrapper<Input> {
+  fn input(&mut self) -> &mut ChannelWrapper<InputValue, InputError> {
     &mut self.input_rx
   }
 }
 
-impl<Input: Send, OutputA: Send, OutputB: Send> Task for YSplitWrap<Input, OutputA, OutputB> {
+impl<InputValue: Send,   InputError: Send,
+     OutputValueA: Send, OutputErrorA: Send,
+     OutputValueB: Send, OutputErrorB: Send> Task
+    for YSplitWrap<InputValue, InputError,
+                   OutputValueA, OutputErrorA,
+                   OutputValueB, OutputErrorB>
+{
   fn execute(&mut self, stop: &mut bool) {
     self.state.process(&mut self.input_rx,
                        &mut self.output_a_tx,
@@ -101,14 +139,20 @@ impl<Input: Send, OutputA: Send, OutputB: Send> Task for YSplitWrap<Input, Outpu
   }
 }
 
-pub fn new<Input: Send, OutputA: Send, OutputB: Send>(
+pub fn new<InputValue: Send,   InputError: Send,
+           OutputValueA: Send, OutputErrorA: Send,
+           OutputValueB: Send, OutputErrorB: Send>(
     name              : &str,
     output_a_q_size   : usize,
     output_b_q_size   : usize,
-    ysplit            : Box<YSplit<InputType=Input, OutputTypeA=OutputA, OutputTypeB=OutputB>+Send>)
-      -> (Box<YSplitWrap<Input,OutputA,OutputB>>,
-          Box<ChannelWrapper<OutputA>>,
-          Box<ChannelWrapper<OutputB>>)
+    ysplit            : Box<YSplit<InputValue=InputValue, InputError=InputError,
+                                   OutputValueA=OutputValueA, OutputErrorA=OutputErrorA,
+                                   OutputValueB=OutputValueB, OutputErrorB=OutputErrorB>+Send>)
+      -> (Box<YSplitWrap<InputValue, InputError,
+                        OutputValueA, OutputErrorA,
+                        OutputValueB, OutputErrorB>>,
+          Box<ChannelWrapper<OutputValueA, OutputErrorA>>,
+          Box<ChannelWrapper<OutputValueB, OutputErrorB>>)
 {
   let (output_a_tx, output_a_rx) = channel(output_a_q_size);
   let (output_b_tx, output_b_rx) = channel(output_b_q_size);

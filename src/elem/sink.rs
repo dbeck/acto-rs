@@ -6,22 +6,26 @@ use super::identified_input::{IdentifiedInput};
 use super::counter::{InputCounter};
 
 pub trait Sink {
-  type InputType : Send;
+  type InputValue : Send;
+  type InputError : Send;
 
   fn process(
     &mut self,
-    input:  &mut ChannelWrapper<Self::InputType>,
+    input:  &mut ChannelWrapper<Self::InputValue, Self::InputError>,
     stop:   &mut bool);
 }
 
-pub struct SinkWrap<Input: Send> {
+pub struct SinkWrap<InputValue: Send, InputError: Send> {
   name      : String,
-  state     : Box<Sink<InputType=Input>+Send>,
-  input_rx  : ChannelWrapper<Input>,
+  state     : Box<Sink<InputValue=InputValue, InputError=InputError>+Send>,
+  input_rx  : ChannelWrapper<InputValue, InputError>,
 }
 
-impl<Input: Send> IdentifiedInput for SinkWrap<Input> {
-  fn get_input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
+impl<InputValue: 'static+Send, InputError: 'static+Send> IdentifiedInput
+    for SinkWrap<InputValue, InputError>
+{
+  fn get_input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)>
+  {
     if ch_id.0 != 0 {
       None
     } else {
@@ -35,7 +39,9 @@ impl<Input: Send> IdentifiedInput for SinkWrap<Input> {
   }
 }
 
-impl<Input: Send> InputCounter for SinkWrap<Input> {
+impl<InputValue: Send, InputError: Send> InputCounter
+    for SinkWrap<InputValue, InputError>
+{
   fn get_rx_count(&self, ch_id: ReceiverChannelId) -> usize {
     if ch_id.0 == 0 {
       if let &ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) = &self.input_rx {
@@ -49,15 +55,20 @@ impl<Input: Send> InputCounter for SinkWrap<Input> {
   }
 }
 
-impl<Input: Send> Connectable for SinkWrap<Input> {
-  type Input = Input;
+impl<InputValue: Send, InputError: Send> Connectable
+    for SinkWrap<InputValue, InputError>
+{
+  type InputValue = InputValue;
+  type InputError = InputError;
 
-  fn input(&mut self) -> &mut ChannelWrapper<Input> {
+  fn input(&mut self) -> &mut ChannelWrapper<InputValue, InputError> {
     &mut self.input_rx
   }
 }
 
-impl<Input: Send> Task for SinkWrap<Input> {
+impl<InputValue: 'static+Send, InputError: 'static+Send> Task
+    for SinkWrap<InputValue, InputError>
+{
   fn execute(&mut self, stop: &mut bool) {
     self.state.process(&mut self.input_rx, stop);
   }
@@ -77,10 +88,10 @@ impl<Input: Send> Task for SinkWrap<Input> {
   fn output_channel_pos(&self, _ch_id: SenderChannelId) -> ChannelPosition { ChannelPosition(0) }
 }
 
-pub fn new<Input: Send>(
+pub fn new<InputValue: Send, InputError: Send>(
     name   : &str,
-    sink   : Box<Sink<InputType=Input>+Send>)
-      -> Box<SinkWrap<Input>>
+    sink   : Box<Sink<InputValue=InputValue, InputError=InputError>+Send>)
+      -> Box<SinkWrap<InputValue, InputError>>
 {
   let name = String::from(name);
   Box::new(

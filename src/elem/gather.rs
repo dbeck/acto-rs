@@ -7,24 +7,30 @@ use super::identified_input::{IdentifiedInput};
 use super::counter::{OutputCounter, InputCounter};
 
 pub trait Gather {
-  type InputType   : Send;
-  type OutputType  : Send;
+  type InputValue   : Send;
+  type InputError   : Send;
+  type OutputValue  : Send;
+  type OutputError  : Send;
 
   fn process(
     &mut self,
-    input:   &mut Vec<ChannelWrapper<Self::InputType>>,
-    output:  &mut Sender<Message<Self::OutputType>>,
+    input:   &mut Vec<ChannelWrapper<Self::InputValue, Self::InputError>>,
+    output:  &mut Sender<Message<Self::OutputValue, Self::OutputError>>,
     stop:    &mut bool);
 }
 
-pub struct GatherWrap<Input: Send, Output: Send> {
+pub struct GatherWrap<InputValue: Send, InputError: Send,
+                      OutputValue: Send, OutputError: Send> {
   name           : String,
-  state          : Box<Gather<InputType=Input,OutputType=Output>+Send>,
-  input_rx_vec   : Vec<ChannelWrapper<Input>>,
-  output_tx      : Sender<Message<Output>>,
+  state          : Box<Gather<InputValue=InputValue, InputError=InputError,
+                              OutputValue=OutputValue, OutputError=OutputError>+Send>,
+  input_rx_vec   : Vec<ChannelWrapper<InputValue, InputError>>,
+  output_tx      : Sender<Message<OutputValue, OutputError>>,
 }
 
-impl<Input: Send, Output: Send> IdentifiedInput for GatherWrap<Input,Output> {
+impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> IdentifiedInput
+    for GatherWrap<InputValue, InputError, OutputValue, OutputError>
+{
   fn get_input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     if ch_id.0 < self.input_rx_vec.len() {
       let slice = self.input_rx_vec.as_slice();
@@ -40,7 +46,9 @@ impl<Input: Send, Output: Send> IdentifiedInput for GatherWrap<Input,Output> {
   }
 }
 
-impl<Input: Send, Output: Send> InputCounter for GatherWrap<Input,Output> {
+impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> InputCounter
+    for GatherWrap<InputValue, InputError, OutputValue, OutputError>
+{
   fn get_rx_count(&self, ch_id: ReceiverChannelId) -> usize {
     if ch_id.0 < self.input_rx_vec.len() {
       let slice = self.input_rx_vec.as_slice();
@@ -56,7 +64,9 @@ impl<Input: Send, Output: Send> InputCounter for GatherWrap<Input,Output> {
   }
 }
 
-impl<Input: Send, Output: Send> OutputCounter for GatherWrap<Input,Output> {
+impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> OutputCounter
+    for GatherWrap<InputValue, InputError, OutputValue, OutputError>
+{
   fn get_tx_count(&self, ch_id: SenderChannelId) -> usize {
     if ch_id.0 == 0 {
       self.output_tx.seqno()
@@ -66,16 +76,21 @@ impl<Input: Send, Output: Send> OutputCounter for GatherWrap<Input,Output> {
   }
 }
 
-impl<Input: Send, Output: Send> ConnectableN for GatherWrap<Input,Output> {
-  type Input = Input;
+impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> ConnectableN
+    for GatherWrap<InputValue, InputError, OutputValue, OutputError>
+{
+  type InputValue = InputValue;
+  type InputError = InputError;
 
-  fn input(&mut self, n: ReceiverChannelId) -> &mut ChannelWrapper<Self::Input> {
+  fn input(&mut self, n: ReceiverChannelId) -> &mut ChannelWrapper<Self::InputValue, Self::InputError> {
     let ret_slice = self.input_rx_vec.as_mut_slice();
     &mut ret_slice[n.0]
   }
 }
 
-impl<Input: Send, Output: Send> Task for GatherWrap<Input,Output> {
+impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> Task
+    for GatherWrap<InputValue, InputError, OutputValue, OutputError>
+{
   fn execute(&mut self, stop: &mut bool) {
     self.state.process(&mut self.input_rx_vec,
                        &mut self.output_tx,
@@ -98,12 +113,14 @@ impl<Input: Send, Output: Send> Task for GatherWrap<Input,Output> {
   }
 }
 
-pub fn new<Input: Send, Output: Send>(
+pub fn new<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send>(
     name            : &str,
     output_q_size   : usize,
-    gather          : Box<Gather<InputType=Input,OutputType=Output>+Send>,
+    gather          : Box<Gather<InputValue=InputValue,   InputError=InputError,
+                                 OutputValue=OutputValue, OutputError=OutputError>+Send>,
     n_channels      : usize)
-      -> (Box<GatherWrap<Input,Output>>, Box<ChannelWrapper<Output>>)
+      -> (Box<GatherWrap<InputValue, InputError, OutputValue, OutputError>>,
+          Box<ChannelWrapper<OutputValue, OutputError>>)
 {
   let (output_tx, output_rx) = channel(output_q_size);
   let name = String::from(name);

@@ -8,16 +8,28 @@ pub mod elem;
 pub use lossyq::spsc::{Sender,Receiver};
 pub use elem::{source, sink, filter, scatter, gather, ymerge, ysplit, connectable};
 pub use scheduler::Scheduler;
-pub use std::io;
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
+pub enum ChannelState {
+  ReceiverNotConnected,
+  ConnectedReceiver,
+  SenderNotConnected,
+  ConnectedSender,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct ExpectedChannelState (ChannelState);
+
+#[derive(Copy, Clone, Debug)]
+pub struct ActualChannelState (ChannelState);
+
+#[derive(Copy, Clone, Debug)]
 pub enum Error {
   Busy,
   NonExistent,
   Stopping,
   AlreadyExists,
-  AnyError(&'static str),
-  IoError(io::Error),
+  InvalidChannelState(ExpectedChannelState, ActualChannelState)
 }
 
 #[derive(Copy,Clone,Debug,PartialEq)]
@@ -29,13 +41,11 @@ pub struct InclusiveMessageRange {
 #[derive(Copy,Clone,Debug,PartialEq)]
 pub struct ChannelPosition (usize);
 
-#[derive(Copy,Clone,Debug)]
-pub enum Message<T: Send>
-{
-  Empty,
-  Value(T),
+#[derive(Copy, Clone,Debug)]
+pub enum Message<ValueType: Send, ErrorType: Send> {
+  Value(ValueType),
   Ack(InclusiveMessageRange),
-  Error(ChannelPosition, Error),
+  Error(ChannelPosition, ErrorType),
 }
 
 #[derive(Copy,Clone,Debug,PartialEq)]
@@ -80,10 +90,10 @@ pub trait Task {
   fn output_channel_pos(&self, ch_id: SenderChannelId) -> ChannelPosition;
 }
 
-pub enum ChannelWrapper<Input: Send> {
+pub enum ChannelWrapper<Value: Send, Error: Send> {
   ReceiverNotConnected(ReceiverChannelId, ReceiverName),
-  ConnectedReceiver(ChannelId, Receiver<Message<Input>>, SenderName),
-  SenderNotConnected(SenderChannelId, Receiver<Message<Input>>, SenderName),
+  ConnectedReceiver(ChannelId, Receiver<Message<Value, Error>>, SenderName),
+  SenderNotConnected(SenderChannelId, Receiver<Message<Value, Error>>, SenderName),
   ConnectedSender(ChannelId, ReceiverName),
 }
 

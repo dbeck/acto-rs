@@ -7,27 +7,41 @@ use super::identified_input::{IdentifiedInput};
 use super::counter::{OutputCounter, InputCounter};
 
 pub trait YMerge {
-  type InputTypeA   : Send;
-  type InputTypeB   : Send;
-  type OutputType   : Send;
+  type InputValueA   : Send;
+  type InputErrorA   : Send;
+  type InputValueB   : Send;
+  type InputErrorB   : Send;
+  type OutputValue   : Send;
+  type OutputError   : Send;
 
   fn process(
     &mut self,
-    input_a:  &mut ChannelWrapper<Self::InputTypeA>,
-    input_b:  &mut ChannelWrapper<Self::InputTypeB>,
-    output:   &mut Sender<Message<Self::OutputType>>,
+    input_a:  &mut ChannelWrapper<Self::InputValueA, Self::InputErrorA>,
+    input_b:  &mut ChannelWrapper<Self::InputValueB, Self::InputErrorB>,
+    output:   &mut Sender<Message<Self::OutputValue, Self::OutputError>>,
     stop:     &mut bool);
 }
 
-pub struct YMergeWrap<InputA: Send, InputB: Send, Output: Send> {
+pub struct YMergeWrap<InputValueA: Send, InputErrorA: Send,
+                      InputValueB: Send, InputErrorB: Send,
+                      OutputValue: Send, OutputError: Send>
+{
   name         : String,
-  state        : Box<YMerge<InputTypeA=InputA, InputTypeB=InputB, OutputType=Output>+Send>,
-  input_a_rx   : ChannelWrapper<InputA>,
-  input_b_rx   : ChannelWrapper<InputB>,
-  output_tx    : Sender<Message<Output>>,
+  state        : Box<YMerge<InputValueA=InputValueA, InputErrorA=InputErrorA,
+                            InputValueB=InputValueB, InputErrorB=InputErrorB,
+                            OutputValue=OutputValue, OutputError=OutputError>+Send>,
+  input_a_rx   : ChannelWrapper<InputValueA, InputErrorA>,
+  input_b_rx   : ChannelWrapper<InputValueB, InputErrorB>,
+  output_tx    : Sender<Message<OutputValue, OutputError>>,
 }
 
-impl<InputA: Send, InputB: Send, Output: Send> IdentifiedInput for YMergeWrap<InputA, InputB, Output> {
+impl<InputValueA: Send, InputErrorA: Send,
+     InputValueB: Send, InputErrorB: Send,
+     OutputValue: Send, OutputError: Send> IdentifiedInput
+    for YMergeWrap<InputValueA, InputErrorA,
+                   InputValueB, InputErrorB,
+                   OutputValue, OutputError>
+{
   fn get_input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     if ch_id.0 > 1 {
       None
@@ -49,7 +63,11 @@ impl<InputA: Send, InputB: Send, Output: Send> IdentifiedInput for YMergeWrap<In
   }
 }
 
-impl<InputA: Send, InputB: Send, Output: Send> InputCounter for YMergeWrap<InputA, InputB, Output> {
+impl<InputValueA: Send, InputErrorA: Send,
+     InputValueB: Send, InputErrorB: Send,
+     OutputValue: Send, OutputError: Send> InputCounter
+    for YMergeWrap<InputValueA, InputErrorA, InputValueB, InputErrorB, OutputValue, OutputError>
+{
   fn get_rx_count(&self, ch_id: ReceiverChannelId) -> usize {
     if ch_id.0 > 1 {
       0
@@ -71,7 +89,13 @@ impl<InputA: Send, InputB: Send, Output: Send> InputCounter for YMergeWrap<Input
   }
 }
 
-impl<InputA: Send, InputB: Send, Output: Send> OutputCounter for YMergeWrap<InputA, InputB, Output> {
+impl<InputValueA: Send, InputErrorA: Send,
+     InputValueB: Send, InputErrorB: Send,
+     OutputValue: Send, OutputError: Send> OutputCounter
+    for YMergeWrap<InputValueA, InputErrorA,
+                   InputValueB, InputErrorB,
+                   OutputValue, OutputError>
+{
   fn get_tx_count(&self, ch_id: SenderChannelId) -> usize {
     if ch_id.0 == 0 {
       self.output_tx.seqno()
@@ -81,20 +105,34 @@ impl<InputA: Send, InputB: Send, Output: Send> OutputCounter for YMergeWrap<Inpu
   }
 }
 
-impl<InputA: Send, InputB: Send, Output: Send> ConnectableY for YMergeWrap<InputA, InputB, Output> {
-  type InputA = InputA;
-  type InputB = InputB;
+impl<InputValueA: Send, InputErrorA: Send,
+     InputValueB: Send, InputErrorB: Send,
+     OutputValue: Send, OutputError: Send> ConnectableY
+    for YMergeWrap<InputValueA, InputErrorA,
+                   InputValueB, InputErrorB,
+                   OutputValue, OutputError>
+{
+  type InputValueA = InputValueA;
+  type InputErrorA = InputErrorA;
+  type InputValueB = InputValueB;
+  type InputErrorB = InputErrorB;
 
-  fn input_a(&mut self) -> &mut ChannelWrapper<InputA> {
+  fn input_a(&mut self) -> &mut ChannelWrapper<InputValueA, InputErrorA> {
     &mut self.input_a_rx
   }
 
-  fn input_b(&mut self) -> &mut ChannelWrapper<InputB> {
+  fn input_b(&mut self) -> &mut ChannelWrapper<InputValueB, InputErrorB> {
     &mut self.input_b_rx
   }
 }
 
-impl<InputA: Send, InputB: Send, Output: Send> Task for YMergeWrap<InputA, InputB, Output> {
+impl<InputValueA: Send, InputErrorA: Send,
+     InputValueB: Send, InputErrorB: Send,
+     OutputValue: Send, OutputError: Send> Task
+    for YMergeWrap<InputValueA, InputErrorA,
+                   InputValueB, InputErrorB,
+                   OutputValue, OutputError>
+{
   fn execute(&mut self, stop: &mut bool) {
     self.state.process(&mut self.input_a_rx,
                        &mut self.input_b_rx,
@@ -118,11 +156,18 @@ impl<InputA: Send, InputB: Send, Output: Send> Task for YMergeWrap<InputA, Input
   }
 }
 
-pub fn new<InputA: Send, InputB: Send, Output: Send>(
+pub fn new<InputValueA: Send, InputErrorA: Send,
+           InputValueB: Send, InputErrorB: Send,
+           OutputValue: Send, OutputError: Send>(
     name             : &str,
     output_q_size    : usize,
-    ymerge           : Box<YMerge<InputTypeA=InputA, InputTypeB=InputB, OutputType=Output>+Send>)
-      -> (Box<YMergeWrap<InputA,InputB,Output>>, Box<ChannelWrapper<Output>>)
+    ymerge           : Box<YMerge<InputValueA=InputValueA, InputErrorA=InputErrorA,
+                                  InputValueB=InputValueB, InputErrorB=InputErrorB,
+                                  OutputValue=OutputValue, OutputError=OutputError>+Send>)
+      -> (Box<YMergeWrap<InputValueA, InputErrorA,
+                         InputValueB, InputErrorB,
+                         OutputValue, OutputError>>,
+          Box<ChannelWrapper<OutputValue, OutputError>>)
 {
   let (output_tx,  output_rx) = channel(output_q_size);
   let name = String::from(name);

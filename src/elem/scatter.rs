@@ -7,24 +7,30 @@ use super::identified_input::{IdentifiedInput};
 use super::counter::{OutputCounter, InputCounter};
 
 pub trait Scatter {
-  type InputType   : Send;
-  type OutputType  : Send;
+  type InputValue   : Send;
+  type InputError   : Send;
+  type OutputValue  : Send;
+  type OutputError  : Send;
 
   fn process(
     &mut self,
-    input:   &mut ChannelWrapper<Self::InputType>,
-    output:  &mut Vec<Sender<Message<Self::OutputType>>>,
+    input:   &mut ChannelWrapper<Self::InputValue, Self::InputError>,
+    output:  &mut Vec<Sender<Message<Self::OutputValue, Self::OutputError>>>,
     stop:    &mut bool);
 }
 
-pub struct ScatterWrap<Input: Send, Output: Send> {
+pub struct ScatterWrap<InputValue: Send, InputError: Send,
+                      OutputValue: Send, OutputError: Send> {
   name           : String,
-  state          : Box<Scatter<InputType=Input,OutputType=Output>+Send>,
-  input_rx       : ChannelWrapper<Input>,
-  output_tx_vec  : Vec<Sender<Message<Output>>>,
+  state          : Box<Scatter<InputValue=InputValue, InputError=InputError,
+                               OutputValue=OutputValue, OutputError=OutputError>+Send>,
+  input_rx       : ChannelWrapper<InputValue, InputError>,
+  output_tx_vec  : Vec<Sender<Message<OutputValue, OutputError>>>,
 }
 
-impl<Input: Send, Output: Send> IdentifiedInput for ScatterWrap<Input,Output> {
+impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> IdentifiedInput
+    for ScatterWrap<InputValue, InputError, OutputValue, OutputError>
+{
   fn get_input_id(&self, ch_id: ReceiverChannelId) -> Option<(ChannelId, SenderName)> {
     if ch_id.0 != 0 {
       None
@@ -39,7 +45,9 @@ impl<Input: Send, Output: Send> IdentifiedInput for ScatterWrap<Input,Output> {
   }
 }
 
-impl<Input: Send, Output: Send> InputCounter for ScatterWrap<Input,Output> {
+impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> InputCounter
+    for ScatterWrap<InputValue, InputError, OutputValue, OutputError>
+{
   fn get_rx_count(&self, ch_id: ReceiverChannelId) -> usize {
     if ch_id.0 == 0 {
       if let &ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) = &self.input_rx {
@@ -53,7 +61,9 @@ impl<Input: Send, Output: Send> InputCounter for ScatterWrap<Input,Output> {
   }
 }
 
-impl<Input: Send, Output: Send> OutputCounter for ScatterWrap<Input,Output> {
+impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> OutputCounter
+    for ScatterWrap<InputValue, InputError, OutputValue, OutputError>
+{
   fn get_tx_count(&self, ch_id: SenderChannelId) -> usize {
     if ch_id.0 < self.output_tx_vec.len() {
       let otx_slice = self.output_tx_vec.as_slice();
@@ -64,15 +74,20 @@ impl<Input: Send, Output: Send> OutputCounter for ScatterWrap<Input,Output> {
   }
 }
 
-impl<Input: Send, Output: Send> Connectable for ScatterWrap<Input,Output> {
-  type Input = Input;
+impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> Connectable
+    for ScatterWrap<InputValue, InputError, OutputValue, OutputError>
+{
+  type InputValue = InputValue;
+  type InputError = InputError;
 
-  fn input(&mut self) -> &mut ChannelWrapper<Input> {
+  fn input(&mut self) -> &mut ChannelWrapper<Self::InputValue, Self::InputError> {
     &mut self.input_rx
   }
 }
 
-impl<Input: Send, Output: Send> Task for ScatterWrap<Input,Output> {
+impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> Task
+    for ScatterWrap<InputValue, InputError, OutputValue, OutputError>
+{
   fn execute(&mut self, stop: &mut bool) {
     self.state.process(&mut self.input_rx,
                        &mut self.output_tx_vec,
@@ -96,12 +111,14 @@ impl<Input: Send, Output: Send> Task for ScatterWrap<Input,Output> {
   }
 }
 
-pub fn new<Input: Send, Output: Send>(
+pub fn new<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send>(
     name            : &str,
     output_q_size   : usize,
-    scatter         : Box<Scatter<InputType=Input,OutputType=Output>+Send>,
+    scatter         : Box<Scatter<InputValue=InputValue, InputError=InputError,
+                                  OutputValue=OutputValue, OutputError=OutputError>+Send>,
     n_channels      : usize)
-      -> (Box<ScatterWrap<Input,Output>>, Vec<Box<ChannelWrapper<Output>>>)
+      -> (Box<ScatterWrap<InputValue, InputError, OutputValue, OutputError>>,
+          Vec<Box<ChannelWrapper<OutputValue, OutputError>>>)
 {
   let mut tx_vec = Vec::with_capacity(n_channels);
   let mut rx_vec = Vec::with_capacity(n_channels);

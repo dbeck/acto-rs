@@ -6,10 +6,11 @@ use super::super::{Message};
 pub struct DummySource {}
 
 impl source::Source for DummySource {
-  type OutputType = usize;
+  type OutputValue = usize;
+  type OutputError = &'static str;
 
   fn process(&mut self,
-             _output: &mut Sender<Message<Self::OutputType>>,
+             _output: &mut Sender<Message<Self::OutputValue, Self::OutputError>>,
              _stop: &mut bool)
   {
   }

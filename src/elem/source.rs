@@ -5,21 +5,25 @@ use super::super::{Task, Message, ChannelId, SenderName,
 use super::counter::{OutputCounter};
 
 pub trait Source {
-  type OutputType : Send;
+  type OutputValue : Send;
+  type OutputError : Send;
 
   fn process(
     &mut self,
-    output: &mut Sender<Message<Self::OutputType>>,
+    output: &mut Sender<Message<Self::OutputValue, Self::OutputError>>,
     stop: &mut bool);
 }
 
-pub struct SourceWrap<Output: Send> {
+pub struct SourceWrap<OutputValue: Send, OutputError: Send>
+{
   name       : String,
-  state      : Box<Source<OutputType=Output>+Send>,
-  output_tx  : Sender<Message<Output>>,
+  state      : Box<Source<OutputValue=OutputValue, OutputError=OutputError>+Send>,
+  output_tx  : Sender<Message<OutputValue, OutputError>>,
 }
 
-impl<Output: 'static+Send> OutputCounter for SourceWrap<Output> {
+impl<OutputValue: Send, OutputError: Send> OutputCounter
+    for SourceWrap<OutputValue, OutputError>
+{
   fn get_tx_count(&self, ch_id: SenderChannelId) -> usize {
     if ch_id.0 == 0 {
       self.output_tx.seqno()
@@ -29,7 +33,9 @@ impl<Output: 'static+Send> OutputCounter for SourceWrap<Output> {
   }
 }
 
-impl<Output: 'static+Send> Task for SourceWrap<Output> {
+impl<OutputValue: Send, OutputError: Send> Task
+    for SourceWrap<OutputValue, OutputError>
+{
   fn execute(&mut self, stop: &mut bool) {
     self.state.process(&mut self.output_tx, stop);
   }
@@ -50,11 +56,12 @@ impl<Output: 'static+Send> Task for SourceWrap<Output> {
   }
 }
 
-pub fn new<Output: Send>(
+pub fn new<OutputValue: Send, OutputError: Send>(
     name            : &str,
     output_q_size   : usize,
-    source          : Box<Source<OutputType=Output>+Send>)
-      -> (Box<SourceWrap<Output>>, Box<ChannelWrapper<Output>>)
+    source          : Box<Source<OutputValue=OutputValue, OutputError=OutputError>+Send>)
+      -> (Box<SourceWrap<OutputValue, OutputError>>,
+          Box<ChannelWrapper<OutputValue, OutputError>>)
 {
   let (output_tx, output_rx) = channel(output_q_size);
   let name = String::from(name);

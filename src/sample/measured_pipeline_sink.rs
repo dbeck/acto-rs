@@ -18,10 +18,11 @@ pub struct MeasuredPipelineSink {
 }
 
 impl sink::Sink for MeasuredPipelineSink {
-  type InputType = usize;
+  type InputValue = usize;
+  type InputError = &'static str;
 
   fn process(&mut self,
-             input: &mut ChannelWrapper<Self::InputType>,
+             input: &mut ChannelWrapper<Self::InputValue, Self::InputError>,
              stop:  &mut bool)
   {
     if let &mut ChannelWrapper::ConnectedReceiver(ref mut _channel_id,

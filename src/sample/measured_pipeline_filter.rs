@@ -14,13 +14,15 @@ pub struct MeasuredPipelineFilter {
 }
 
 impl filter::Filter for MeasuredPipelineFilter {
-  type InputType  = usize;
-  type OutputType = usize;
+  type InputValue   = usize;
+  type InputError   = &'static str;
+  type OutputValue  = usize;
+  type OutputError  = &'static str;
 
   fn process(
     &mut self,
-    input:   &mut ChannelWrapper<Self::InputType>,
-    output:  &mut Sender<Message<Self::OutputType>>,
+    input:   &mut ChannelWrapper<Self::InputValue, Self::InputError>,
+    output:  &mut Sender<Message<Self::OutputValue, Self::OutputError>>,
     stop:    &mut bool)
   {
     self.on_exec += 1;

@@ -12,10 +12,11 @@ pub struct MeasuredPipelineSource {
 }
 
 impl source::Source for MeasuredPipelineSource {
-  type OutputType = usize;
+  type OutputValue = usize;
+  type OutputError = &'static str;
 
   fn process(&mut self,
-             output: &mut Sender<Message<Self::OutputType>>,
+             output: &mut Sender<Message<Self::OutputValue, Self::OutputError>>,
              _stop: &mut bool)
   {
     self.on_exec += 1;
