@@ -1,6 +1,6 @@
 # acto-rs library
 
-This library is a proof of concept, never run in any production setup and fairly untested. Use at your own risk. You were warned.
+This library is a proof of concept, never run in any production setup and is fairly untested. Use at your own risk. You were warned.
 
 ---
 
@@ -58,18 +58,61 @@ The actors need to implement one of the traits above. Examples:
 
 ```rust
 use actors::*;
+use std::net::{UdpSocket, SocketAddr, Ipv4Addr, SocketAddrV4};
+use std::io;
+use std::mem;
 
 pub struct ReadBytes {
-  
+  socket: UdpSocket
 }
 
+//
+// this item reads 1024 bytes on UDP and passes the data forward with
+// the data size and the sender address. if an error happens, then the
+// error goes forward instead.
+//
 impl source::Source for ReadBytes {
-  type OutputType = u64;
+
+  type OutputValue = ([u8; 1024], (usize, SocketAddr));
+  type OutputError = io::Error;
 
   fn process(&mut self,
-             _output: &mut Sender<Message<Self::OutputType>>,
+             output: &mut Sender<Message<Self::OutputValue, Self::OutputError>>,
              _stop: &mut bool)
   {
+    output.put(|value| {
+      if let &mut Some(Message::Value(ref mut item)) = value {
+        // re-use the preallocated space in the queue
+        match self.socket.recv_from(&mut item.0) {
+          Ok((read_bytes, from_addr)) => {
+            item.1 = (read_bytes, from_addr);
+          },
+          Err(io_error) => {
+            // swap in the error message
+            let error_message = Some(Message::Error(ChannelPosition(output.seqno()), io_error));
+            mem::swap(value, &mut error_message);
+          }
+        };
+      } else {
+        // allocate new buffer and swap it in
+        let dummy_address  = Ipv4Addr::from(0);
+        let dummy_sockaddr = SocketAddrV4::new(dummy_address, 1);
+        let item = ([0; 1024],(0, SocketAddr::V4(dummy_sockaddr)));
+
+        match self.socket.recv_from(&mut item.0) {
+          Ok((read_bytes, from_addr)) => {
+            item.1 = (read_bytes, from_addr);
+            let message = Some(Message::Value(item));
+            mem::swap(value, &mut message);
+          },
+          Err(io_error) => {
+            // swap in the error message
+            let error_message = Some(Message::Error(ChannelPosition(output.seqno()), io_error));
+            mem::swap(value, &mut error_message);
+          }
+        };
+      }
+    });
   }
 }
 ```
