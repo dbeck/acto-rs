@@ -4,7 +4,7 @@ This library is a proof of concept, never run in any production setup and is fai
 
 ---
 
-This library is a mixture of concepts to connect independent pieces together. These independent pieces can have:
+This library is a mixture of concepts to connect independent pieces together to form a data processing pipeline. These independent pieces can have:
 
 - internal state
 - typed channels to talk to others
@@ -37,7 +37,7 @@ When you pass the components to the scheduler you need to tell it how to schedul
 
 ```
 [dependencies]
-acto-rs = "0.4.0"
+acto-rs = "0.5.0"
 ```
 
 ### Overview
@@ -55,6 +55,8 @@ The actors need to implement one of the traits above. Examples:
 - Sink: [dummy sink](/src/sample/dummy_source.rs)
 
 #### Creating a source element
+
+This is a somewhat more realistic element that reads UDP messages from the network and passes it forward to the next element in the topology.
 
 ```rust
 use actors::*;
@@ -131,6 +133,43 @@ let mut sched_multi = Scheduler::new();
 sched_multi.start_with_threads(12);
 sched_multi.stop();
 ```
+
+### Pass the actors to the scheduler
+
+```rust
+let mut sched = Scheduler::new();
+sched.start_with_threads(4);
+
+// create two dummy tasks
+let dummy_queue_size = 2_000;
+let (source_task, mut source_out) = source::new( "Source", dummy_queue_size, Box::new(DummySource{}));
+let mut sink_task = sink::new( "Sink", Box::new(DummySink{}));
+
+// connect the sink to the source
+sink_task.connect(&mut source_out).unwrap();
+
+// add the source and the sink to the scheduler and tell
+// the scheduler how to run them
+let source_id = sched.add_task(source_task, SchedulingRule::OnExternalEvent).unwrap();
+sched.add_task(sink_task, SchedulingRule::OnMessage).unwrap();
+
+// send an example notification to the source task
+sched.notify(&source_id).unwrap();
+
+sched.stop();
+```
+
+### Project goals
+
+The primary goal is predictable, low latency processing. I don't want to make any performance claims whatsoever. What I can tell is that I invested quite some time into measuring the latency of the components, the scheduler and the resulting pipeline.
+
+Another goal is that I want to keep the overhead of message passing to the minimum. Both the time takes from the sender to do the send operation and also the end-to-end latency, between the start of the send, to the actual reception of the message. I found that the former is under estimated in an (unnamed) actor implementations. I want to keep this overhead to the tens of nanoseconds range.
+
+I want this library to act sensibly under overload. This in practice means (possibly) dropping messages. The components talk using a bounded message queue. The sender can detect if it is about to overwrite a previous message and may act accordingly, but I do believe that this is not the right approach. If the message queue reader lags behind, then it means the system cannot cope with the load. In that case we shouldn't pile up messages, fill up all memory and let the system die.
+
+### Project non-goals
+
+I did take ideas from other actor models, but I don't want to follow them strictly. Erlang/Elixir actor model was a great source of inspiration and I admire their work.
 
 ## License
 
