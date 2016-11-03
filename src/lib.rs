@@ -32,13 +32,13 @@ pub enum Error {
   InvalidChannelState(ExpectedChannelState, ActualChannelState)
 }
 
-#[derive(Copy,Clone,Debug,PartialEq)]
+#[derive(Copy,Clone,Debug,PartialEq,Eq)]
 pub struct InclusiveMessageRange {
   pub from: usize,
   pub to:   usize,
 }
 
-#[derive(Copy,Clone,Debug,PartialEq)]
+#[derive(Copy,Clone,Debug,PartialEq,Eq)]
 pub struct ChannelPosition (usize);
 
 #[derive(Copy, Clone,Debug)]
@@ -48,19 +48,19 @@ pub enum Message<ValueType: Send, ErrorType: Send> {
   Error(ChannelPosition, ErrorType),
 }
 
-#[derive(Copy,Clone,Debug,PartialEq)]
+#[derive(Copy,Clone,Debug,PartialEq,Eq)]
 pub struct SenderChannelId (usize);
 
-#[derive(Copy,Clone,Debug,PartialEq)]
+#[derive(Copy,Clone,Debug,PartialEq,Eq)]
 pub struct ReceiverChannelId (usize);
 
-#[derive(Copy,Clone,Debug,PartialEq)]
+#[derive(Copy,Clone,Debug,PartialEq,Eq)]
 pub struct ChannelId {
   pub sender_id:    SenderChannelId,
   pub receiver_id:  ReceiverChannelId,
 }
 
-#[derive(Copy,Clone,Debug,PartialEq)]
+#[derive(Copy,Clone,Debug,PartialEq,Eq)]
 pub struct PeriodLengthInUsec (usize);
 
 #[derive(Copy,Clone,Debug)]
@@ -74,10 +74,10 @@ pub enum SchedulingRule {
 #[derive(Copy,Clone,Debug,PartialEq,Eq,Hash)]
 pub struct TaskId (usize);
 
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,PartialEq,Eq)]
 pub struct SenderName (String);
 
-#[derive(Clone,Debug,PartialEq)]
+#[derive(Clone,Debug,PartialEq,Eq)]
 pub struct ReceiverName (String);
 
 pub trait Task {
