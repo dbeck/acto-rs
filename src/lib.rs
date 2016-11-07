@@ -18,10 +18,10 @@ pub enum ChannelState {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct ExpectedChannelState (ChannelState);
+pub struct ExpectedChannelState (pub ChannelState);
 
 #[derive(Copy, Clone, Debug)]
-pub struct ActualChannelState (ChannelState);
+pub struct ActualChannelState (pub ChannelState);
 
 #[derive(Copy, Clone, Debug)]
 pub enum Error {
@@ -39,7 +39,7 @@ pub struct InclusiveMessageRange {
 }
 
 #[derive(Copy,Clone,Debug,PartialEq)]
-pub struct ChannelPosition (usize);
+pub struct ChannelPosition (pub usize);
 
 #[derive(Copy, Clone,Debug)]
 pub enum Message<ValueType: Send, ErrorType: Send> {
@@ -49,10 +49,10 @@ pub enum Message<ValueType: Send, ErrorType: Send> {
 }
 
 #[derive(Copy,Clone,Debug,PartialEq)]
-pub struct SenderChannelId (usize);
+pub struct SenderChannelId (pub usize);
 
 #[derive(Copy,Clone,Debug,PartialEq)]
-pub struct ReceiverChannelId (usize);
+pub struct ReceiverChannelId (pub usize);
 
 #[derive(Copy,Clone,Debug,PartialEq)]
 pub struct ChannelId {
@@ -61,7 +61,7 @@ pub struct ChannelId {
 }
 
 #[derive(Copy,Clone,Debug,PartialEq)]
-pub struct PeriodLengthInUsec (usize);
+pub struct PeriodLengthInUsec (pub usize);
 
 #[derive(Copy,Clone,Debug)]
 pub enum SchedulingRule {
@@ -75,10 +75,10 @@ pub enum SchedulingRule {
 pub struct TaskId (usize);
 
 #[derive(Clone,Debug,PartialEq)]
-pub struct SenderName (String);
+pub struct SenderName (pub String);
 
 #[derive(Clone,Debug,PartialEq)]
-pub struct ReceiverName (String);
+pub struct ReceiverName (pub String);
 
 pub trait Task {
   fn execute(&mut self, stop: &mut bool);

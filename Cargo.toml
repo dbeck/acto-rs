@@ -1,6 +1,6 @@
 [package]
 name = "acto-rs"
-version = "0.5.1"
+version = "0.5.2"
 authors = ["David Beck <david.beck.priv@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/dbeck/acto-rs"
@@ -21,3 +21,9 @@ libc = "0.2"
 default = []
 bench = []
 printstats = []
+
+[[bin]]
+doc = false
+name = "bench"
+test = false
+doctest = false

@@ -39,9 +39,10 @@ impl Scheduler {
       return;
     }
 
-    for i in 0..n_threads {
+    for _i in 0..n_threads {
       let mut data_handle = self.data.clone();
-      let t = spawn(move || { data_handle.get().entry(i); });
+      let id = self.threads.len();
+      let t = spawn(move || { data_handle.get().entry(id); });
       self.threads.push(t);
     }
 

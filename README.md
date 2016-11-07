@@ -37,7 +37,7 @@ When you pass the components to the scheduler you need to tell it how to schedul
 
 ```
 [dependencies]
-acto-rs = "0.5.0"
+acto-rs = "0.5.2"
 ```
 
 ### Overview

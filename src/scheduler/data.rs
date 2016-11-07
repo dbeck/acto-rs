@@ -288,11 +288,13 @@ impl SchedulerData {
       }
     }
 
-    let diff = start.elapsed();
-    let diff_ns = diff.as_secs() * 1_000_000_000 + diff.subsec_nanos() as u64;
-    let ns_iter = diff_ns/iter;
+    if self.print_stats_enabled() {
+      let diff = start.elapsed();
+      let diff_ns = diff.as_secs() * 1_000_000_000 + diff.subsec_nanos() as u64;
+      let ns_iter = diff_ns/iter;
 
-    println!("#{} loop_count: {} {} ns/iter",id,iter,ns_iter);
+      println!("#{} loop_count: {} {} ns/iter",id,iter,ns_iter);
+    }
   }
 
   pub fn schedule_exec(&mut self, id: &TaskId) {
@@ -327,10 +329,10 @@ impl SchedulerData {
   }
 
   #[cfg(any(test,feature = "printstats"))]
-  fn print_stats(&self) {}
+  fn print_stats_enabled(&self) -> bool { true }
 
   #[cfg(not(any(test,feature = "printstats")))]
-  fn print_stats(&self) {}
+  fn print_stats_enabled(&self) -> bool { false }
 }
 
 pub fn new() -> SchedulerData {
@@ -343,7 +345,6 @@ pub fn initial_capacity() -> usize {
 
 impl Drop for SchedulerData {
   fn drop(&mut self) {
-    self.print_stats();
     let len = self.l1.len();
     let l1_slice = self.l1.as_mut_slice();
     for i in 0..len {
