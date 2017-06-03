@@ -11,7 +11,7 @@ homepage = "https://github.com/dbeck/acto-rs"
 #documentation = "..."
 
 [dependencies]
-lossyq = "0.1.19"
+lossyq = "0.1.19" # dev branch?
 libc = "0.2"
 
 # [profile.release]
@@ -27,3 +27,4 @@ doc = false
 name = "bench"
 test = false
 doctest = false
+
