@@ -1,3 +1,8 @@
 # minions_rs
 
-Experimental actor implementation.
+This crate has been renamed to acto-rs.
+The development of the minion crate continues there.
+If I had means to remove the minions crate I would do that.
+
+minions crate is not maintained
+

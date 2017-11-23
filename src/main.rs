@@ -67,7 +67,7 @@ fn time_baseline() {
 #[allow(dead_code)]
 fn send_data() {
   let start = time::precise_time_ns();
-  let (mut tx, _rx) = channel(100);
+  let (mut tx, _rx) = channel::<i32>(100);
   for i in 0..10_000_000i32 {
     tx.put(|v| *v = Some(i));
   }
@@ -79,7 +79,7 @@ fn send_data() {
 #[allow(dead_code)]
 fn indirect_send_data() {
   let start = time::precise_time_ns();
-  let (mut tx, _rx) = channel(100);
+  let (mut tx, _rx) = channel::<i32>(100);
   for i in 0..10_000_000i32 {
     let sender = |val: i32, chan: &mut lossyq::spsc::Sender<i32>| {
       chan.put(|v: &mut Option<i32>| *v = Some(val));
@@ -95,7 +95,7 @@ fn indirect_send_data() {
 fn locked_send_data() {
   use std::sync::{Arc, Mutex};
   let start = time::precise_time_ns();
-  let (tx, _rx) = channel(100);
+  let (tx, _rx) = channel::<i32>(100);
   let locked = Arc::new(Mutex::new(tx));
   for i in 0..10_000_000i32 {
     let mut x = locked.lock().unwrap();
@@ -111,7 +111,7 @@ fn lotted_send_data() {
   use std::sync::{Arc};
   use parking_lot::Mutex;
   let start = time::precise_time_ns();
-  let (tx, _rx) = channel(100);
+  let (tx, _rx) = channel::<i32>(100);
   let locked = Arc::new(Mutex::new(tx));
   for i in 0..10_000_000i32 {
     let mut x = locked.lock();
@@ -140,8 +140,8 @@ fn mpsc_send_data() {
 #[allow(dead_code)]
 fn receive_data() {
   let start = time::precise_time_ns();
-  let (_tx, mut rx) = channel(100);
-  let mut sum = 0;
+  let (_tx, mut rx) = channel::<i32>(100);
+  let mut sum : i32 = 0;
   for _i in 0..10_000_000i32 {
     for i in rx.iter() {
       sum += i;

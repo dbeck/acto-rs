@@ -1,10 +1,10 @@
 [package]
 name = "minions"
-version = "0.2.7"
+version = "0.2.9"
 authors = ["David Beck <david.beck.priv@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/dbeck/minions_rs"
-description = "Experimental actor library, under constant development."
+description = "DISCONTINUED. This crate was renamed. The development of this code is under the acto-rs crate."
 keywords = ["actor", "concurrency"]
 readme = "README.md"
 homepage = "https://github.com/dbeck/minions_rs"
