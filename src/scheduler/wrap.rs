@@ -16,7 +16,7 @@ impl TaskWrap {
     self.task.execute(stop);
     if has_dependents {
       let n_outputs = self.output_positions.len();
-      let mut slice = self.output_positions.as_mut_slice();
+      let slice = self.output_positions.as_mut_slice();
       for i in 0..n_outputs {
         let old_position = slice[i].0;
         let new_position = self.task.output_channel_pos(SenderChannelId(i));
@@ -32,7 +32,7 @@ impl TaskWrap {
                              deps: Vec<(ChannelId, TaskId)>)
   {
     let n_pos = self.output_positions.len();
-    let mut slice = self.output_positions.as_mut_slice();
+    let slice = self.output_positions.as_mut_slice();
     for dep in deps {
       let ch_id = dep.0;
       let idx = ch_id.sender_id.0;

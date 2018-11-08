@@ -4,11 +4,12 @@ version = "0.5.2"
 authors = ["David Beck <david.beck.priv@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/dbeck/acto-rs"
-description = "Experimental actor library, under development. (renamed from minions_rs)."
+description = "Experimental actor library."
 keywords = ["actor", "concurrency"]
 readme = "README.md"
 homepage = "https://github.com/dbeck/acto-rs"
 #documentation = "..."
+autobins = false
 
 [dependencies]
 lossyq = "0.1.19"
@@ -27,3 +28,4 @@ doc = false
 name = "bench"
 test = false
 doctest = false
+path = "src/main.rs"

@@ -48,7 +48,7 @@ impl TaskPage {
 
   pub fn set_delayed_exec(&mut self, idx: usize, period: PeriodLengthInUsec) {
     let slice = self.data.as_mut_slice();
-    let mut data_ref = &mut slice[idx];
+    let data_ref = &mut slice[idx];
     (data_ref.1).0.fetch_or(4, Ordering::Release);
     data_ref.2 = period;
   }

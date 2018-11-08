@@ -16,7 +16,7 @@ impl BitSet {
   fn set(&mut self, at: usize) {
     let segment = at/64;
     let offset  = at%64;
-    let mut slice = self.bits.as_mut_slice();
+    let slice = self.bits.as_mut_slice();
     slice[segment] |= 1<<offset;
   }
 
