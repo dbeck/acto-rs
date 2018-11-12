@@ -3,19 +3,19 @@ use std::sync::Arc;
 use std::cell::UnsafeCell;
 use scheduler::scheduler_impl;
 
-pub struct SchedulerDataHandle {
+pub struct SchedulerImplHandle {
   handle: Arc<UnsafeCell<scheduler_impl::SchedulerImpl>>,
 }
 
-impl SchedulerDataHandle {
-  pub fn clone(&mut self) -> SchedulerDataHandle {
-    SchedulerDataHandle{
+impl SchedulerImplHandle {
+  pub fn clone(&mut self) -> SchedulerImplHandle {
+    SchedulerImplHandle{
       handle: self.handle.clone(),
     }
   }
 
-  fn new() -> SchedulerDataHandle {
-    SchedulerDataHandle{
+  fn new() -> SchedulerImplHandle {
+    SchedulerImplHandle{
       handle: Arc::new(UnsafeCell::new(scheduler_impl::new())),
     }
   }
@@ -26,8 +26,8 @@ impl SchedulerDataHandle {
 }
 
 // all data access is atomic
-unsafe impl Send for SchedulerDataHandle { }
+unsafe impl Send for SchedulerImplHandle { }
 
-pub fn new() -> SchedulerDataHandle {
-  SchedulerDataHandle::new()
+pub fn new() -> SchedulerImplHandle {
+  SchedulerImplHandle::new()
 }

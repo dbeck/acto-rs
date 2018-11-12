@@ -8,7 +8,7 @@ use super::{Task, Error, TaskId, SchedulingRule};
 use std::thread::{spawn, JoinHandle};
 
 pub struct Scheduler {
-  data:     handle::SchedulerDataHandle,
+  data:     handle::SchedulerImplHandle,
   threads:  Vec<JoinHandle<()>>,
 }
 
