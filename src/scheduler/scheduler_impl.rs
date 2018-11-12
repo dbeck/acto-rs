@@ -213,7 +213,7 @@ impl SchedulerImpl {
     result
   }
 
-  pub fn ticker(&mut self) {
+  pub fn ticker_thread_entry(&mut self) {
     loop {
       unsafe { libc::usleep(10); }
       let diff = self.start.elapsed();
@@ -226,7 +226,7 @@ impl SchedulerImpl {
     }
   }
 
-  pub fn entry(&mut self, id: usize) {
+  pub fn scheduler_thread_entry(&mut self, id: usize) {
 
     let start = Instant::now();
     let mut iter = 0u64;

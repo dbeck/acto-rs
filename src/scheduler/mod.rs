@@ -42,13 +42,13 @@ impl Scheduler {
     for _i in 0..n_threads {
       let mut data_handle = self.data.clone();
       let id = self.threads.len();
-      let t = spawn(move || { data_handle.get().entry(id); });
+      let t = spawn(move || { data_handle.get().scheduler_thread_entry(id); });
       self.threads.push(t);
     }
 
     {
       let mut data_handle = self.data.clone();
-      let t = spawn(move || { data_handle.get().ticker(); });
+      let t = spawn(move || { data_handle.get().ticker_thread_entry(); });
       self.threads.push(t);
     }
   }
