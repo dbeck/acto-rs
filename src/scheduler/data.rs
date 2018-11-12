@@ -15,7 +15,7 @@ pub struct SchedulerData {
   // shared between threads
   // everything below has to be thread safe:
   max_id:      AtomicUsize,
-  l1:          Vec<AtomicPtr<page::TaskPage>>,
+  task_pages:  Vec<AtomicPtr<page::TaskPage>>,
   stop:        AtomicBool,
   time_us:     AtomicUsize,
   ids:         Mutex<HashMap<String, TaskId>>,
@@ -25,15 +25,15 @@ pub struct SchedulerData {
 impl SchedulerData {
   fn add_l2_page(&mut self, idx: usize) {
     let array = Box::new(page::new(idx));
-    let len = self.l1.len();
+    let len = self.task_pages.len();
     if idx >= len-1 {
       // extend slice
       for _i in 0..initial_capacity() {
-        self.l1.push(AtomicPtr::default());
+        self.task_pages.push(AtomicPtr::default());
       }
     }
-    let l1_slice = self.l1.as_mut_slice();
-    l1_slice[idx].store(Box::into_raw(array), Ordering::Release);
+    let task_pages_slice = self.task_pages.as_mut_slice();
+    task_pages_slice[idx].store(Box::into_raw(array), Ordering::Release);
   }
 
   fn new() -> SchedulerData {
@@ -42,7 +42,7 @@ impl SchedulerData {
       start:       Instant::now(),
       // zero ID is skipped
       max_id:      AtomicUsize::new(1),
-      l1:          Vec::with_capacity(l1_size),
+      task_pages:  Vec::with_capacity(l1_size),
       stop:        AtomicBool::new(false),
       time_us:     AtomicUsize::new(0),
       ids:         Mutex::new(HashMap::new()),
@@ -51,7 +51,7 @@ impl SchedulerData {
 
     // fill the l1 bucket
     for _i in 0..l1_size {
-      data.l1.push(AtomicPtr::default());
+      data.task_pages.push(AtomicPtr::default());
     }
 
     // add two initial l2 pages
@@ -63,11 +63,11 @@ impl SchedulerData {
   fn mark_conditional_task(&mut self,
                            id: TaskId)
   {
-    let (l1, l2) = page::position(id.0);
+    let (page_no, rel_task_id) = page::position(id.0);
     unsafe {
-      let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
-      if l1_ptr.is_null() == false {
-        (*l1_ptr).set_conditional_exec_flag(l2);
+      let page_ptr = self.task_pages.get_unchecked_mut(page_no).load(Ordering::Acquire);
+      if page_ptr.is_null() == false {
+        (*page_ptr).set_conditional_exec_flag(rel_task_id);
       }
     }
   }
@@ -76,11 +76,11 @@ impl SchedulerData {
                         id: TaskId,
                         period: PeriodLengthInUsec)
   {
-    let (l1, l2) = page::position(id.0);
+    let (page_no, rel_task_id) = page::position(id.0);
     unsafe {
-      let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
-      if l1_ptr.is_null() == false {
-        (*l1_ptr).set_delayed_exec(l2, period);
+      let page_ptr = self.task_pages.get_unchecked_mut(page_no).load(Ordering::Acquire);
+      if page_ptr.is_null() == false {
+        (*page_ptr).set_delayed_exec(rel_task_id, period);
       }
     }
   }
@@ -109,12 +109,12 @@ impl SchedulerData {
                          deps: Vec<(ChannelId, TaskId)>)
   {
     if deps.is_empty() { return; }
-    let (l1, l2) = page::position(id.0);
+    let (page_no, rel_task_id) = page::position(id.0);
     unsafe {
-      let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
-      if l1_ptr.is_null() == false {
-        (*l1_ptr).set_dependents_flag(l2);
-        (*l1_ptr).register_dependents(l2, deps);
+      let page_ptr = self.task_pages.get_unchecked_mut(page_no).load(Ordering::Acquire);
+      if page_ptr.is_null() == false {
+        (*page_ptr).set_dependents_flag(rel_task_id);
+        (*page_ptr).register_dependents(rel_task_id, deps);
       }
     }
   }
@@ -177,17 +177,17 @@ impl SchedulerData {
       let task_name    = task.name().clone();
       {
         // make sure the next bucket exists when needed
-        let (l1, l2) = page::position(task_id.0);
-        if l2 == 0 {
-          self.add_l2_page(l1+1);
+        let (page_no, rel_task_id) = page::position(task_id.0);
+        if rel_task_id == 0 {
+          self.add_l2_page(page_no+1);
         }
 
         unsafe {
-          let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
-          if l1_ptr.is_null() == false {
+          let page_ptr = self.task_pages.get_unchecked_mut(page_no).load(Ordering::Acquire);
+          if page_ptr.is_null() == false {
             // TODO : store scheduling rule somewhere ????
-            //(*l1_ptr).init_info(l2, output_count, rule);
-            (*l1_ptr).store(l2, task);
+            //(*page_ptr).init_info(l2, output_count, rule);
+            (*page_ptr).store(rel_task_id, task);
           }
         }
       }
@@ -217,7 +217,7 @@ impl SchedulerData {
     loop {
       unsafe { libc::usleep(10); }
       let diff = self.start.elapsed();
-      let diff_us = diff.as_secs() as usize * 1000_000 + diff.subsec_nanos() as usize / 1000;
+      let diff_us = diff.as_secs() as usize * 1_000_000 + diff.subsec_nanos() as usize / 1000;
       self.time_us.store(diff_us, Ordering::Release);
       // check stop state
       if self.stop.load(Ordering::Acquire) {
@@ -238,17 +238,17 @@ impl SchedulerData {
       let max_id = self.max_id.load(Ordering::Acquire);
       private_data.ensure_size(max_id);
 
-      let (l1, l2) = page::position(max_id);
+      let (page_no, rel_task_id) = page::position(max_id);
 
       {
-        let l1_slice = self.l1.as_mut_slice();
+        let task_pages_slice = self.task_pages.as_mut_slice();
 
         // go through all fully filled l2 buckets
         let mut l2_max_idx = l2_max;
-        for l1_idx in 0..l1 {
-          let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);
+        for page_idx in 0..page_no {
+          let page_ptr = task_pages_slice[page_idx].load(Ordering::Acquire);
           unsafe {
-            (*l1_ptr).eval(
+            (*page_ptr).eval(
               l2_max_idx,         // the max ID on the task page
               id,                 // the ID of the executor thread
               &mut private_data,  // thread private data
@@ -258,11 +258,11 @@ impl SchedulerData {
         }
 
         // take care of the last, partially filled bucket
-        l2_max_idx = l2;
-        for l1_idx in l1..(l1+1) {
-          let l1_ptr = l1_slice[l1_idx].load(Ordering::Acquire);
+        l2_max_idx = rel_task_id;
+        for page_idx in page_no..(page_no+1) {
+          let page_ptr = task_pages_slice[page_idx].load(Ordering::Acquire);
           unsafe {
-            (*l1_ptr).eval(
+            (*page_ptr).eval(
               l2_max_idx,         // the max ID on the task page
               id,                 // the ID of the executor thread
               &mut private_data,  // thread private data
@@ -298,11 +298,11 @@ impl SchedulerData {
   }
 
   pub fn schedule_exec(&mut self, id: &TaskId) {
-    let (l1, l2) = page::position(id.0);
+    let (page_no, rel_task_id) = page::position(id.0);
     unsafe {
-      let l1_ptr = self.l1.get_unchecked_mut(l1).load(Ordering::Acquire);
-      if l1_ptr.is_null() == false {
-        (*l1_ptr).schedule_exec(l2);
+      let page_ptr = self.task_pages.get_unchecked_mut(page_no).load(Ordering::Acquire);
+      if page_ptr.is_null() == false {
+        (*page_ptr).schedule_exec(rel_task_id);
       }
     }
   }
@@ -315,13 +315,13 @@ impl SchedulerData {
     if id.0 >= max {
       return Result::Err(Error::NonExistent);
     }
-    let (l1, l2) = page::position(id.0);
-    let l1_slice = self.l1.as_mut_slice();
-    let l1_ptr = l1_slice[l1].load(Ordering::Acquire);
-    if l1_ptr.is_null() {
+    let (page_no, rel_task_id) = page::position(id.0);
+    let task_pages_slice = self.task_pages.as_mut_slice();
+    let page_ptr = task_pages_slice[page_no].load(Ordering::Acquire);
+    if page_ptr.is_null() {
       return Result::Err(Error::NonExistent);
     }
-    unsafe { Ok((*l1_ptr).schedule_exec(l2)) }
+    unsafe { Ok((*page_ptr).schedule_exec(rel_task_id)) }
   }
 
   pub fn stop(&mut self) {
@@ -345,10 +345,10 @@ pub fn initial_capacity() -> usize {
 
 impl Drop for SchedulerData {
   fn drop(&mut self) {
-    let len = self.l1.len();
-    let l1_slice = self.l1.as_mut_slice();
+    let len = self.task_pages.len();
+    let task_pages_slice = self.task_pages.as_mut_slice();
     for i in 0..len {
-      let l1_atomic_ptr = &mut l1_slice[i];
+      let l1_atomic_ptr = &mut task_pages_slice[i];
       let ptr = l1_atomic_ptr.swap(ptr::null_mut::<page::TaskPage>(), Ordering::AcqRel);
       if ptr.is_null() == false {
         // make sure we drop the pointers

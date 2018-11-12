@@ -53,14 +53,14 @@ impl<InputValueA: Send, InputErrorA: Send,
       None
     } else if ch_id.0 == 0 {
       match &self.input_a_rx {
-        &ChannelWrapper::ConnectedReceiver(ref channel_id, ref _receiver, ref sender_name) => {
+        ChannelWrapper::ConnectedReceiver(ref channel_id, ref _receiver, ref sender_name) => {
           Some((*channel_id, sender_name.clone()))
         },
         _ => None
       }
     } else {
       match &self.input_b_rx {
-        &ChannelWrapper::ConnectedReceiver(ref channel_id, ref _receiver, ref sender_name) => {
+        ChannelWrapper::ConnectedReceiver(ref channel_id, ref _receiver, ref sender_name) => {
           Some((*channel_id, sender_name.clone()))
         },
         _ => None
@@ -79,14 +79,14 @@ impl<InputValueA: Send, InputErrorA: Send,
       0
     } else if ch_id.0 == 0 {
       match &self.input_a_rx {
-        &ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) => {
+        ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) => {
           receiver.seqno()
         },
         _ => 0
       }
     } else {
       match &self.input_b_rx {
-        &ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) => {
+        ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) => {
           receiver.seqno()
         },
         _ => 0

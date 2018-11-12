@@ -34,7 +34,7 @@ impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> I
     if ch_id.0 < self.input_rx_vec.len() {
       let slice = self.input_rx_vec.as_slice();
       match &slice[ch_id.0] {
-        &ChannelWrapper::ConnectedReceiver(ref channel_id, ref _receiver, ref sender_name) => {
+        ChannelWrapper::ConnectedReceiver(ref channel_id, ref _receiver, ref sender_name) => {
           Some((*channel_id, sender_name.clone()))
         },
         _ => None,
@@ -52,7 +52,7 @@ impl<InputValue: Send, InputError: Send, OutputValue: Send, OutputError: Send> I
     if ch_id.0 < self.input_rx_vec.len() {
       let slice = self.input_rx_vec.as_slice();
       match &slice[ch_id.0] {
-        &ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) => {
+        ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) => {
           receiver.seqno()
         },
         _ => 0,

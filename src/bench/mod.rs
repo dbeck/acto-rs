@@ -14,7 +14,7 @@ fn bench_200ms<F>(name: &str, fun: F) where F : FnMut(u64) {
   let mut repeat = 1;
   loop {
     // unrolled loop to reduce the number of timer calls and also amortize
-    // the cost of the initial branch int the for's condition
+    // the cost of the initial branch int the for condition
     for _i in 0..repeat {
       fun(iteration);    fun(iteration+1);  fun(iteration+2);  fun(iteration+3);
       fun(iteration+4);  fun(iteration+5);  fun(iteration+6);  fun(iteration+7);
@@ -36,7 +36,7 @@ fn bench_200ms<F>(name: &str, fun: F) where F : FnMut(u64) {
       iteration += 64;
     }
     diff = start.elapsed();
-    diff_ns = diff.as_secs() * 1000_000_000 + diff.subsec_nanos() as u64;
+    diff_ns = diff.as_secs() * 1_000_000_000 + diff.subsec_nanos() as u64;
     if diff_ns > 200_000_000 {
       break;
     }

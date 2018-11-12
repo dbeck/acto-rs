@@ -20,7 +20,7 @@ fn latency(stop_delay: u32, dummies: usize) {
 pub fn run() {
   for i in 1..10 {
     latency(1,20*i);
-    latency(100000,20*i);
-    latency(5000000,20*i);
+    latency(100_000,20*i);
+    latency(5_000_000,20*i);
   }
 }

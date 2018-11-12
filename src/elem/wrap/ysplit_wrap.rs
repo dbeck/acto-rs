@@ -52,7 +52,7 @@ impl<InputValue: Send,   InputError: Send,
       None
     } else {
       match &self.input_rx {
-        &ChannelWrapper::ConnectedReceiver(ref channel_id, ref _receiver, ref sender_name) => {
+        ChannelWrapper::ConnectedReceiver(ref channel_id, ref _receiver, ref sender_name) => {
           Some((*channel_id, sender_name.clone()))
         },
         _ => None,
@@ -70,7 +70,7 @@ impl<InputValue: Send,   InputError: Send,
 {
   fn get_rx_count(&self, ch_id: ReceiverChannelId) -> usize {
     if ch_id.0 == 0 {
-      if let &ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) = &self.input_rx {
+      if let ChannelWrapper::ConnectedReceiver(ref _channel_id, ref receiver, ref _sender_name) = &self.input_rx {
         receiver.seqno()
       } else {
         0

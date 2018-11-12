@@ -10,40 +10,40 @@ pub fn connect_receiver_to_sender<Value: Send, Error: Send>(rcv : &mut ChannelWr
   use std::mem;
 
   let (channel_id, mut tmp_sender) = match rcv {
-    &mut ChannelWrapper::ReceiverNotConnected(ref mut receiver_channel_id, ref mut receiver_name) => {
+    ChannelWrapper::ReceiverNotConnected(ref mut receiver_channel_id, ref mut receiver_name) => {
       match snd {
-        &mut ChannelWrapper::SenderNotConnected(ref mut sender_channel_id, ref mut _receiver, ref mut _sender_name) => {
+        ChannelWrapper::SenderNotConnected(ref mut sender_channel_id, ref mut _receiver, ref mut _sender_name) => {
           let channel_id = ChannelId{sender_id: *sender_channel_id, receiver_id: *receiver_channel_id};
-          (channel_id, ChannelWrapper::ConnectedSender::<Value, Error>(channel_id.clone(), receiver_name.clone()))
+          (channel_id, ChannelWrapper::ConnectedSender::<Value, Error>(channel_id, receiver_name.clone()))
         },
-        &mut ChannelWrapper::ReceiverNotConnected(..) => {
+        ChannelWrapper::ReceiverNotConnected(..) => {
           return Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::SenderNotConnected),
             ActualChannelState(ChannelState::ReceiverNotConnected)));
         },
-        &mut ChannelWrapper::ConnectedReceiver(..) => {
+        ChannelWrapper::ConnectedReceiver(..) => {
           return Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::SenderNotConnected),
             ActualChannelState(ChannelState::ConnectedReceiver)));
         },
-        &mut ChannelWrapper::ConnectedSender(..) => {
+        ChannelWrapper::ConnectedSender(..) => {
           return Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::SenderNotConnected),
             ActualChannelState(ChannelState::ConnectedSender)));
         },
       }
     },
-    &mut ChannelWrapper::ConnectedReceiver(..) => {
+    ChannelWrapper::ConnectedReceiver(..) => {
       return Err(ActorError::InvalidChannelState(
         ExpectedChannelState(ChannelState::ReceiverNotConnected),
         ActualChannelState(ChannelState::ConnectedReceiver)));
     },
-    &mut ChannelWrapper::ConnectedSender(..) => {
+    ChannelWrapper::ConnectedSender(..) => {
       return Err(ActorError::InvalidChannelState(
         ExpectedChannelState(ChannelState::ReceiverNotConnected),
         ActualChannelState(ChannelState::ConnectedSender)));
     },
-    &mut ChannelWrapper::SenderNotConnected(..) => {
+    ChannelWrapper::SenderNotConnected(..) => {
       return Err(ActorError::InvalidChannelState(
         ExpectedChannelState(ChannelState::ReceiverNotConnected),
         ActualChannelState(ChannelState::SenderNotConnected)));
@@ -84,40 +84,39 @@ pub fn disconnect_receiver_from_sender<Value: Send, Error: Send>(rcv : &mut Chan
   use std::mem;
 
   let mut tmp_receiver = match snd {
-    &mut ChannelWrapper::ConnectedSender(ref mut channel_id_rcv, ref mut receiver_name) => {
+    ChannelWrapper::ConnectedSender(ref mut channel_id_rcv, ref mut receiver_name) => {
       match rcv {
-        &mut ChannelWrapper::ConnectedReceiver(ref mut _channel_id_snd, ref mut _receiver, ref mut _sender_name) => {
+        ChannelWrapper::ConnectedReceiver(ref mut _channel_id_snd, ref mut _receiver, ref mut _sender_name) => {
           ChannelWrapper::ReceiverNotConnected::<Value, Error>(channel_id_rcv.receiver_id,receiver_name.clone())
         },
-        &mut ChannelWrapper::ReceiverNotConnected(..) => {
+        ChannelWrapper::ReceiverNotConnected(..) => {
           return Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::ConnectedReceiver),
             ActualChannelState(ChannelState::ReceiverNotConnected)));
         },
-        &mut ChannelWrapper::ConnectedSender(..) => {
+        ChannelWrapper::ConnectedSender(..) => {
           return Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::ConnectedReceiver),
             ActualChannelState(ChannelState::ConnectedSender)));
         },
-        &mut ChannelWrapper::SenderNotConnected(..) => {
+        ChannelWrapper::SenderNotConnected(..) => {
           return Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::ConnectedReceiver),
             ActualChannelState(ChannelState::SenderNotConnected)));
         },
       }
     },
-    &mut ChannelWrapper::ReceiverNotConnected(..) => {
+    ChannelWrapper::ReceiverNotConnected(..) => {
       return Err(ActorError::InvalidChannelState(
         ExpectedChannelState(ChannelState::ConnectedSender),
         ActualChannelState(ChannelState::ReceiverNotConnected)));
     },
-
-    &mut ChannelWrapper::ConnectedReceiver(..) => {
+    ChannelWrapper::ConnectedReceiver(..) => {
       return Err(ActorError::InvalidChannelState(
         ExpectedChannelState(ChannelState::ConnectedSender),
         ActualChannelState(ChannelState::ConnectedReceiver)));
     },
-    &mut ChannelWrapper::SenderNotConnected(..) => {
+    ChannelWrapper::SenderNotConnected(..) => {
       return Err(ActorError::InvalidChannelState(
         ExpectedChannelState(ChannelState::ConnectedSender),
         ActualChannelState(ChannelState::SenderNotConnected)));
@@ -156,56 +155,56 @@ pub fn connect_to<Value: Send, Error: Send>(me : &mut ChannelWrapper<Value, Erro
     -> Result<(), ActorError>
 {
   match me {
-    &mut ChannelWrapper::ReceiverNotConnected(..) => {
+    ChannelWrapper::ReceiverNotConnected(..) => {
       match to {
-        &mut ChannelWrapper::SenderNotConnected(..) => {
+        ChannelWrapper::SenderNotConnected(..) => {
           connect_receiver_to_sender(me, to)
         },
-        &mut ChannelWrapper::ConnectedSender(..) => {
+        ChannelWrapper::ConnectedSender(..) => {
           Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::SenderNotConnected),
             ActualChannelState(ChannelState::ConnectedSender)))
         },
-        &mut ChannelWrapper::ReceiverNotConnected(..) => {
+        ChannelWrapper::ReceiverNotConnected(..) => {
           Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::SenderNotConnected),
             ActualChannelState(ChannelState::ReceiverNotConnected)))
         },
-        &mut ChannelWrapper::ConnectedReceiver(..) => {
+        ChannelWrapper::ConnectedReceiver(..) => {
           Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::SenderNotConnected),
             ActualChannelState(ChannelState::ConnectedReceiver)))
         }
       }
     },
-    &mut ChannelWrapper::ConnectedReceiver(..) => {
+    ChannelWrapper::ConnectedReceiver(..) => {
       Err(ActorError::InvalidChannelState(
         ExpectedChannelState(ChannelState::ReceiverNotConnected),
         ActualChannelState(ChannelState::ConnectedReceiver)))
     },
-    &mut ChannelWrapper::SenderNotConnected(..) => {
+    ChannelWrapper::SenderNotConnected(..) => {
       match to {
-        &mut ChannelWrapper::ReceiverNotConnected(..) => {
+        ChannelWrapper::ReceiverNotConnected(..) => {
           connect_receiver_to_sender(to, me)
         },
-        &mut ChannelWrapper::ConnectedSender(..) => {
+        ChannelWrapper::ConnectedSender(..) => {
           Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::ReceiverNotConnected),
             ActualChannelState(ChannelState::ConnectedSender)))
         },
-        &mut ChannelWrapper::SenderNotConnected(..) => {
+        ChannelWrapper::SenderNotConnected(..) => {
           Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::ReceiverNotConnected),
             ActualChannelState(ChannelState::SenderNotConnected)))
         },
-        &mut ChannelWrapper::ConnectedReceiver(..) => {
+        ChannelWrapper::ConnectedReceiver(..) => {
           Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::ReceiverNotConnected),
             ActualChannelState(ChannelState::ConnectedReceiver)))
         }
       }
     },
-    &mut ChannelWrapper::ConnectedSender(..) => {
+    ChannelWrapper::ConnectedSender(..) => {
       Err(ActorError::InvalidChannelState(
         ExpectedChannelState(ChannelState::SenderNotConnected),
         ActualChannelState(ChannelState::ConnectedSender)))
@@ -218,56 +217,56 @@ pub fn disconnect_from<Value: Send, Error: Send>(me   : &mut ChannelWrapper<Valu
     -> Result<(), ActorError>
 {
   match me {
-    &mut ChannelWrapper::ConnectedReceiver(..) => {
+    ChannelWrapper::ConnectedReceiver(..) => {
       match from {
-        &mut ChannelWrapper::ConnectedSender(..) => {
+        ChannelWrapper::ConnectedSender(..) => {
           disconnect_receiver_from_sender(me, from)
         },
-        &mut ChannelWrapper::ConnectedReceiver(..) => {
+        ChannelWrapper::ConnectedReceiver(..) => {
           Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::ConnectedSender),
             ActualChannelState(ChannelState::ConnectedReceiver)))
         },
-        &mut ChannelWrapper::ReceiverNotConnected(..) => {
+        ChannelWrapper::ReceiverNotConnected(..) => {
           Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::ConnectedSender),
             ActualChannelState(ChannelState::ReceiverNotConnected)))
         },
-        &mut ChannelWrapper::SenderNotConnected(..) => {
+        ChannelWrapper::SenderNotConnected(..) => {
           Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::ConnectedSender),
             ActualChannelState(ChannelState::SenderNotConnected)))
         }
       }
     },
-    &mut ChannelWrapper::ConnectedSender(..) => {
+    ChannelWrapper::ConnectedSender(..) => {
       match from {
-        &mut ChannelWrapper::ConnectedReceiver(..) => {
+        ChannelWrapper::ConnectedReceiver(..) => {
           disconnect_receiver_from_sender(from, me)
         },
-        &mut ChannelWrapper::ReceiverNotConnected(..) => {
+        ChannelWrapper::ReceiverNotConnected(..) => {
           Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::ConnectedReceiver),
             ActualChannelState(ChannelState::ReceiverNotConnected)))
         },
-        &mut ChannelWrapper::SenderNotConnected(..) => {
+        ChannelWrapper::SenderNotConnected(..) => {
           Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::ConnectedReceiver),
             ActualChannelState(ChannelState::SenderNotConnected)))
         },
-        &mut ChannelWrapper::ConnectedSender(..) => {
+        ChannelWrapper::ConnectedSender(..) => {
           Err(ActorError::InvalidChannelState(
             ExpectedChannelState(ChannelState::ConnectedSender),
             ActualChannelState(ChannelState::SenderNotConnected)))
         }
       }
     },
-    &mut ChannelWrapper::ReceiverNotConnected(..) => {
+    ChannelWrapper::ReceiverNotConnected(..) => {
       Err(ActorError::InvalidChannelState(
         ExpectedChannelState(ChannelState::ConnectedReceiver),
         ActualChannelState(ChannelState::ReceiverNotConnected)))
     },
-    &mut ChannelWrapper::SenderNotConnected(..) => {
+    ChannelWrapper::SenderNotConnected(..) => {
       Err(ActorError::InvalidChannelState(
         ExpectedChannelState(ChannelState::ConnectedSender),
         ActualChannelState(ChannelState::SenderNotConnected)))
