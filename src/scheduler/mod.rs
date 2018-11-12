@@ -1,14 +1,14 @@
 mod task_and_outputs;
 mod task_page;
 mod scheduler_impl;
-mod handle;
+mod scheduler_impl_handle;
 mod thread_private;
 
 use super::{Task, Error, TaskId, SchedulingRule};
 use std::thread::{spawn, JoinHandle};
 
 pub struct Scheduler {
-  data:     handle::SchedulerImplHandle,
+  data:     scheduler_impl_handle::SchedulerImplHandle,
   threads:  Vec<JoinHandle<()>>,
 }
 
@@ -62,7 +62,7 @@ impl Scheduler {
 
   pub fn new() -> Scheduler {
     Scheduler{
-      data:     handle::new(),
+      data:     scheduler_impl_handle::new(),
       threads:  Vec::new(),
     }
   }
