@@ -30,7 +30,7 @@ impl TaskPage {
     let slice = self.data.as_mut_slice();
     let data_ref = &mut slice[idx];
     let old = data_ref.0.swap(Box::into_raw(wrap), Ordering::AcqRel);
-    if old.is_null() == false {
+    if !old.is_null() {
       // make sure we drop old pointers when swapped, although
       // this shouldn't happen since the SchedulerData must take care
       // of atomically increasing indices
@@ -95,11 +95,11 @@ impl TaskPage {
   }
 
   #[inline(always)]
-  pub fn eval(&mut self,
-              l2_max_idx: usize,
-              exec_thread_id: usize,
-              private_data: &mut ThreadPrivate,
-              time_us: &AtomicUsize)
+  pub fn exec_schedule(&mut self,
+                       l2_max_idx: usize,
+                       exec_thread_id: usize,
+                       private_data: &mut ThreadPrivate,
+                       time_us: &AtomicUsize)
   {
     let mut skip    = exec_thread_id;
     let mut l2_idx  = 0;
@@ -204,7 +204,7 @@ impl Drop for TaskPage {
       let data_ref = &mut slice[i];
       let ptr = data_ref.0.swap(
         ptr::null_mut::<task_and_outputs::TaskAndOutputs>(), Ordering::AcqRel);
-      if ptr.is_null() == false {
+      if !ptr.is_null() {
         // make sure we drop the pointers
         let _b = unsafe { Box::from_raw(ptr) };
       }

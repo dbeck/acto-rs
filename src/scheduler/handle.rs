@@ -1,10 +1,10 @@
 
 use std::sync::Arc;
 use std::cell::UnsafeCell;
-use super::data;
+use scheduler::scheduler_impl;
 
 pub struct SchedulerDataHandle {
-  handle: Arc<UnsafeCell<data::SchedulerData>>,
+  handle: Arc<UnsafeCell<scheduler_impl::SchedulerImpl>>,
 }
 
 impl SchedulerDataHandle {
@@ -16,11 +16,11 @@ impl SchedulerDataHandle {
 
   fn new() -> SchedulerDataHandle {
     SchedulerDataHandle{
-      handle: Arc::new(UnsafeCell::new(data::new())),
+      handle: Arc::new(UnsafeCell::new(scheduler_impl::new())),
     }
   }
 
-  pub fn get(&mut self) -> &mut data::SchedulerData {
+  pub fn get(&mut self) -> &mut scheduler_impl::SchedulerImpl {
     unsafe { &mut (*self.handle.get()) }
   }
 }
