@@ -3,7 +3,7 @@ use std::collections::{HashMap};
 use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
 use super::super::{Task, Error, TaskId, ReceiverChannelId,
   ChannelId, SchedulingRule, PeriodLengthInUsec};
-use super::{page, prv};
+use scheduler::{task_page, thread_private};
 use std::sync::{Mutex};
 use std::ptr;
 use std::time::{Instant};
@@ -15,7 +15,7 @@ pub struct SchedulerData {
   // shared between threads
   // everything below has to be thread safe:
   max_id:      AtomicUsize,
-  task_pages:  Vec<AtomicPtr<page::TaskPage>>,
+  task_pages:  Vec<AtomicPtr<task_page::TaskPage>>,
   stop:        AtomicBool,
   time_us:     AtomicUsize,
   ids:         Mutex<HashMap<String, TaskId>>,
@@ -24,7 +24,7 @@ pub struct SchedulerData {
 
 impl SchedulerData {
   fn add_l2_page(&mut self, idx: usize) {
-    let array = Box::new(page::new(idx));
+    let array = Box::new(task_page::new(idx));
     let len = self.task_pages.len();
     if idx >= len-1 {
       // extend slice
@@ -63,7 +63,7 @@ impl SchedulerData {
   fn mark_conditional_task(&mut self,
                            id: TaskId)
   {
-    let (page_no, rel_task_id) = page::position(id.0);
+    let (page_no, rel_task_id) = task_page::position(id.0);
     unsafe {
       let page_ptr = self.task_pages.get_unchecked_mut(page_no).load(Ordering::Acquire);
       if page_ptr.is_null() == false {
@@ -76,7 +76,7 @@ impl SchedulerData {
                         id: TaskId,
                         period: PeriodLengthInUsec)
   {
-    let (page_no, rel_task_id) = page::position(id.0);
+    let (page_no, rel_task_id) = task_page::position(id.0);
     unsafe {
       let page_ptr = self.task_pages.get_unchecked_mut(page_no).load(Ordering::Acquire);
       if page_ptr.is_null() == false {
@@ -106,15 +106,15 @@ impl SchedulerData {
 
   fn register_dependents(&mut self,
                          id: TaskId,
-                         deps: Vec<(ChannelId, TaskId)>)
+                         dependents: Vec<(ChannelId, TaskId)>)
   {
-    if deps.is_empty() { return; }
-    let (page_no, rel_task_id) = page::position(id.0);
+    if dependents.is_empty() { return; }
+    let (page_no, rel_task_id) = task_page::position(id.0);
     unsafe {
       let page_ptr = self.task_pages.get_unchecked_mut(page_no).load(Ordering::Acquire);
       if page_ptr.is_null() == false {
         (*page_ptr).set_dependents_flag(rel_task_id);
-        (*page_ptr).register_dependents(rel_task_id, deps);
+        (*page_ptr).register_dependents(rel_task_id, dependents);
       }
     }
   }
@@ -177,7 +177,7 @@ impl SchedulerData {
       let task_name    = task.name().clone();
       {
         // make sure the next bucket exists when needed
-        let (page_no, rel_task_id) = page::position(task_id.0);
+        let (page_no, rel_task_id) = task_page::position(task_id.0);
         if rel_task_id == 0 {
           self.add_l2_page(page_no+1);
         }
@@ -230,15 +230,15 @@ impl SchedulerData {
 
     let start = Instant::now();
     let mut iter = 0u64;
-    let mut private_data = prv::Private::new();
+    let mut private_data = thread_private::ThreadPrivate::new();
 
-    let l2_max = page::max_idx();
+    let l2_max = task_page::max_idx();
     loop {
 
       let max_id = self.max_id.load(Ordering::Acquire);
       private_data.ensure_size(max_id);
 
-      let (page_no, rel_task_id) = page::position(max_id);
+      let (page_no, rel_task_id) = task_page::position(max_id);
 
       {
         let task_pages_slice = self.task_pages.as_mut_slice();
@@ -298,7 +298,7 @@ impl SchedulerData {
   }
 
   pub fn schedule_exec(&mut self, id: &TaskId) {
-    let (page_no, rel_task_id) = page::position(id.0);
+    let (page_no, rel_task_id) = task_page::position(id.0);
     unsafe {
       let page_ptr = self.task_pages.get_unchecked_mut(page_no).load(Ordering::Acquire);
       if page_ptr.is_null() == false {
@@ -315,7 +315,7 @@ impl SchedulerData {
     if id.0 >= max {
       return Result::Err(Error::NonExistent);
     }
-    let (page_no, rel_task_id) = page::position(id.0);
+    let (page_no, rel_task_id) = task_page::position(id.0);
     let task_pages_slice = self.task_pages.as_mut_slice();
     let page_ptr = task_pages_slice[page_no].load(Ordering::Acquire);
     if page_ptr.is_null() {
@@ -349,7 +349,7 @@ impl Drop for SchedulerData {
     let task_pages_slice = self.task_pages.as_mut_slice();
     for i in 0..len {
       let l1_atomic_ptr = &mut task_pages_slice[i];
-      let ptr = l1_atomic_ptr.swap(ptr::null_mut::<page::TaskPage>(), Ordering::AcqRel);
+      let ptr = l1_atomic_ptr.swap(ptr::null_mut::<task_page::TaskPage>(), Ordering::AcqRel);
       if ptr.is_null() == false {
         // make sure we drop the pointers
         let _b = unsafe { Box::from_raw(ptr) };

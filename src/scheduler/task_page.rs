@@ -1,14 +1,14 @@
 
 use std::sync::atomic::{AtomicPtr, Ordering, AtomicUsize};
 use super::super::{Task, ChannelId, TaskId, PeriodLengthInUsec};
-use super::prv::{Private};
-use super::{wrap};
+use scheduler::thread_private::ThreadPrivate;
+use scheduler::task_and_outputs;
 use std::ptr;
 
 struct ExecFlags (AtomicUsize);
 
 pub struct TaskPage {
-  data:    Vec<(AtomicPtr<wrap::TaskWrap>, ExecFlags, PeriodLengthInUsec)>,
+  data:    Vec<(AtomicPtr<task_and_outputs::TaskAndOutputs>, ExecFlags, PeriodLengthInUsec)>,
 }
 
 pub fn max_idx() -> usize {
@@ -26,7 +26,7 @@ impl TaskPage {
                idx: usize,
                task: Box<Task+Send>)
   {
-    let wrap = Box::new(wrap::new(task));
+    let wrap = Box::new(task_and_outputs::new(task));
     let slice = self.data.as_mut_slice();
     let data_ref = &mut slice[idx];
     let old = data_ref.0.swap(Box::into_raw(wrap), Ordering::AcqRel);
@@ -83,7 +83,7 @@ impl TaskPage {
     let delay_exec : u64 = 0xffffffffffffff << 6;
     let flags = atomic_flags.0.fetch_or(delay_exec as usize, Ordering::Acquire);
     loop {
-      let wrk = data_ref.0.swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
+      let wrk = data_ref.0.swap(ptr::null_mut::<task_and_outputs::TaskAndOutputs>(), Ordering::AcqRel);
       if !wrk.is_null() {
         unsafe { (*wrk).register_dependents(deps); }
         data_ref.0.store(wrk, Ordering::Release);
@@ -98,7 +98,7 @@ impl TaskPage {
   pub fn eval(&mut self,
               l2_max_idx: usize,
               exec_thread_id: usize,
-              private_data: &mut Private,
+              private_data: &mut ThreadPrivate,
               time_us: &AtomicUsize)
   {
     let mut skip    = exec_thread_id;
@@ -113,7 +113,7 @@ impl TaskPage {
       if stopped == 0 {
         let next_execution_at = flags >> 6;
         if next_execution_at <= now {
-          let wrk = act_data.0.swap(ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
+          let wrk = act_data.0.swap(ptr::null_mut::<task_and_outputs::TaskAndOutputs>(), Ordering::AcqRel);
           if !wrk.is_null() {
 
             let mut stop = false;
@@ -126,7 +126,7 @@ impl TaskPage {
             let end = time_us.load(Ordering::Acquire);
 
             if stop {
-              // the task said to be stopped, so set the stop bit 
+              // the task said to be stopped, so set the stop bit
               atomic_flags.fetch_or(16, Ordering::Release);
             } else if flags&32 == 32 {
               // for conditionally executed tasks that:
@@ -203,7 +203,7 @@ impl Drop for TaskPage {
     for i in 0..(1+max_idx()) {
       let data_ref = &mut slice[i];
       let ptr = data_ref.0.swap(
-        ptr::null_mut::<wrap::TaskWrap>(), Ordering::AcqRel);
+        ptr::null_mut::<task_and_outputs::TaskAndOutputs>(), Ordering::AcqRel);
       if ptr.is_null() == false {
         // make sure we drop the pointers
         let _b = unsafe { Box::from_raw(ptr) };

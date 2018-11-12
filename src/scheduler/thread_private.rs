@@ -1,13 +1,13 @@
 
 use super::super::{TaskId};
 
-pub struct Private {
+pub struct ThreadPrivate {
   to_trigger: Vec<TaskId>,
 }
 
-impl Private {
-  pub fn new() -> Private {
-    Private {
+impl ThreadPrivate {
+  pub fn new() -> ThreadPrivate {
+    ThreadPrivate {
       to_trigger: Vec::with_capacity(10),
     }
   }

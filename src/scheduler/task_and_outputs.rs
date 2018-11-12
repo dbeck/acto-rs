@@ -1,17 +1,17 @@
 use super::super::{Task, ChannelPosition, TaskId, SenderChannelId, ChannelId};
-use super::prv::{Private};
+use scheduler::thread_private::ThreadPrivate;
 
-pub struct TaskWrap {
+pub struct TaskAndOutputs {
   task:              Box<Task+Send>,
   output_positions:  Vec<(ChannelPosition, TaskId)>,
 }
 
-impl TaskWrap {
+impl TaskAndOutputs {
   #[inline(always)]
   pub fn execute(&mut self,
                  has_dependents: bool,
                  stop: &mut bool,
-                 private_data: &mut Private)
+                 private_data: &mut ThreadPrivate)
   {
     self.task.execute(stop);
     if has_dependents {
@@ -29,23 +29,23 @@ impl TaskWrap {
   }
 
   pub fn register_dependents(&mut self,
-                             deps: Vec<(ChannelId, TaskId)>)
+                             dependents: Vec<(ChannelId, TaskId)>)
   {
     let n_pos = self.output_positions.len();
     let slice = self.output_positions.as_mut_slice();
-    for dep in deps {
-      let ch_id = dep.0;
+    for dependent in dependents {
+      let ch_id = dependent.0;
       let idx = ch_id.sender_id.0;
       if idx < n_pos {
-        slice[idx].1 = dep.1;
+        slice[idx].1 = dependent.1;
       }
     }
   }
 }
 
-pub fn new(task: Box<Task+Send>) -> TaskWrap {
+pub fn new(task: Box<Task+Send>) -> TaskAndOutputs {
   let n_outputs = task.output_count();
-  TaskWrap{
+  TaskAndOutputs{
     task:              task,
     output_positions:  vec![(ChannelPosition(0), TaskId(0)); n_outputs],
   }

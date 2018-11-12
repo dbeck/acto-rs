@@ -1,8 +1,8 @@
-mod wrap;
-mod page;
+mod task_and_outputs;
+mod task_page;
 mod data;
 mod handle;
-mod prv;
+mod thread_private;
 
 use super::{Task, Error, TaskId, SchedulingRule};
 use std::thread::{spawn, JoinHandle};
