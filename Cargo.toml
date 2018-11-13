@@ -22,10 +22,16 @@ libc = "0.2"
 default = []
 bench = []
 printstats = []
+experiment = []
 
 [[bin]]
 doc = false
-name = "bench"
+name = "bench_200ms"
 test = false
 doctest = false
-path = "src/main.rs"
+
+[[bin]]
+doc = false
+name = "just_wait_and_exit"
+test = false
+doctest = false

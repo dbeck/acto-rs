@@ -25,24 +25,31 @@ impl Scheduler {
     self.start_with_threads(1);
   }
 
-  pub fn notify(&mut self,
-                id: &TaskId)
+  pub fn notify(&mut self, id: &TaskId)
       -> Result<(), Error>
   {
     (*self.data.get()).notify(id)
   }
 
-  pub fn start_with_threads(&mut self,
-                            n_threads: usize)
+  pub fn start_with_threads(&mut self, n_threads: usize)
   {
     if n_threads == 0 {
       return;
     }
 
+    // exec threads that don't care about external events
     for _i in 0..n_threads {
       let mut data_handle = self.data.clone();
       let id = self.threads.len();
-      let t = spawn(move || { data_handle.get().scheduler_thread_entry(id); });
+      let t = spawn(move || { data_handle.get().scheduler_thread_entry(id, false); });
+      self.threads.push(t);
+    }
+
+    // one thread to handle external notifications
+    {
+      let mut data_handle = self.data.clone();
+      let id = self.threads.len();
+      let t = spawn(move || { data_handle.get().scheduler_thread_entry(id, true); });
       self.threads.push(t);
     }
 

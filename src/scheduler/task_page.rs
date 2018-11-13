@@ -134,13 +134,17 @@ impl TaskPage {
               // 2, wait for message
               // -> set exec time to 10s ahead
               // -> add back original flags
-              let new_flags : usize = (end+10_000_000)<<6 | (flags&63);
+              let new_exec_at = end+10_000_000;
+              let new_flags : usize = new_exec_at<<6 | (flags&63);
               atomic_flags.store(new_flags, Ordering::Release);
+              private_data.adjust_wakeup(new_exec_at as u64);
             } else if flags&4 == 4 {
               // flags&4 is the delay flag. the third component of the
               // data/act_data is the delay amount: i.e. i.2
-              let new_flags : usize = (now+(act_data.2).0)<<6 | (flags&63);
+              let new_exec_at = now+(act_data.2).0;
+              let new_flags : usize = new_exec_at<<6 | (flags&63);
               atomic_flags.store(new_flags, Ordering::Release);
+              private_data.adjust_wakeup(new_exec_at as u64);
             }
             now = end;
             act_data.0.store(wrk, Ordering::Release);
@@ -148,6 +152,10 @@ impl TaskPage {
             l2_idx += skip;
             skip += exec_thread_id;
           }
+        } else {
+          // no execution but still store the advice when to
+          // wakeup next
+          private_data.adjust_wakeup(next_execution_at as u64);
         }
       }
       l2_idx += 1;

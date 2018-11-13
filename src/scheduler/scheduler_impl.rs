@@ -4,7 +4,8 @@ use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
 use super::super::{Task, Error, TaskId, ReceiverChannelId,
   ChannelId, SchedulingRule, PeriodLengthInUsec};
 use scheduler::{task_page, thread_private};
-use std::sync::{Mutex};
+use std::sync::{Arc, Mutex, Condvar};
+use std::time::Duration;
 use std::ptr;
 use std::time::{Instant};
 use libc;
@@ -20,6 +21,7 @@ pub struct SchedulerImpl {
   time_us:     AtomicUsize,
   ids:         Mutex<HashMap<String, TaskId>>,
   unresolved:  Mutex<HashMap<String, HashMap<TaskId,Vec<ChannelId>>>>,
+  condvar:     Arc<(Mutex<bool>, Condvar)>,
 }
 
 impl SchedulerImpl {
@@ -47,6 +49,7 @@ impl SchedulerImpl {
       time_us:     AtomicUsize::new(0),
       ids:         Mutex::new(HashMap::new()),
       unresolved:  Mutex::new(HashMap::new()),
+      condvar:     Arc::new((Mutex::new(false), Condvar::new())),
     };
 
     // fill the l1 bucket
@@ -58,6 +61,48 @@ impl SchedulerImpl {
     data.add_l2_page(0);
     data.add_l2_page(1);
     data
+  }
+
+  fn notify_exec(&mut self) {
+    let &(ref lock, ref cvar) = &*self.condvar;
+    let mut started = lock.lock().unwrap();
+    *started = true;
+    cvar.notify_one();
+  }
+
+  fn wait_exec_till(&mut self, end_wait: usize) {
+    let mut now = self.time_us.load(Ordering::Acquire);
+    if now >= end_wait {
+      return;
+    }
+    let mut duration_usec = end_wait - now + 1;
+    let &(ref lock, ref cvar) = &*self.condvar;
+    let mut started = lock.lock().unwrap();
+    loop {
+      let result = cvar.wait_timeout(started, Duration::from_micros(duration_usec as u64)).unwrap();
+      started = result.0;
+      if *started {
+        *started = false;
+        break;
+      }
+      now = self.time_us.load(Ordering::Acquire);
+      if now >= end_wait {
+        // timed out
+        break;
+      } else {
+        // wait till the end of timeout
+        duration_usec = end_wait - now + 1;
+      }
+    }
+  }
+
+  fn sleep_exec_till(&self, end_wait: usize) {
+    let now = self.time_us.load(Ordering::Acquire);
+    if now >= end_wait {
+      return;
+    }
+    let duration_usec = end_wait - now;
+    unsafe { libc::usleep(duration_usec as u32); }
   }
 
   fn mark_conditional_task(&mut self,
@@ -185,8 +230,6 @@ impl SchedulerImpl {
         unsafe {
           let page_ptr = self.task_pages.get_unchecked_mut(page_no).load(Ordering::Acquire);
           if !page_ptr.is_null() {
-            // TODO : store scheduling rule somewhere ????
-            //(*page_ptr).init_info(l2, output_count, rule);
             (*page_ptr).store(rel_task_id, task);
           }
         }
@@ -210,12 +253,13 @@ impl SchedulerImpl {
       }
     }
 
+    self.notify_exec();
     result
   }
 
   pub fn ticker_thread_entry(&mut self) {
     loop {
-      unsafe { libc::usleep(10); }
+      unsafe { libc::usleep(100); }
       let diff = self.start.elapsed();
       let diff_us = diff.as_secs() as usize * 1_000_000 + diff.subsec_nanos() as usize / 1000;
       self.time_us.store(diff_us, Ordering::Release);
@@ -226,26 +270,26 @@ impl SchedulerImpl {
     }
   }
 
-  pub fn scheduler_thread_entry(&mut self, id: usize) {
-
+  pub fn scheduler_thread_entry(&mut self, id: usize, ext_trigger: bool) {
     let start = Instant::now();
     let mut iter = 0u64;
     let mut private_data = thread_private::ThreadPrivate::new();
 
     let l2_max = task_page::max_idx();
     loop {
-
       let max_id = self.max_id.load(Ordering::Acquire);
-      private_data.ensure_size(max_id);
-
       let (page_no, rel_task_id) = task_page::position(max_id);
 
       {
         let task_pages_slice = self.task_pages.as_mut_slice();
 
-        // go through all fully filled l2 buckets
+        // go through all fully filled l2 buckets by default
         let mut l2_max_idx = l2_max;
-        for page_idx in 0..page_no {
+        for page_idx in 0..page_no+1 {
+          if page_idx == page_no {
+            // take care of the last, partially filled bucket
+            l2_max_idx = rel_task_id;
+          }
           let page_ptr = task_pages_slice[page_idx].load(Ordering::Acquire);
           unsafe {
             (*page_ptr).exec_schedule(
@@ -256,43 +300,44 @@ impl SchedulerImpl {
             );
           }
         }
+      }
 
-        // take care of the last, partially filled bucket
-        l2_max_idx = rel_task_id;
-        for page_idx in page_no..(page_no+1) {
-          let page_ptr = task_pages_slice[page_idx].load(Ordering::Acquire);
-          unsafe {
-            (*page_ptr).exec_schedule(
-              l2_max_idx,         // the max ID on the task page
-              id,                 // the ID of the executor thread
-              &mut private_data,  // thread private data
-              &self.time_us       // current time
-            );
-          }
-        }
+      let mut wakeup_at = private_data.get_wakeup() as usize;
+      let now = self.time_us.load(Ordering::Acquire);
+      // wait at most 100ms
+      if wakeup_at > (now + 100_000) {
+        wakeup_at = now + 100_000;
       }
 
       {
         let to_trigger = private_data.to_trigger();
         for t in to_trigger {
           self.schedule_exec(t);
+          // if there is anything to execute then we shouldn't sleep
+          wakeup_at = now;
         }
       }
-      private_data.clear();
 
-      iter += 1;
+      private_data.clear();
 
       // check stop state
       if self.stop.load(Ordering::Acquire) {
         break;
       }
+
+      if ext_trigger {
+        self.wait_exec_till(wakeup_at);
+      } else {
+        self.sleep_exec_till(wakeup_at);
+      }
+
+      iter += 1;
     }
 
     if self.print_stats_enabled() {
       let diff = start.elapsed();
       let diff_ns = diff.as_secs() * 1_000_000_000 + diff.subsec_nanos() as u64;
       let ns_iter = diff_ns/iter;
-
       println!("#{} loop_count: {} {} ns/iter",id,iter,ns_iter);
     }
   }
@@ -316,16 +361,24 @@ impl SchedulerImpl {
       return Result::Err(Error::NonExistent);
     }
     let (page_no, rel_task_id) = task_page::position(id.0);
-    let task_pages_slice = self.task_pages.as_mut_slice();
-    let page_ptr = task_pages_slice[page_no].load(Ordering::Acquire);
-    if page_ptr.is_null() {
-      return Result::Err(Error::NonExistent);
+    let result;
+    {
+      let task_pages_slice = self.task_pages.as_mut_slice();
+      let page_ptr = task_pages_slice[page_no].load(Ordering::Acquire);
+      if page_ptr.is_null() {
+        return Result::Err(Error::NonExistent);
+      }
+      result = unsafe { Ok((*page_ptr).schedule_exec(rel_task_id)) };
     }
-    unsafe { Ok((*page_ptr).schedule_exec(rel_task_id)) }
+    {
+      self.notify_exec();
+    }
+    result
   }
 
   pub fn stop(&mut self) {
     self.stop.store(true, Ordering::Release);
+    self.notify_exec();
   }
 
   #[cfg(any(test,feature = "printstats"))]
