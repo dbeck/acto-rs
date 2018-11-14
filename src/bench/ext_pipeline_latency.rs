@@ -1,9 +1,10 @@
 use super::bench_200ms;
 use super::super::sample::measured_pipeline::MeasuredPipeline;
 use super::spinner::Spinner;
-use libc;
+use std::thread;
+use std::time::Duration;
 
-fn latency(stop_delay: u32, dummies: usize) {
+fn latency(stop_delay: u64, dummies: usize) {
   let spinner = Spinner::new();
   let mut pipe = MeasuredPipeline::new(spinner.get(), dummies);
   pipe.start();
@@ -12,7 +13,7 @@ fn latency(stop_delay: u32, dummies: usize) {
     pipe.notify();
     pipe.wait();
   });
-  unsafe { libc::usleep(stop_delay); }
+  thread::sleep(Duration::from_micros(stop_delay));
   pipe.stop();
   spinner.stop();
 }

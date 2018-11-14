@@ -1,5 +1,4 @@
 extern crate acto_rs as actors;
-extern crate libc;
 
 #[cfg(feature = "experiment")]
 fn main() {
@@ -8,6 +7,8 @@ fn main() {
   use actors::sample::dummy_sink::DummySink;
   use actors::elem::{source, sink};
   use actors::elem::connectable::{Connectable};
+  use std::thread;
+  use std::time::Duration;
 
   let mut sched = Scheduler::new();
   sched.start_with_threads(4);
@@ -27,7 +28,7 @@ fn main() {
 
   println!("wait 30 sec before notify and exit");
   for i in 0..30 {
-    unsafe { libc::usleep(1_000_000); }
+    thread::sleep(Duration::from_secs(1));
     println!("{} ",i);
   }
   sched.notify(&source_id).unwrap();

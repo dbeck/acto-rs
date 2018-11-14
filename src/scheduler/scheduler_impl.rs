@@ -8,14 +8,11 @@ use std::sync::{Mutex};
 use std::time::Duration;
 use std::ptr;
 use std::time::{Instant};
-use libc;
-use std::sync::mpsc::{channel, Sender, Receiver};
+use std::thread;
 
 pub struct SchedulerImpl {
   // ticker only:
   start:       Instant,
-  // ext notif only:
-  notif_channel: (Sender<bool>, Receiver<bool>),
   // shared between threads
   // everything below has to be thread safe:
   max_id:      AtomicUsize,
@@ -44,7 +41,6 @@ impl SchedulerImpl {
     let l1_size = initial_capacity();
     let mut data = SchedulerImpl{
       start:          Instant::now(),
-      notif_channel:  channel(),
       // zero ID is skipped
       max_id:         AtomicUsize::new(1),
       task_pages:     Vec::with_capacity(l1_size),
@@ -63,42 +59,6 @@ impl SchedulerImpl {
     data.add_l2_page(0);
     data.add_l2_page(1);
     data
-  }
-
-  fn notify_exec(&mut self) {
-    if self.notif_channel.0.send(false).is_err() {
-      self.stop.store(true, Ordering::Release);
-    }
-  }
-
-  fn wait_exec_till(&mut self, end_wait: usize) {
-    let mut now = self.time_us.load(Ordering::Acquire);
-    if now >= end_wait {
-      return;
-    }
-    let mut duration_usec = end_wait - now + 1;
-    loop {
-      if self.notif_channel.1.recv_timeout(Duration::from_micros(duration_usec as u64)).is_err() {
-        break;
-      }
-      now = self.time_us.load(Ordering::Acquire);
-      if now >= end_wait {
-        // timed out
-        break;
-      } else {
-        // wait till the end of timeout
-        duration_usec = end_wait - now + 1;
-      }
-    }
-  }
-
-  fn sleep_exec_till(&self, end_wait: usize) {
-    let now = self.time_us.load(Ordering::Acquire);
-    if now >= end_wait {
-      return;
-    }
-    let duration_usec = end_wait - now;
-    unsafe { libc::usleep(duration_usec as u32); }
   }
 
   fn mark_conditional_task(&mut self,
@@ -249,24 +209,30 @@ impl SchedulerImpl {
       }
     }
 
-    self.notify_exec();
     result
   }
 
   pub fn ticker_thread_entry(&mut self) {
+    let mut counter = 0u64;
+    let sleep_us = 200;
     loop {
-      unsafe { libc::usleep(100); }
-      let diff = self.start.elapsed();
-      let diff_us = diff.as_secs() as usize * 1_000_000 + diff.subsec_nanos() as usize / 1000;
-      self.time_us.store(diff_us, Ordering::Release);
+      thread::sleep(Duration::from_micros(sleep_us));
+      if counter%10 == 0 {
+        let diff = self.start.elapsed();
+        let diff_us = diff.as_secs() as usize * 1_000_000 + diff.subsec_micros() as usize;
+        self.time_us.store(diff_us, Ordering::Release);
+      } else {
+        self.time_us.fetch_add(sleep_us as usize, Ordering::Relaxed);
+      }
       // check stop state
       if self.stop.load(Ordering::Acquire) {
         break;
       }
+      counter += 1;
     }
   }
 
-  pub fn scheduler_thread_entry(&mut self, id: usize, ext_trigger: bool) {
+  pub fn scheduler_thread_entry(&mut self, id: usize) {
     let start = Instant::now();
     let mut iter = 0u64;
     let mut private_data = thread_private::ThreadPrivate::new();
@@ -317,16 +283,13 @@ impl SchedulerImpl {
         break;
       }
 
-      if ext_trigger {
-        if wakeup_at > (now + 1_000_000) {
-          wakeup_at = now + 1_000_000;
-        }
-        self.wait_exec_till(wakeup_at);
-      } else {
-        if wakeup_at > (now + 10_000) {
-          wakeup_at = now + 10_000;
-        }
-        self.sleep_exec_till(wakeup_at);
+      if wakeup_at > now {
+        let diff_us = if (wakeup_at - now) > 1_000_000 {
+          1_000_000
+        } else {
+          (wakeup_at - now) as u64
+        };
+        thread::park_timeout(Duration::from_micros(diff_us));
       }
 
       iter += 1;
@@ -368,15 +331,11 @@ impl SchedulerImpl {
       }
       result = unsafe { Ok((*page_ptr).schedule_exec(rel_task_id)) };
     }
-    {
-      self.notify_exec();
-    }
     result
   }
 
   pub fn stop(&mut self) {
     self.stop.store(true, Ordering::Release);
-    self.notify_exec();
   }
 
   #[cfg(any(test,feature = "printstats"))]

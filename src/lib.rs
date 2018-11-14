@@ -1,5 +1,4 @@
 extern crate lossyq;
-extern crate libc;
 
 pub mod scheduler;
 pub mod elem;

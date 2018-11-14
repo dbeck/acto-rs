@@ -13,12 +13,27 @@ pub struct Scheduler {
 }
 
 impl Scheduler {
+  fn notify_one(&mut self, idx: usize) {
+    let n_threads = self.threads.len();
+    if idx < n_threads {
+      self.threads[idx].thread().unpark();
+    }
+  }
+
+  fn notify_all(&mut self) {
+    for t in &self.threads {
+      t.thread().unpark();
+    }
+  }
+
   pub fn add_task(&mut self,
                   task: Box<Task+Send>,
                   rule: SchedulingRule)
     -> Result<TaskId, Error>
   {
-    (*self.data.get()).add_task(task, rule)
+    let result = (*self.data.get()).add_task(task, rule);
+    self.notify_one(0);
+    result
   }
 
   pub fn start(&mut self) {
@@ -28,7 +43,9 @@ impl Scheduler {
   pub fn notify(&mut self, id: &TaskId)
       -> Result<(), Error>
   {
-    (*self.data.get()).notify(id)
+    let result = (*self.data.get()).notify(id);
+    self.notify_one(0);
+    result
   }
 
   pub fn start_with_threads(&mut self, n_threads: usize)
@@ -41,15 +58,7 @@ impl Scheduler {
     for _i in 0..n_threads {
       let mut data_handle = self.data.clone();
       let id = self.threads.len();
-      let t = spawn(move || { data_handle.get().scheduler_thread_entry(id, false); });
-      self.threads.push(t);
-    }
-
-    // one thread to handle external notifications
-    {
-      let mut data_handle = self.data.clone();
-      let id = self.threads.len();
-      let t = spawn(move || { data_handle.get().scheduler_thread_entry(id, true); });
+      let t = spawn(move || { data_handle.get().scheduler_thread_entry(id); });
       self.threads.push(t);
     }
 
@@ -62,6 +71,7 @@ impl Scheduler {
 
   pub fn stop(&mut self) {
     (*self.data.get()).stop();
+    self.notify_all();
     while let Some(t) = self.threads.pop() {
       t.join().unwrap();
     }
