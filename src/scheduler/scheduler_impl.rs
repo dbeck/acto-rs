@@ -4,15 +4,18 @@ use std::sync::atomic::{AtomicUsize, AtomicBool, AtomicPtr, Ordering};
 use super::super::{Task, Error, TaskId, ReceiverChannelId,
   ChannelId, SchedulingRule, PeriodLengthInUsec};
 use scheduler::{task_page, thread_private};
-use std::sync::{Arc, Mutex, Condvar};
+use std::sync::{Mutex};
 use std::time::Duration;
 use std::ptr;
 use std::time::{Instant};
 use libc;
+use std::sync::mpsc::{channel, Sender, Receiver};
 
 pub struct SchedulerImpl {
   // ticker only:
   start:       Instant,
+  // ext notif only:
+  notif_channel: (Sender<bool>, Receiver<bool>),
   // shared between threads
   // everything below has to be thread safe:
   max_id:      AtomicUsize,
@@ -21,7 +24,6 @@ pub struct SchedulerImpl {
   time_us:     AtomicUsize,
   ids:         Mutex<HashMap<String, TaskId>>,
   unresolved:  Mutex<HashMap<String, HashMap<TaskId,Vec<ChannelId>>>>,
-  condvar:     Arc<(Mutex<bool>, Condvar)>,
 }
 
 impl SchedulerImpl {
@@ -41,15 +43,15 @@ impl SchedulerImpl {
   fn new() -> SchedulerImpl {
     let l1_size = initial_capacity();
     let mut data = SchedulerImpl{
-      start:       Instant::now(),
+      start:          Instant::now(),
+      notif_channel:  channel(),
       // zero ID is skipped
-      max_id:      AtomicUsize::new(1),
-      task_pages:  Vec::with_capacity(l1_size),
-      stop:        AtomicBool::new(false),
-      time_us:     AtomicUsize::new(0),
-      ids:         Mutex::new(HashMap::new()),
-      unresolved:  Mutex::new(HashMap::new()),
-      condvar:     Arc::new((Mutex::new(false), Condvar::new())),
+      max_id:         AtomicUsize::new(1),
+      task_pages:     Vec::with_capacity(l1_size),
+      stop:           AtomicBool::new(false),
+      time_us:        AtomicUsize::new(0),
+      ids:            Mutex::new(HashMap::new()),
+      unresolved:     Mutex::new(HashMap::new()),
     };
 
     // fill the l1 bucket
@@ -64,10 +66,9 @@ impl SchedulerImpl {
   }
 
   fn notify_exec(&mut self) {
-    let &(ref lock, ref cvar) = &*self.condvar;
-    let mut started = lock.lock().unwrap();
-    *started = true;
-    cvar.notify_one();
+    if self.notif_channel.0.send(false).is_err() {
+      self.stop.store(true, Ordering::Release);
+    }
   }
 
   fn wait_exec_till(&mut self, end_wait: usize) {
@@ -76,13 +77,8 @@ impl SchedulerImpl {
       return;
     }
     let mut duration_usec = end_wait - now + 1;
-    let &(ref lock, ref cvar) = &*self.condvar;
-    let mut started = lock.lock().unwrap();
     loop {
-      let result = cvar.wait_timeout(started, Duration::from_micros(duration_usec as u64)).unwrap();
-      started = result.0;
-      if *started {
-        *started = false;
+      if self.notif_channel.1.recv_timeout(Duration::from_micros(duration_usec as u64)).is_err() {
         break;
       }
       now = self.time_us.load(Ordering::Acquire);
@@ -304,10 +300,6 @@ impl SchedulerImpl {
 
       let mut wakeup_at = private_data.get_wakeup() as usize;
       let now = self.time_us.load(Ordering::Acquire);
-      // wait at most 100ms
-      if wakeup_at > (now + 100_000) {
-        wakeup_at = now + 100_000;
-      }
 
       {
         let to_trigger = private_data.to_trigger();
@@ -326,8 +318,14 @@ impl SchedulerImpl {
       }
 
       if ext_trigger {
+        if wakeup_at > (now + 1_000_000) {
+          wakeup_at = now + 1_000_000;
+        }
         self.wait_exec_till(wakeup_at);
       } else {
+        if wakeup_at > (now + 10_000) {
+          wakeup_at = now + 10_000;
+        }
         self.sleep_exec_till(wakeup_at);
       }
 

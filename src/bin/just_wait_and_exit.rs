@@ -28,7 +28,7 @@ fn main() {
   println!("wait 30 sec before notify and exit");
   for i in 0..30 {
     unsafe { libc::usleep(1_000_000); }
-    print!("{} ",i);
+    println!("{} ",i);
   }
   sched.notify(&source_id).unwrap();
   sched.stop();
