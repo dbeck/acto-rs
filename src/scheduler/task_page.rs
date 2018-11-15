@@ -6,9 +6,20 @@ use scheduler::task_and_outputs;
 use std::ptr;
 
 struct ExecFlags (AtomicUsize);
+struct TaskFlagsPeriod (AtomicPtr<task_and_outputs::TaskAndOutputs>, ExecFlags, PeriodLengthInUsec);
+
+impl Default for TaskFlagsPeriod {
+  fn default() -> Self {
+    TaskFlagsPeriod (
+      AtomicPtr::default(),
+      ExecFlags(AtomicUsize::new(16)),
+      PeriodLengthInUsec(0)
+    )
+  }
+}
 
 pub struct TaskPage {
-  data:    Vec<(AtomicPtr<task_and_outputs::TaskAndOutputs>, ExecFlags, PeriodLengthInUsec)>,
+  data: [TaskFlagsPeriod; 4096],
 }
 
 pub fn max_idx() -> usize {
@@ -27,8 +38,7 @@ impl TaskPage {
                task: Box<Task+Send>)
   {
     let wrap = Box::new(task_and_outputs::new(task));
-    let slice = self.data.as_mut_slice();
-    let data_ref = &mut slice[idx];
+    let data_ref = &mut self.data[idx];
     let old = data_ref.0.swap(Box::into_raw(wrap), Ordering::AcqRel);
     if !old.is_null() {
       // make sure we drop old pointers when swapped, although
@@ -41,27 +51,23 @@ impl TaskPage {
   }
 
   pub fn set_dependents_flag(&mut self, idx: usize) {
-    let slice = self.data.as_mut_slice();
-    let data_ref = &mut slice[idx];
+    let data_ref = &mut self.data[idx];
     (data_ref.1).0.fetch_or(1, Ordering::Release);
   }
 
   pub fn set_delayed_exec(&mut self, idx: usize, period: PeriodLengthInUsec) {
-    let slice = self.data.as_mut_slice();
-    let data_ref = &mut slice[idx];
+    let data_ref = &mut self.data[idx];
     (data_ref.1).0.fetch_or(4, Ordering::Release);
     data_ref.2 = period;
   }
 
   pub fn set_conditional_exec_flag(&mut self, idx: usize) {
-    let slice = self.data.as_mut_slice();
-    let data_ref = &mut slice[idx];
+    let data_ref = &mut self.data[idx];
     (data_ref.1).0.fetch_or(32, Ordering::Release);
   }
 
   pub fn schedule_exec(&mut self, idx: usize) {
-    let slice = self.data.as_mut_slice();
-    let data_ref = &mut slice[idx];
+    let data_ref = &mut self.data[idx];
     // clear exec time
     (data_ref.1).0.fetch_and(63, Ordering::Acquire);
   }
@@ -75,17 +81,16 @@ impl TaskPage {
 
   pub fn register_dependents(&mut self,
                              idx: usize,
-                             deps: Vec<(ChannelId, TaskId)>)
+                             dependents: Vec<(ChannelId, TaskId)>)
   {
-    let slice = self.data.as_mut_slice();
-    let data_ref = &mut slice[idx];
+    let data_ref = &mut self.data[idx];
     let atomic_flags = &mut data_ref.1;
-    let delay_exec : u64 = 0xffffffffffffff << 6;
+    let delay_exec : u64 = 0xff_ffff_ffff_ffff << 6;
     let flags = atomic_flags.0.fetch_or(delay_exec as usize, Ordering::Acquire);
     loop {
       let wrk = data_ref.0.swap(ptr::null_mut::<task_and_outputs::TaskAndOutputs>(), Ordering::AcqRel);
       if !wrk.is_null() {
-        unsafe { (*wrk).register_dependents(deps); }
+        unsafe { (*wrk).register_dependents(dependents); }
         data_ref.0.store(wrk, Ordering::Release);
         atomic_flags.0.store(flags, Ordering::Release);
         break;
@@ -102,11 +107,12 @@ impl TaskPage {
                        time_us: &AtomicUsize)
   {
     let mut skip    = exec_thread_id;
-    let mut l2_idx  = 0;
     let mut now     = time_us.load(Ordering::Acquire);
+    let mut l2_idx  = 0;
 
-    for act_data in &mut self.data {
+    loop {
       if l2_idx >= l2_max_idx { break; }
+      let act_data = &mut self.data[l2_idx];
       let flags = (act_data.1).0.load(Ordering::Acquire);
       let stopped = flags&16;
       // execute if not stopped and time is OK
@@ -190,26 +196,25 @@ impl TaskPage {
 }
 
 pub fn new(_id: usize) -> TaskPage {
-  let sz               = max_idx()+1;
-  let mut data         = Vec::with_capacity(sz);
-
-  for _i in 0..sz {
-    // default flag is stopped: 16
-    let f = ExecFlags(AtomicUsize::new(16));
-    data.push( (AtomicPtr::default(), f, PeriodLengthInUsec(0)) );
-  }
-
+  use std::mem;
+  use std::ptr;
+  let data = unsafe {
+    let mut tmp : [TaskFlagsPeriod; 4096] = mem::uninitialized();
+    for (_i, place) in tmp.iter_mut().enumerate() {
+      ptr::write(place, TaskFlagsPeriod::default());
+    }
+    tmp
+  };
   TaskPage{
-    data:   data,
+    data: data,
   }
 }
 
 impl Drop for TaskPage {
   fn drop(&mut self) {
     self.print_stats();
-    let slice = self.data.as_mut_slice();
-    for i in 0..(1+max_idx()) {
-      let data_ref = &mut slice[i];
+    for i in 0..4096 {
+      let data_ref = &mut self.data[i];
       let ptr = data_ref.0.swap(
         ptr::null_mut::<task_and_outputs::TaskAndOutputs>(), Ordering::AcqRel);
       if !ptr.is_null() {
